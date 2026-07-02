@@ -383,6 +383,11 @@ a{color:inherit; text-decoration:none;}
   background:linear-gradient(180deg, rgba(0,0,0,.85), transparent); transition:opacity .4s ease;
 }
 .player-title{font-size:15px; font-weight:800; font-family:var(--display-font);}
+.live-badge{
+  display:inline-flex; align-items:center; background:#ff4757; color:#fff; font-size:10px; font-weight:800;
+  letter-spacing:.04em; padding:2px 7px; border-radius:4px; margin-right:2px; animation:liveBlink 1.8s ease-in-out infinite;
+}
+@keyframes liveBlink{0%,100%{opacity:1;} 50%{opacity:.55;}}
 .player-sub{font-size:12px; color:#8fa5a3; margin-top:2px;}
 .player-stage{flex:1; position:relative; background:#000;}
 .player-stage iframe, .player-stage video{width:100%; height:100%; border:0; display:block;}
@@ -427,6 +432,29 @@ a{color:inherit; text-decoration:none;}
 .collection-card h4{font-size:16px; font-weight:800; margin-bottom:4px;}
 .collection-card span{font-size:12px; color:var(--muted);}
 .collection-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:16px;}
+
+.channel-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px;}
+.channel-card{
+  position:relative; background:var(--surface); border:1px solid #1a1d26; border-radius:12px; padding:14px;
+  display:flex; align-items:center; gap:14px; cursor:pointer;
+  transition:transform var(--transition), background var(--transition), border-color var(--transition);
+}
+.channel-card:hover{transform:translateY(-2px); background:#141721; border-color:rgba(61,219,217,.3);}
+.channel-logo{
+  width:52px; height:52px; border-radius:10px; overflow:hidden; background:var(--surface2);
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+}
+.channel-logo img{width:100%; height:100%; object-fit:contain;}
+.channel-logo .poster-fallback{font-size:20px; border-radius:10px;}
+.channel-info{flex:1; min-width:0;}
+.channel-name{font-weight:800; font-size:14px; margin-bottom:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.channel-cat{font-size:11px; color:var(--muted);}
+.channel-live-dot{width:8px; height:8px; border-radius:50%; background:#ff4757; box-shadow:0 0 8px rgba(255,71,87,.6); flex-shrink:0; animation:liveBlink 1.8s ease-in-out infinite;}
+.channel-card .btn-icon{width:30px; height:30px; flex-shrink:0;}
+.channel-card .btn-icon svg{width:13px; height:13px;}
+@media (max-width:860px){
+  .channel-grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr));}
+}
 
 /* ---------- Settings ---------- */
 .settings-section{background:var(--surface); border:1px solid #1a1d26; border-radius:12px; padding:22px; margin-bottom:18px; max-width:560px;}
@@ -507,6 +535,7 @@ const ICON = {
   tv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="m8 2 4 4 4-4M8 20h8"/></svg>',
   chevronLeft:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>',
   chevronRight:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>',
+  antenna:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10a8 8 0 0 1 16 0"/><path d="M7 10a5 5 0 0 1 10 0"/><circle cx="12" cy="10" r="1.5" fill="currentColor" stroke="none"/><path d="M12 11.5V21M9 21h6"/></svg>',
 };
 
 /* =========================================================
@@ -518,12 +547,13 @@ const SET_KEY = 'sv_settings';
 function loadLib(){
   try{
     const raw = localStorage.getItem(LIB_KEY);
-    if(!raw) return {items:[], collections:[]};
+    if(!raw) return {items:[], collections:[], channels:[]};
     const d = JSON.parse(raw);
     if(!d.items) d.items = [];
     if(!d.collections) d.collections = [];
+    if(!d.channels) d.channels = [];
     return d;
-  }catch(e){ return {items:[], collections:[]}; }
+  }catch(e){ return {items:[], collections:[], channels:[]}; }
 }
 function saveLib(){ localStorage.setItem(LIB_KEY, JSON.stringify(state.lib)); }
 function loadSettings(){
@@ -543,6 +573,7 @@ const state = {
   route: 'home',
   routeParam: null,
   library: { filter:'all', search:'', sort:'recent' },
+  liveTv: { category:'all', search:'' },
   detailSeason: 0,
   editingId: null,
   editType: 'movie',
@@ -567,6 +598,7 @@ function toast(msg){
   toast._t = setTimeout(()=>t.classList.remove('show'), 2400);
 }
 function getItem(id){ return state.lib.items.find(i=>i.id===id); }
+function getChannel(id){ return (state.lib.channels||[]).find(c=>c.id===id); }
 function allGenres(){
   const set = new Set();
   state.lib.items.forEach(i=> (i.genre||[]).forEach(g=>set.add(g)));
@@ -632,6 +664,7 @@ const NAV_ITEMS = [
   {id:'home', label:'Home', icon:'home'},
   {id:'movies', label:'Movies', icon:'movie'},
   {id:'series', label:'TV Shows', icon:'tv'},
+  {id:'live', label:'Live TV', icon:'antenna'},
   {id:'library', label:'Library', icon:'library'},
   {id:'collections', label:'Collections', icon:'collections'},
   {id:'settings', label:'Settings', icon:'settings'},
@@ -650,10 +683,12 @@ function renderShell(){
   `;
   document.getElementById('bottomNav').innerHTML = navHtml;
 
-  const titles = {home:'Home', movies:'Movies', series:'TV Shows', library:'Library', collections:'Collections', settings:'Settings'};
+  const titles = {home:'Home', movies:'Movies', series:'TV Shows', live:'Live TV', library:'Library', collections:'Collections', settings:'Settings'};
   let topActions = `<button class="btn-icon" id="searchToggleBtn" title="Search" onclick="toggleGlobalSearch()">${ICON.search}</button>`;
   if(['library','home','movies','series'].includes(state.route)){
     topActions += `<button class="btn btn-primary" onclick="openEditModal()">${ICON.plus} Add Title</button>`;
+  } else if(state.route==='live'){
+    topActions += `<button class="btn btn-primary" onclick="openChannelModal()">${ICON.plus} Add Channel</button>`;
   }
   document.getElementById('topbar').innerHTML = `
     <h1>${titles[state.route] || ''}</h1>
@@ -681,6 +716,7 @@ function router(){
     case 'library': root.innerHTML = renderLibrary(); break;
     case 'movies': root.innerHTML = renderTypePage('movie'); break;
     case 'series': root.innerHTML = renderTypePage('series'); break;
+    case 'live': root.innerHTML = renderLiveTV(); break;
     case 'collections': root.innerHTML = renderCollections(param); break;
     case 'settings': root.innerHTML = renderSettings(); break;
     case 'detail': root.innerHTML = renderDetail(param); break;
@@ -866,22 +902,34 @@ function renderGlobalSearchResults(){
   const box = document.getElementById('globalSearchResults');
   if(!box) return;
   if(!q){ box.innerHTML=''; box.classList.remove('show'); return; }
-  const matches = state.lib.items.filter(i=> i.title.toLowerCase().includes(q)).slice(0,8);
-  if(!matches.length){
+  const itemMatches = state.lib.items.filter(i=> i.title.toLowerCase().includes(q)).slice(0,6);
+  const channelMatches = (state.lib.channels||[]).filter(c=> c.name.toLowerCase().includes(q)).slice(0,4);
+  if(!itemMatches.length && !channelMatches.length){
     box.innerHTML = `<div class="gsr-empty">No matches for "${esc(q)}"</div>`;
     box.classList.add('show');
     return;
   }
-  box.innerHTML = matches.map(i=>`
+  box.innerHTML =
+    itemMatches.map(i=>`
     <div class="gsr-item" onclick="goToSearchResult('${i.id}')">
       <div class="gsr-poster">${posterEl(i)}</div>
       <div><div class="gsr-title">${esc(i.title)}</div><div class="gsr-meta">${i.type==='series'?'Series':'Movie'}${i.year?' · '+esc(i.year):''}</div></div>
+    </div>`).join('') +
+    channelMatches.map(c=>`
+    <div class="gsr-item" onclick="goToChannelResult('${c.id}')">
+      <div class="gsr-poster">${c.logo?`<img src="${esc(c.logo)}" alt="" style="object-fit:contain;">`:fallbackHtml(c.name)}</div>
+      <div><div class="gsr-title">${esc(c.name)}</div><div class="gsr-meta"><span class="channel-live-dot" style="display:inline-block; margin-right:5px; vertical-align:middle;"></span>Live · ${esc(c.category||'General')}</div></div>
     </div>`).join('');
   box.classList.add('show');
 }
 function goToSearchResult(id){
   toggleGlobalSearch();
   location.hash = 'detail/'+id;
+}
+function goToChannelResult(id){
+  toggleGlobalSearch();
+  if(state.route!=='live'){ location.hash = 'live'; setTimeout(()=>playChannel(id), 80); }
+  else playChannel(id);
 }
 document.addEventListener('click', e=>{
   if(!state.globalSearchOpen) return;
@@ -894,12 +942,14 @@ document.addEventListener('click', e=>{
   toggleGlobalSearch();
 });
 
-function emptyState(title, sub){
+function emptyState(title, sub, btnLabel, btnOnclick){
+  btnLabel = btnLabel || 'Add Title';
+  btnOnclick = btnOnclick || 'openEditModal()';
   return `<div class="empty-state">
     <div class="empty-icon">${ICON.library}</div>
     <h3>${esc(title)}</h3>
     <p>${esc(sub)}</p>
-    <button class="btn btn-primary" onclick="openEditModal()">${ICON.plus} Add Title</button>
+    <button class="btn btn-primary" onclick="${btnOnclick}">${ICON.plus} ${esc(btnLabel)}</button>
   </div>`;
 }
 
@@ -1015,6 +1065,123 @@ function toggleItemInCollection(colId, itemId){
   const idx = col.itemIds.indexOf(itemId);
   if(idx>-1) col.itemIds.splice(idx,1); else col.itemIds.push(itemId);
   saveLib();
+}
+
+/* =========================================================
+   LIVE TV
+========================================================= */
+function renderLiveTV(){
+  const channels = state.lib.channels || [];
+  if(!channels.length){
+    return `<div class="page">${emptyState('No channels yet','Add a live TV channel using an embed/iframe URL to start streaming.','Add Channel','openChannelModal()')}</div>`;
+  }
+  const st = state.liveTv;
+  const cats = ['all', ...new Set(channels.map(c=>c.category||'General'))];
+  let list = [...channels];
+  if(st.category!=='all') list = list.filter(c=>(c.category||'General')===st.category);
+  if(st.search) list = list.filter(c=>c.name.toLowerCase().includes(st.search.toLowerCase()));
+  list.sort((a,b)=>a.name.localeCompare(b.name));
+
+  return `
+    <div class="page">
+      <div class="filter-bar">
+        ${cats.map(c=>`<button class="chip-btn ${st.category===c?'active':''}" onclick="setLiveTvCategory('${esc(c).replace(/'/g,"\\'")}')">${c==='all'?'All Channels':esc(c)}</button>`).join('')}
+        <input class="search-input" placeholder="Search channels..." value="${esc(st.search)}" oninput="setLiveTvSearch(this.value)">
+      </div>
+      ${list.length ? `<div class="channel-grid">${list.map(channelCardHtml).join('')}</div>` : emptyState('No channels found','Try a different search or category.','Add Channel','openChannelModal()')}
+    </div>`;
+}
+function channelCardHtml(c){
+  return `
+    <div class="channel-card" onclick="playChannel('${c.id}')">
+      <div class="channel-logo">${c.logo ? `<img src="${esc(c.logo)}" alt="" onerror="this.parentElement.innerHTML=fallbackHtml('${esc(c.name).replace(/'/g,"&#39;")}')">` : fallbackHtml(c.name)}</div>
+      <div class="channel-info">
+        <div class="channel-name">${esc(c.name)}</div>
+        <div class="channel-cat">${esc(c.category||'General')}</div>
+      </div>
+      <span class="channel-live-dot" title="Live"></span>
+      <button type="button" class="btn-icon" title="Edit" onclick="event.stopPropagation(); openChannelModal('${c.id}')">${ICON.edit}</button>
+      <button type="button" class="btn-icon" title="Delete" style="color:#ff8b93; border-color:#3a1a1e;" onclick="event.stopPropagation(); deleteChannel('${c.id}')">${ICON.trash}</button>
+    </div>`;
+}
+function setLiveTvCategory(c){ state.liveTv.category=c; document.getElementById('pageRoot').innerHTML = renderLiveTV(); }
+function setLiveTvSearch(v){
+  state.liveTv.search=v;
+  document.getElementById('pageRoot').innerHTML = renderLiveTV();
+  const el = document.querySelector('.search-input');
+  if(el){ el.focus(); el.selectionStart = el.selectionEnd = el.value.length; }
+}
+
+function openChannelModal(id){
+  state.editingChannelId = id || null;
+  const ch = id ? getChannel(id) : null;
+  state.editChannelSources = ch ? JSON.parse(JSON.stringify(ch.sources||[{label:'',url:''}])) : [{label:'',url:''}];
+  if(!state.editChannelSources.length) state.editChannelSources = [{label:'',url:''}];
+  renderChannelModal(ch);
+}
+function renderChannelModal(ch){
+  openModal(`
+    <div class="modal-head"><h2>${ch?'Edit Channel':'Add Channel'}</h2><button class="btn-icon" onclick="closeModal()">${ICON.close}</button></div>
+    <div class="field-row">
+      <div class="field" style="flex:2"><label>Channel Name</label><input id="ch_name" value="${esc(ch?.name||'')}" placeholder="e.g. ABC"></div>
+      <div class="field"><label>Category</label><input id="ch_category" value="${esc(ch?.category||'')}" placeholder="News, Sports, Entertainment..."></div>
+    </div>
+    <div class="field"><label>Logo URL</label><input id="ch_logo" value="${esc(ch?.logo||'')}" placeholder="https://..."></div>
+    <div class="field">
+      <label>Stream Sources</label>
+      <div id="channelSourcesEditor">${channelSourcesInnerHtml()}</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveChannelModal()">${ch?'Save Changes':'Add Channel'}</button>
+    </div>
+  `);
+}
+function channelSourcesInnerHtml(){
+  return `
+    ${state.editChannelSources.map((s,i)=>`
+      <div class="source-row">
+        <input placeholder="Label (e.g. Main)" value="${esc(s.label)}" oninput="state.editChannelSources[${i}].label=this.value">
+        <input placeholder="https://... (embed/iframe URL)" value="${esc(s.url)}" oninput="state.editChannelSources[${i}].url=this.value">
+        <button type="button" class="rm" onclick="removeChannelSource(${i})">${ICON.close}</button>
+      </div>`).join('')}
+    <button type="button" class="btn btn-ghost" onclick="addChannelSource()">${ICON.plus} Add Source</button>
+    <div class="field-hint">Paste the embed/iframe URL from your live TV widget (the "src" of the iframe). Add multiple as fallbacks in case one goes down.</div>`;
+}
+function addChannelSource(){
+  state.editChannelSources.push({label:'',url:''});
+  document.getElementById('channelSourcesEditor').innerHTML = channelSourcesInnerHtml();
+}
+function removeChannelSource(i){
+  state.editChannelSources.splice(i,1);
+  if(!state.editChannelSources.length) state.editChannelSources.push({label:'',url:''});
+  document.getElementById('channelSourcesEditor').innerHTML = channelSourcesInnerHtml();
+}
+function saveChannelModal(){
+  const name = document.getElementById('ch_name').value.trim();
+  if(!name){ toast('Channel name is required'); return; }
+  const sources = state.editChannelSources.filter(s=>s.url.trim()).map(s=>({label:s.label.trim()||'Source', url:s.url.trim()}));
+  if(!sources.length){ toast('Add at least one stream URL'); return; }
+  const payload = {
+    name,
+    category: document.getElementById('ch_category').value.trim() || 'General',
+    logo: document.getElementById('ch_logo').value.trim(),
+    sources,
+  };
+  state.lib.channels = state.lib.channels || [];
+  if(state.editingChannelId){
+    const ch = getChannel(state.editingChannelId);
+    Object.assign(ch, payload);
+  } else {
+    state.lib.channels.push({id:uuid(), dateAdded:new Date().toISOString(), ...payload});
+  }
+  saveLib(); closeModal(); router();
+  toast(state.editingChannelId ? 'Channel saved' : 'Channel added');
+}
+function deleteChannel(id){
+  if(!confirm('Delete this channel?')) return;
+  state.lib.channels = (state.lib.channels||[]).filter(c=>c.id!==id);
+  saveLib(); router(); toast('Channel deleted');
 }
 
 /* =========================================================
@@ -1193,7 +1360,7 @@ function importLibrary(file){
     try{
       const data = JSON.parse(e.target.result);
       if(!data.items) throw new Error('invalid');
-      state.lib = {items:data.items||[], collections:data.collections||[]};
+      state.lib = {items:data.items||[], collections:data.collections||[], channels:data.channels||[]};
       saveLib(); router(); toast('Library imported');
     }catch(err){ toast('Invalid library file'); }
   };
@@ -1202,7 +1369,7 @@ function importLibrary(file){
 function clearAllData(){
   if(!confirm('This will permanently delete your entire library. Continue?')) return;
   if(!confirm('Are you absolutely sure? This cannot be undone.')) return;
-  state.lib = {items:[], collections:[]};
+  state.lib = {items:[], collections:[], channels:[]};
   saveLib(); location.hash='home'; toast('All data cleared');
 }
 
@@ -1613,13 +1780,26 @@ function openPlayer(item, seasonNum, epNum, sources){
   renderPlayer();
   document.getElementById('playerOverlay').classList.add('open');
 }
+function playChannel(id){
+  const ch = getChannel(id);
+  if(!ch || !ch.sources || !ch.sources.length){ toast('No stream sources available'); return; }
+  state.player = {
+    isLive:true, channelId:id, sources:ch.sources, sourceIdx:0,
+    subtitle: ch.category || 'General',
+    title: ch.name,
+  };
+  renderPlayer();
+  document.getElementById('playerOverlay').classList.add('open');
+}
 function renderPlayer(){
   const p = state.player;
-  const item = getItem(p.itemId);
+  const isLive = !!p.isLive;
+  const item = isLive ? null : getItem(p.itemId);
+  const titleText = isLive ? p.title : item.title;
   const src = p.sources[p.sourceIdx];
   const embed = detectEmbed(src.url);
   const overlay = document.getElementById('playerOverlay');
-  const next = getNextEpisode(item, p.seasonNum, p.epNum);
+  const next = isLive ? null : getNextEpisode(item, p.seasonNum, p.epNum);
 
   let stageHtml = '';
   if(embed.kind==='video'){
@@ -1635,7 +1815,7 @@ function renderPlayer(){
   overlay.innerHTML = `
     <div class="player-top">
       <div>
-        <div class="player-title">${esc(item.title)}</div>
+        <div class="player-title">${isLive?'<span class="live-badge">● LIVE</span> ':''}${esc(titleText)}</div>
         <div class="player-sub">${esc(p.subtitle)} ${src.label?'· '+esc(src.label):''}</div>
       </div>
       <button class="btn-icon" onclick="closePlayer()">${ICON.close}</button>
@@ -1649,6 +1829,8 @@ function renderPlayer(){
     ${p.sources.length>1 ? `<div class="player-bottom"><button class="btn btn-ghost" onclick="tryNextSource()">Try Next Source</button></div>` : ''}
   `;
   scheduleHideControls();
+
+  if(isLive) return; // no progress tracking / watch timers for live channels
 
   if(embed.kind==='video'){
     const vid = document.getElementById('playerVideoEl');
