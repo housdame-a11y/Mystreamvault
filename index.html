@@ -217,12 +217,12 @@ a{color:inherit; text-decoration:none;}
 .card-badge{
   position:absolute; top:9px; left:9px; background:rgba(8,9,13,.8); backdrop-filter:blur(4px);
   color:var(--highlight); font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.06em;
-  padding:3px 8px; border-radius:20px; border:1px solid rgba(61,219,217,.25);
+  padding:3px 8px; border-radius:20px; border:1px solid rgba(61,219,217,.25); z-index:2;
 }
 .card-new{
   position:absolute; top:9px; right:9px; background:var(--highlight); color:#04211f;
   font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.06em;
-  padding:3px 8px; border-radius:20px; box-shadow:0 2px 10px rgba(61,219,217,.4);
+  padding:3px 8px; border-radius:20px; box-shadow:0 2px 10px rgba(61,219,217,.4); z-index:2;
 }
 .card-remove{
   position:absolute; top:9px; right:9px; width:24px; height:24px; border-radius:50%;
@@ -233,10 +233,20 @@ a{color:inherit; text-decoration:none;}
 .card-remove svg{width:11px; height:11px;}
 .card:hover .card-remove{opacity:1;}
 .card-remove:hover{background:#3a1218; border-color:#4d1a20; color:#ff8b93;}
-.card-progress{position:absolute; left:0; right:0; bottom:0; height:4px; background:rgba(255,255,255,.15);}
+.card-progress{position:absolute; left:0; right:0; bottom:0; height:4px; background:rgba(255,255,255,.15); z-index:2;}
 .card-progress > div{height:100%; background:linear-gradient(90deg, var(--highlight), #2bc4c1);}
+.card-trailer{position:absolute; inset:0; z-index:1; background:#000; opacity:0; animation:cardTrailerFadeIn .5s ease forwards;}
+@keyframes cardTrailerFadeIn{from{opacity:0;} to{opacity:1;}}
+.card-trailer iframe{width:100%; height:100%; border:0; pointer-events:none; transform:scale(1.35); transform-origin:center;}
+.card-trailer-mute{
+  position:absolute; bottom:9px; right:9px; z-index:2; width:24px; height:24px; border-radius:50%;
+  background:rgba(8,9,13,.8); border:1px solid rgba(255,255,255,.2); color:#fff; display:flex; align-items:center; justify-content:center;
+  pointer-events:auto; transition:background var(--transition);
+}
+.card-trailer-mute:hover{background:rgba(8,9,13,1);}
+.card-trailer-mute svg{width:11px; height:11px;}
 .card-overlay{
-  position:absolute; inset:0; opacity:0; transition:opacity var(--transition);
+  position:absolute; inset:0; opacity:0; transition:opacity var(--transition); z-index:3;
   background:linear-gradient(0deg, rgba(5,6,9,.97) 8%, rgba(5,6,9,.25) 58%, transparent 100%);
   display:flex; flex-direction:column; justify-content:flex-end; padding:13px;
 }
@@ -571,6 +581,8 @@ const ICON = {
   chevronRight:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>',
   antenna:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10a8 8 0 0 1 16 0"/><path d="M7 10a5 5 0 0 1 10 0"/><circle cx="12" cy="10" r="1.5" fill="currentColor" stroke="none"/><path d="M12 11.5V21M9 21h6"/></svg>',
   expand:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/></svg>',
+  volumeOff:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="m23 9-6 6M17 9l6 6"/></svg>',
+  volumeOn:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>',
 };
 
 /* =========================================================
@@ -746,6 +758,7 @@ function router(){
   state.routeParam = param || null;
   if(route==='detail') state.detailSeason = 0;
   stopHeroAutoplay();
+  clearAllCardHoverTimers();
   renderShell();
   const root = document.getElementById('pageRoot');
   switch(route){
@@ -930,7 +943,7 @@ function cardHtml(item, opts){
   opts = opts || {};
   const pct = item.type==='movie' ? movieProgressPct(item) : itemProgressPct(item);
   return `
-    <div class="card" onclick="location.hash='detail/${item.id}'">
+    <div class="card" onclick="location.hash='detail/${item.id}'" onmouseenter="cardHoverStart(event,'${item.id}')" onmouseleave="cardHoverEnd(event,'${item.id}')">
       ${posterEl(item)}
       <span class="card-badge">${item.type==='series'?'Series':'Movie'}</span>
       ${isNew(item) ? `<span class="card-new">New</span>` : ''}
@@ -950,6 +963,76 @@ function removeFromContinueWatching(id){
   saveLib();
   router();
   toast('Removed from Continue Watching');
+}
+
+/* ---- Trailer hover preview (TMDB) ---- */
+const cardHoverTimers = {};
+function clearAllCardHoverTimers(){
+  Object.values(cardHoverTimers).forEach(t=>clearTimeout(t));
+  for(const k in cardHoverTimers) delete cardHoverTimers[k];
+}
+function cardHoverStart(e, id){
+  if(!state.settings.tmdb) return; // no TMDB key configured — plain hover only
+  const cardEl = e.currentTarget;
+  clearTimeout(cardHoverTimers[id]);
+  cardHoverTimers[id] = setTimeout(()=> showCardTrailer(cardEl, id), 1500);
+}
+function cardHoverEnd(e, id){
+  clearTimeout(cardHoverTimers[id]);
+  hideCardTrailer(e.currentTarget);
+}
+async function showCardTrailer(cardEl, id){
+  const item = getItem(id);
+  if(!item || !cardEl) return;
+  if(!item.trailerChecked){
+    await fetchTmdbTrailer(item);
+  }
+  if(!cardEl.matches(':hover')) return; // mouse already left while we were fetching
+  if(!item.trailerKey) return; // checked, none available
+  if(cardEl.querySelector('.card-trailer')) return; // already showing
+  const wrap = document.createElement('div');
+  wrap.className = 'card-trailer';
+  wrap.innerHTML = `
+    <iframe src="https://www.youtube.com/embed/${item.trailerKey}?autoplay=1&mute=1&controls=0&modestbranding=1&playsinline=1&loop=1&playlist=${item.trailerKey}&rel=0&enablejsapi=1" allow="autoplay; encrypted-media" frameborder="0"></iframe>
+    <button type="button" class="card-trailer-mute" data-muted="true" title="Unmute" onclick="event.stopPropagation(); toggleCardTrailerMute(this)">${ICON.volumeOff}</button>`;
+  cardEl.appendChild(wrap);
+}
+function hideCardTrailer(cardEl){
+  const el = cardEl && cardEl.querySelector && cardEl.querySelector('.card-trailer');
+  if(el) el.remove();
+}
+function toggleCardTrailerMute(btn){
+  const wrap = btn.closest('.card-trailer');
+  const iframe = wrap && wrap.querySelector('iframe');
+  if(!iframe) return;
+  const wasMuted = btn.dataset.muted !== 'false';
+  const cmd = wasMuted ? 'unMute' : 'mute';
+  try{ iframe.contentWindow.postMessage(JSON.stringify({event:'command', func:cmd, args:[]}), '*'); }catch(e){}
+  btn.dataset.muted = wasMuted ? 'false' : 'true';
+  btn.title = wasMuted ? 'Mute' : 'Unmute';
+  btn.innerHTML = wasMuted ? ICON.volumeOn : ICON.volumeOff;
+}
+async function fetchTmdbTrailer(item){
+  item.trailerChecked = true; // mark so we never re-fetch a title with no trailer on every hover
+  if(!state.settings.tmdb){ return; }
+  try{
+    const type = item.type==='series' ? 'tv' : 'movie';
+    const yearParam = item.year ? (type==='movie' ? `&year=${encodeURIComponent(item.year)}` : `&first_air_date_year=${encodeURIComponent(item.year)}`) : '';
+    const searchRes = await fetch(`https://api.themoviedb.org/3/search/${type}?api_key=${encodeURIComponent(state.settings.tmdb)}&query=${encodeURIComponent(item.title)}${yearParam}`);
+    const searchData = await searchRes.json();
+    const match = searchData.results && searchData.results[0];
+    if(!match){ saveLib(); return; }
+    item.tmdbId = match.id;
+    const videoRes = await fetch(`https://api.themoviedb.org/3/${type}/${match.id}/videos?api_key=${encodeURIComponent(state.settings.tmdb)}`);
+    const videoData = await videoRes.json();
+    const vids = (videoData.results||[]).filter(v=>v.site==='YouTube');
+    const trailer = vids.find(v=>v.type==='Trailer' && v.official) || vids.find(v=>v.type==='Trailer') || vids.find(v=>v.type==='Teaser') || vids[0];
+    if(trailer) item.trailerKey = trailer.key;
+    saveLib();
+  }catch(e){
+    // Silent fail — a missing preview shouldn't interrupt browsing.
+    saveLib();
+  }
 }
 
 /* ---- Global search ---- */
@@ -1383,7 +1466,9 @@ function renderSettings(){
       <div class="settings-section">
         <h3>API Keys</h3>
         <div class="field"><label>OMDb API Key</label><input id="omdbKey" value="${esc(s.omdb)}" placeholder="Enter your OMDb key"></div>
-        <div class="field"><label>TMDB API Key</label><input id="tmdbKey" value="${esc(s.tmdb)}" placeholder="Enter your TMDB key"></div>
+        <div class="field"><label>TMDB API Key</label><input id="tmdbKey" value="${esc(s.tmdb)}" placeholder="Enter your TMDB key">
+          <div class="field-hint">Adding a key enables hover trailer previews — hover a card for ~1.5s to see a muted trailer clip.</div>
+        </div>
         <button class="btn btn-primary" onclick="saveApiKeys()">Save Keys</button>
       </div>
       <div class="settings-section">
@@ -1756,6 +1841,11 @@ function saveEditModal(){
 
   if(state.editingId){
     const item = getItem(state.editingId);
+    if(item.title !== title){
+      delete item.trailerChecked;
+      delete item.trailerKey;
+      delete item.tmdbId;
+    }
     Object.assign(item, payload);
   } else {
     state.lib.items.push({
