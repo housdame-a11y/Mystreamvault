@@ -428,6 +428,11 @@ a{color:inherit; text-decoration:none;}
 .player-top-actions .btn-icon:hover{background:rgba(22,25,35,.9);}
 .player-stage{flex:1; position:relative; background:#000;}
 .player-stage iframe, .player-stage video{width:100%; height:100%; border:0; display:block;}
+.content-blurred{filter:blur(32px) saturate(70%); transition:filter .3s ease; cursor:pointer;}
+.content-blurred:hover{filter:blur(18px) saturate(70%);}
+.content-blur-revealed{filter:none;}
+.player-stage.content-blurred-video video{filter:blur(40px);}
+
 .player-loading{
   position:absolute; inset:0; z-index:3; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
   background:#000; opacity:1; pointer-events:none; transition:opacity .4s ease;
@@ -496,6 +501,21 @@ a{color:inherit; text-decoration:none;}
 .collection-card h4{font-size:16px; font-weight:800; margin-bottom:4px;}
 .collection-card span{font-size:12px; color:var(--muted);}
 .collection-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:16px;}
+
+.live-filter-wrap{position:relative;}
+.live-filter-btn{position:relative;}
+.filter-badge{
+  display:inline-flex; align-items:center; justify-content:center; min-width:16px; height:16px; padding:0 4px;
+  border-radius:20px; background:var(--highlight); color:#04211f; font-size:10px; font-weight:800; margin-left:2px;
+}
+.live-filter-panel{
+  position:absolute; top:calc(100% + 8px); left:0; z-index:40; width:230px;
+  background:var(--surface); border:1px solid #1e2330; border-radius:12px; padding:16px;
+  box-shadow:0 20px 50px rgba(0,0,0,.45); display:flex; flex-direction:column; gap:14px;
+  animation:filterPanelRise .2s ease both;
+}
+@keyframes filterPanelRise{from{opacity:0; transform:translateY(-6px);} to{opacity:1; transform:translateY(0);}}
+.live-filter-group label{display:block; margin-bottom:6px;}
 
 .channel-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px;}
 .channel-card{
@@ -622,6 +642,7 @@ const ICON = {
   chevronRight:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>',
   antenna:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10a8 8 0 0 1 16 0"/><path d="M7 10a5 5 0 0 1 10 0"/><circle cx="12" cy="10" r="1.5" fill="currentColor" stroke="none"/><path d="M12 11.5V21M9 21h6"/></svg>',
   expand:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/></svg>',
+  filter:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6 8v6l-4 2v-8z"/></svg>',
   volumeOff:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="m23 9-6 6M17 9l6 6"/></svg>',
   volumeOn:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>',
 };
@@ -651,8 +672,10 @@ function loadSettings(){
     if(!s.tmdb) s.tmdb = '';
     if(!s.vidsrcDomain) s.vidsrcDomain = 'vidsrc-embed.su';
     if(typeof s.blockPopupAds !== 'boolean') s.blockPopupAds = false;
+    if(typeof s.contentBlur !== 'boolean') s.contentBlur = false;
+    if(!s.contentBlurLevel) s.contentBlurLevel = 'moderate';
     return s;
-  }catch(e){ return {omdb:'',tmdb:'',vidsrcDomain:'vidsrc-embed.su', blockPopupAds:false}; }
+  }catch(e){ return {omdb:'',tmdb:'',vidsrcDomain:'vidsrc-embed.su', blockPopupAds:false, contentBlur:false, contentBlurLevel:'moderate'}; }
 }
 function saveSettings(){ localStorage.setItem(SET_KEY, JSON.stringify(state.settings)); }
 
@@ -662,7 +685,7 @@ const state = {
   route: 'home',
   routeParam: null,
   library: { filter:'all', search:'', sort:'recent' },
-  liveTv: { category:'all', language:'all', search:'' },
+  liveTv: { category:'all', language:'all', search:'', filterOpen:false },
   detailSeason: 0,
   editingId: null,
   editType: 'movie',
@@ -688,6 +711,86 @@ function toast(msg){
 }
 function getItem(id){ return state.lib.items.find(i=>i.id===id); }
 function getChannel(id){ return (state.lib.channels||[]).find(c=>c.id===id); }
+
+/* ---- Content Blur (Beta) — on-device NSFW classification for images we actually render ourselves ----
+   Loads tf.js + nsfwjs from a CDN only when the feature is turned on, and only once. This can only ever
+   see pixels our own page has legitimate (CORS-cleared) access to — a plain <img>/<video> we control.
+   It cannot and will never be able to see inside a cross-origin third-party <iframe> (VidSrc, live TV
+   embeds); that's a hard browser security boundary, not a limitation of this code. */
+let contentBlurModel = null;
+let contentBlurLoadPromise = null;
+function loadScriptOnce(src){
+  return new Promise((resolve, reject)=>{
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = ()=>resolve();
+    s.onerror = ()=>reject(new Error('Failed to load '+src));
+    document.head.appendChild(s);
+  });
+}
+async function loadContentBlurModel(){
+  if(contentBlurModel) return contentBlurModel;
+  if(contentBlurLoadPromise) return contentBlurLoadPromise;
+  contentBlurLoadPromise = (async ()=>{
+    if(!window.tf) await loadScriptOnce('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js');
+    if(!window.nsfwjs) await loadScriptOnce('https://cdn.jsdelivr.net/npm/nsfwjs@4.2.1/dist/nsfwjs.min.js');
+    contentBlurModel = await window.nsfwjs.load();
+    return contentBlurModel;
+  })();
+  return contentBlurLoadPromise;
+}
+function contentBlurThreshold(){
+  return state.settings.contentBlurLevel==='strict' ? 0.2 : 0.4;
+}
+// Returns a 0–1 "sensitive" score, or null if the element couldn't be analyzed (e.g. the image/video's
+// server doesn't allow cross-origin pixel access — this is common for third-party posters/streams and
+// just means we skip that one rather than error out).
+async function classifyElementForBlur(el){
+  try{
+    const model = await loadContentBlurModel();
+    const predictions = await model.classify(el);
+    return predictions.filter(p=>['Porn','Hentai','Sexy'].includes(p.className)).reduce((sum,p)=>sum+p.probability, 0);
+  }catch(e){
+    return null;
+  }
+}
+async function classifyAndBlurImage(imgEl){
+  if(!state.settings.contentBlur || !imgEl || !imgEl.isConnected) return;
+  const score = await classifyElementForBlur(imgEl);
+  if(score===null || !imgEl.isConnected) return;
+  if(score >= contentBlurThreshold()){
+    imgEl.classList.add('content-blurred');
+  }
+}
+function revealBlurredEl(el, ev){
+  if(ev) ev.stopPropagation();
+  el.classList.remove('content-blurred');
+  el.classList.add('content-blur-revealed');
+}
+function contentBlurImgAttrs(){
+  // Attach to any <img> we want covered — safe to include even when the feature is off (no-ops then).
+  return `onload="this.classList.add('loaded'); classifyAndBlurImage(this);" onclick="if(this.classList.contains('content-blurred')){ revealBlurredEl(this, event); }"`;
+}
+function startVideoContentBlurWatch(videoEl){
+  if(!state.settings.contentBlur || !videoEl) return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = 160; canvas.height = 90;
+  const ctx = canvas.getContext('2d');
+  const stage = document.getElementById('playerStage');
+  const interval = setInterval(async ()=>{
+    if(!videoEl.isConnected || videoEl.paused || videoEl.readyState < 2) return;
+    try{
+      ctx.drawImage(videoEl, 0, 0, 160, 90);
+    }catch(e){
+      clearInterval(interval); // tainted canvas — this source's server doesn't allow analysis; stop trying
+      return;
+    }
+    const score = await classifyElementForBlur(canvas);
+    if(score===null){ clearInterval(interval); return; }
+    if(stage) stage.classList.toggle('content-blurred-video', score >= contentBlurThreshold());
+  }, 2500);
+  return interval;
+}
 function allGenres(){
   const set = new Set();
   state.lib.items.forEach(i=> (i.genre||[]).forEach(g=>set.add(g)));
@@ -697,7 +800,7 @@ const DEFAULT_GENRES = ['Action','Drama','Comedy','Sci-Fi','Thriller','Horror','
 
 function posterEl(item, cls){
   if(item.poster){
-    return `<img src="${esc(item.poster)}" alt="" loading="lazy" onload="this.classList.add('loaded')" onerror="this.parentElement.innerHTML=fallbackHtml('${esc(item.title).replace(/'/g,"&#39;")}')">`;
+    return `<img src="${esc(item.poster)}" alt="" loading="lazy" ${contentBlurImgAttrs()} onerror="this.parentElement.innerHTML=fallbackHtml('${esc(item.title).replace(/'/g,"&#39;")}')">`;
   }
   return fallbackHtml(item.title);
 }
@@ -898,7 +1001,7 @@ function heroSlideHtml(item){
   const showResume = isStarted(item) && !isFullyWatched(item);
   return `
     <div class="hero-slide" onclick="heroSlideClick('${item.id}')">
-      ${item.backdrop ? `<img src="${esc(item.backdrop)}" alt="" draggable="false">` : ''}
+      ${item.backdrop ? `<img src="${esc(item.backdrop)}" alt="" draggable="false" ${contentBlurImgAttrs()}>` : ''}
       <div class="hero-content">
         <span class="hero-badge">${item.type==='series'?'Series':'Movie'}</span>
         <h2>${esc(item.title)}</h2>
@@ -1137,14 +1240,17 @@ document.addEventListener('click', e=>{
   toggleGlobalSearch();
 });
 
-function emptyState(title, sub, btnLabel, btnOnclick){
+function emptyState(title, sub, btnLabel, btnOnclick, secondaryLabel, secondaryOnclick){
   btnLabel = btnLabel || 'Add Title';
   btnOnclick = btnOnclick || 'openEditModal()';
   return `<div class="empty-state">
     <div class="empty-icon">${ICON.library}</div>
     <h3>${esc(title)}</h3>
     <p>${esc(sub)}</p>
-    <button class="btn btn-primary" onclick="${btnOnclick}">${ICON.plus} ${esc(btnLabel)}</button>
+    <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+      <button class="btn btn-primary" onclick="${btnOnclick}">${ICON.plus} ${esc(btnLabel)}</button>
+      ${secondaryLabel ? `<button class="btn btn-ghost" onclick="${secondaryOnclick}">${esc(secondaryLabel)}</button>` : ''}
+    </div>
   </div>`;
 }
 
@@ -1268,7 +1374,7 @@ function toggleItemInCollection(colId, itemId){
 function renderLiveTV(){
   const channels = state.lib.channels || [];
   if(!channels.length){
-    return `<div class="page">${emptyState('No channels yet','Add a live TV channel using an embed/iframe URL, or import a JSON list of channels.','Add Channel','openChannelModal()')}</div>`;
+    return `<div class="page">${emptyState('No channels yet','Add a live TV channel using an embed/iframe URL, or import an M3U/M3U8 playlist or JSON list of channels.','Add Channel','openChannelModal()','Import Channels','openChannelsJsonImport()')}</div>`;
   }
   const st = state.liveTv;
   const cats = ['all', ...new Set(channels.map(c=>c.category||'General'))];
@@ -1279,23 +1385,61 @@ function renderLiveTV(){
   if(st.search) list = list.filter(c=>c.name.toLowerCase().includes(st.search.toLowerCase()));
   list.sort((a,b)=>a.name.localeCompare(b.name));
 
+  const activeCount = (st.category!=='all'?1:0) + (st.language!=='all'?1:0);
+
   return `
     <div class="page">
       <div class="filter-bar">
-        <label class="season-select-label" for="liveTvCategorySelect">Type</label>
-        <select id="liveTvCategorySelect" class="select-input" onchange="setLiveTvCategory(this.value)">
-          ${cats.map(c=>`<option value="${esc(c)}" ${st.category===c?'selected':''}>${c==='all'?'All Types':esc(c)}</option>`).join('')}
-        </select>
-        <label class="season-select-label" for="liveTvLanguageSelect">Language</label>
-        <select id="liveTvLanguageSelect" class="select-input" onchange="setLiveTvLanguage(this.value)">
-          ${langs.map(l=>`<option value="${esc(l)}" ${st.language===l?'selected':''}>${l==='all'?'All Languages':esc(l)}</option>`).join('')}
-        </select>
+        <div class="live-filter-wrap" id="liveFilterWrap">
+          <button class="btn btn-ghost live-filter-btn" onclick="toggleLiveTvFilterPanel(event)">
+            ${ICON.filter} Filter${activeCount ? `<span class="filter-badge">${activeCount}</span>` : ''}
+          </button>
+          ${st.filterOpen ? liveFilterPanelHtml(cats, langs, st) : ''}
+        </div>
         <input class="search-input" placeholder="Search channels..." value="${esc(st.search)}" oninput="setLiveTvSearch(this.value)">
-        <button class="btn btn-ghost" onclick="openChannelsJsonImport()">${ICON.plus} Import JSON</button>
+        <button class="btn btn-ghost" onclick="openChannelsJsonImport()">${ICON.plus} Import Channels</button>
       </div>
-      ${list.length ? `<div class="channel-grid">${list.map(channelCardHtml).join('')}</div>` : emptyState('No channels found','Try a different search, type, or language.','Add Channel','openChannelModal()')}
+      ${list.length ? `<div class="channel-grid">${list.map(channelCardHtml).join('')}</div>` : emptyState('No channels found','Try a different search, type, or language.','Add Channel','openChannelModal()','Import Channels','openChannelsJsonImport()')}
     </div>`;
 }
+function liveFilterPanelHtml(cats, langs, st){
+  return `
+    <div class="live-filter-panel" id="liveFilterPanel" onclick="event.stopPropagation()">
+      <div class="live-filter-group">
+        <label class="season-select-label">Type</label>
+        <select class="select-input" style="width:100%;" onchange="setLiveTvCategory(this.value)">
+          ${cats.map(c=>`<option value="${esc(c)}" ${st.category===c?'selected':''}>${c==='all'?'All Types':esc(c)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="live-filter-group">
+        <label class="season-select-label">Language</label>
+        <select class="select-input" style="width:100%;" onchange="setLiveTvLanguage(this.value)">
+          ${langs.map(l=>`<option value="${esc(l)}" ${st.language===l?'selected':''}>${l==='all'?'All Languages':esc(l)}</option>`).join('')}
+        </select>
+      </div>
+      ${(st.category!=='all' || st.language!=='all') ? `<button type="button" class="btn btn-ghost" style="width:100%; justify-content:center;" onclick="clearLiveTvFilters()">Clear Filters</button>` : ''}
+    </div>`;
+}
+function toggleLiveTvFilterPanel(e){
+  if(e) e.stopPropagation();
+  state.liveTv.filterOpen = !state.liveTv.filterOpen;
+  document.getElementById('pageRoot').innerHTML = renderLiveTV();
+}
+function clearLiveTvFilters(){
+  state.liveTv.category = 'all';
+  state.liveTv.language = 'all';
+  document.getElementById('pageRoot').innerHTML = renderLiveTV();
+}
+document.addEventListener('click', e=>{
+  if(!state.liveTv.filterOpen) return;
+  const wrap = document.getElementById('liveFilterWrap');
+  if(wrap && wrap.contains(e.target)) return;
+  state.liveTv.filterOpen = false;
+  if(state.route==='live'){
+    const root = document.getElementById('pageRoot');
+    if(root) root.innerHTML = renderLiveTV();
+  }
+});
 function channelCardHtml(c){
   return `
     <div class="channel-card" onclick="playChannel('${c.id}')">
@@ -1575,11 +1719,11 @@ function renderDetail(id){
   }
 
   return `
-    <div class="detail-backdrop">${item.backdrop?`<img src="${esc(item.backdrop)}" alt="">`:''}</div>
+    <div class="detail-backdrop">${item.backdrop?`<img src="${esc(item.backdrop)}" alt="" ${contentBlurImgAttrs()}>`:''}</div>
     <div class="detail-body">
       <div class="detail-poster">${posterEl(item)}</div>
       <div class="detail-info">
-        ${item.logo ? `<img class="detail-logo" src="${esc(item.logo)}" alt="${esc(item.title)}" onerror="this.replaceWith(Object.assign(document.createElement('h2'),{textContent:'${esc(item.title).replace(/'/g,"\\'")}'}))">` : `<h2>${esc(item.title)}</h2>`}
+        ${item.logo ? `<img class="detail-logo" src="${esc(item.logo)}" alt="${esc(item.title)}" ${contentBlurImgAttrs()} onerror="this.replaceWith(Object.assign(document.createElement('h2'),{textContent:'${esc(item.title).replace(/'/g,"\\'")}'}))">` : `<h2>${esc(item.title)}</h2>`}
         <div class="detail-tags">
           ${item.year?`<span class="tag">${esc(item.year)}</span>`:''}
           ${item.runtime?`<span class="tag">${esc(item.runtime)}</span>`:''}
@@ -1662,6 +1806,28 @@ function renderSettings(){
         <button class="btn btn-primary" onclick="saveApiKeys()">Save Keys</button>
       </div>
       <div class="settings-section">
+        <h3>Content Blur <span style="font-weight:600; color:var(--muted); text-transform:none;">(Beta)</span></h3>
+        <div class="field">
+          <div class="toggle-row">
+            <label class="switch">
+              <input type="checkbox" id="contentBlurToggle" ${s.contentBlur?'checked':''} onchange="toggleContentBlur(this.checked)">
+              <span class="switch-slider"></span>
+            </label>
+            <span class="toggle-row-label">${s.contentBlur?'On':'Off'}</span>
+          </div>
+          <div class="field-hint">
+            Uses an on-device AI model (downloaded once, runs entirely in your browser — nothing is sent anywhere) to detect and blur sensitive content, tap/click to reveal. Covers posters, backdrops, and logos everywhere in the app, plus a best-effort check on direct .m3u8/mp4 video sources. <b>It cannot cover VidSrc-style or live-TV sources that play inside a third-party iframe</b> — that content lives on another site's server, completely outside what any code on this page (or any browser extension) can see or filter. Downloads a ~5–10MB model the first time it's turned on, so it needs an internet connection at least once.
+          </div>
+        </div>
+        <div class="field" id="contentBlurLevelField" style="${s.contentBlur?'':'display:none;'}">
+          <label>Sensitivity</label>
+          <select id="contentBlurLevel" class="select-input" style="width:100%; border-radius:8px;" onchange="saveContentBlurLevel(this.value)">
+            <option value="moderate" ${s.contentBlurLevel==='moderate'?'selected':''}>Moderate</option>
+            <option value="strict" ${s.contentBlurLevel==='strict'?'selected':''}>Strict</option>
+          </select>
+        </div>
+      </div>
+      <div class="settings-section">
         <h3>Playback</h3>
         <div class="field">
           <label>VidSrc Embed Domain</label>
@@ -1718,9 +1884,35 @@ function saveVidsrcDomain(){
 function toggleBlockPopupAds(checked){
   state.settings.blockPopupAds = !!checked;
   saveSettings();
-  const label = document.querySelector('.toggle-row-label');
+  const cb = document.getElementById('blockPopupAdsToggle');
+  const label = cb && cb.closest('.field').querySelector('.toggle-row-label');
   if(label) label.textContent = checked ? 'On' : 'Off';
   toast(checked ? 'Popup blocking enabled' : 'Popup blocking disabled');
+}
+async function toggleContentBlur(checked){
+  state.settings.contentBlur = !!checked;
+  saveSettings();
+  const cb = document.getElementById('contentBlurToggle');
+  const label = cb && cb.closest('.field').querySelector('.toggle-row-label');
+  if(label) label.textContent = checked ? 'On' : 'Off';
+  const levelField = document.getElementById('contentBlurLevelField');
+  if(levelField) levelField.style.display = checked ? '' : 'none';
+  if(checked){
+    toast('Content Blur enabled — downloading the on-device model…');
+    try{
+      await loadContentBlurModel();
+      toast('Content Blur ready');
+    }catch(e){
+      toast('Could not download the content-blur model — check your connection and try again');
+    }
+  } else {
+    toast('Content Blur disabled');
+  }
+}
+function saveContentBlurLevel(level){
+  state.settings.contentBlurLevel = level;
+  saveSettings();
+  toast('Sensitivity set to '+level);
 }
 
 /* ---- Link Health checker ----
@@ -2554,6 +2746,10 @@ function renderPlayer(){
   setTimeout(hideSpinner, 4000);
 
   if(embed.kind==='hls') initHlsPlayer(embed.src, hideSpinner);
+  if(isVideoLike){
+    const vidEl = document.getElementById('playerVideoEl');
+    if(vidEl && state.player) state.player._blurInterval = startVideoContentBlurWatch(vidEl);
+  }
 
   if(isLive) return; // no progress tracking / watch timers for live channels
 
@@ -2687,6 +2883,7 @@ function cleanupPlayerTimers(){
     clearInterval(state.player._interval);
     clearTimeout(state.player._watchTimer);
     clearInterval(state.player._upNextInterval);
+    clearInterval(state.player._blurInterval);
     if(state.player._hls){ try{ state.player._hls.destroy(); }catch(e){} state.player._hls = null; }
   }
   clearTimeout(controlsHideTimer);
