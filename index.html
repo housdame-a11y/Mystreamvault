@@ -734,7 +734,12 @@ async function loadContentBlurModel(){
   contentBlurLoadPromise = (async ()=>{
     if(!window.tf) await loadScriptOnce('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js');
     if(!window.nsfwjs) await loadScriptOnce('https://cdn.jsdelivr.net/npm/nsfwjs@4.2.1/dist/nsfwjs.min.js');
-    contentBlurModel = await window.nsfwjs.load();
+    // Explicitly request the model bundled inside nsfwjs's own package (shipped as part of the JS
+    // file we just downloaded) rather than letting it try nsfwjs's old default host — that host was
+    // taken offline by the library's own maintainers due to hotlinking abuse, so an argument-less
+    // load() can fail even with a perfectly good internet connection. "MobileNetV2" needs no separate
+    // network request at all once the script above has loaded.
+    contentBlurModel = await window.nsfwjs.load('MobileNetV2');
     return contentBlurModel;
   })();
   return contentBlurLoadPromise;
@@ -1826,6 +1831,16 @@ function renderSettings(){
             <option value="strict" ${s.contentBlurLevel==='strict'?'selected':''}>Strict</option>
           </select>
         </div>
+        <div class="field" style="margin-top:6px; border-top:1px solid #1a1d26; padding-top:16px;">
+          <label>Median App Injection Script</label>
+          <div class="field-hint" style="margin-bottom:12px;">
+            If you've wrapped this app with Median, paste this into App Studio → Website Overrides → Custom JavaScript to try extending blur inside embedded players (VidSrc, live TV). This only reaches inside those embeds if Median actually injects custom code into iframes/subframes — confirm that with Median support first. Uses the same fixed model-loading approach as the toggle above.
+          </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn btn-primary" onclick="copyMedianBlurScript()">${ICON.bookmark} Copy Script</button>
+            <button class="btn btn-ghost" onclick="downloadMedianBlurScript()">Download .js</button>
+          </div>
+        </div>
       </div>
       <div class="settings-section">
         <h3>Playback</h3>
@@ -1913,6 +1928,177 @@ function saveContentBlurLevel(level){
   state.settings.contentBlurLevel = level;
   saveSettings();
   toast('Sensitivity set to '+level);
+}
+
+/* ---- Median App Injection Script (for Website Overrides → Custom JavaScript) ----
+   Same content-blur approach as the toggle above, but self-contained so it can run
+   independently of this page — needed because Median injects it fresh into whichever
+   frame it targets, which may include third-party iframes (VidSrc, live TV) that this
+   app's own JavaScript can never reach into no matter how it's written. */
+const MEDIAN_BLUR_SCRIPT = `/*
+ * Stream Vault — Content Blur (all-frames injection script)
+ * -----------------------------------------------------------
+ * WHERE THIS GOES: Median App Studio -> Website Overrides -> Custom JavaScript
+ * (only useful if Median confirms that field injects into iframes/subframes,
+ * not just the top-level page -- ask their support if unsure).
+ *
+ * WHAT IT DOES: on-device NSFW detection (nsfwjs) applied to every <img> and
+ * <video> element it finds, with tap-to-reveal. Runs entirely on-device --
+ * nothing is uploaded anywhere.
+ *
+ * WHY IT'S SEPARATE FROM THE MAIN APP: this needs to be injected by Median
+ * itself into every frame of the WebView (including third-party iframes like
+ * VidSrc embeds). Code living inside Stream Vault's own HTML can only ever
+ * see Stream Vault's own page -- it cannot reach into a cross-origin iframe
+ * no matter where it's called from. This script works differently: it isn't
+ * Stream Vault's code reaching out, it's Median's WebView engine placing a
+ * fresh copy of this exact script directly inside each frame, including
+ * frames that belong to another website entirely. That's what makes it
+ * capable of reaching content this app's own JavaScript cannot.
+ *
+ * HONEST LIMITS THAT DON'T GO AWAY, EVEN HERE:
+ *  - If a source's own server blocks cross-origin pixel access (no CORS
+ *    headers), the classifier can't read that particular image/video and
+ *    will just skip it -- this is common for random third-party media and
+ *    is a browser security rule, not a bug.
+ *  - Sites that render video via <canvas>, WebGL, or proprietary players
+ *    instead of a plain <video> tag won't be caught by this script.
+ *  - This only runs if Median actually injects it into subframes. If it
+ *    only reaches the top-level page, it will still work great on Stream
+ *    Vault's own posters/backdrops/logos, just not inside embedded players.
+ */
+(function () {
+  'use strict';
+  if (window.__streamVaultBlurInstalled) return; // avoid double-injection
+  window.__streamVaultBlurInstalled = true;
+
+  var SENSITIVITY = 'moderate'; // 'moderate' or 'strict'
+  var THRESHOLD = SENSITIVITY === 'strict' ? 0.2 : 0.4;
+  var SCAN_INTERVAL_MS = 3000; // how often to look for newly-added images/video
+  var VIDEO_SAMPLE_INTERVAL_MS = 2500;
+
+  var modelPromise = null;
+  function loadScriptOnce(src) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = src;
+      s.onload = function () { resolve(); };
+      s.onerror = function () { reject(new Error('Failed to load ' + src)); };
+      document.head.appendChild(s);
+    });
+  }
+  function loadModel() {
+    if (modelPromise) return modelPromise;
+    modelPromise = (async function () {
+      if (!window.tf) await loadScriptOnce('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js');
+      if (!window.nsfwjs) await loadScriptOnce('https://cdn.jsdelivr.net/npm/nsfwjs@4.2.1/dist/nsfwjs.min.js');
+      // "MobileNetV2" = the model bundled inside nsfwjs's own package (already
+      // downloaded above), not nsfwjs's old external host (discontinued by its
+      // maintainers). This is the fix for "won't download even with internet on."
+      return window.nsfwjs.load('MobileNetV2');
+    })();
+    return modelPromise;
+  }
+  async function classify(el) {
+    try {
+      var model = await loadModel();
+      var predictions = await model.classify(el);
+      return predictions
+        .filter(function (p) { return p.className === 'Porn' || p.className === 'Hentai' || p.className === 'Sexy'; })
+        .reduce(function (sum, p) { return sum + p.probability; }, 0);
+    } catch (e) {
+      return null; // couldn't analyze this element (tainted canvas, load failure, etc.) -- skip it
+    }
+  }
+  function reveal(el, ev) {
+    if (ev) ev.stopPropagation();
+    el.classList.remove('__sv_blurred');
+    el.classList.add('__sv_revealed');
+  }
+  function ensureStyle() {
+    if (document.getElementById('__sv_blur_style')) return;
+    var style = document.createElement('style');
+    style.id = '__sv_blur_style';
+    style.textContent =
+      '.__sv_blurred{filter:blur(32px) saturate(70%) !important;cursor:pointer !important;transition:filter .3s ease;}' +
+      '.__sv_blurred:hover{filter:blur(18px) saturate(70%) !important;}' +
+      '.__sv_revealed{filter:none !important;}';
+    document.head.appendChild(style);
+  }
+  async function checkImage(img) {
+    if (img.dataset.__svChecked) return;
+    img.dataset.__svChecked = '1';
+    var run = function () {
+      classify(img).then(function (score) {
+        if (score !== null && score >= THRESHOLD) {
+          img.classList.add('__sv_blurred');
+          img.addEventListener('click', function (ev) {
+            if (img.classList.contains('__sv_blurred')) reveal(img, ev);
+          });
+        }
+      });
+    };
+    if (img.complete && img.naturalWidth > 0) run();
+    else img.addEventListener('load', run, { once: true });
+  }
+  function watchVideo(video) {
+    if (video.dataset.__svWatching) return;
+    video.dataset.__svWatching = '1';
+    var canvas = document.createElement('canvas');
+    canvas.width = 160; canvas.height = 90;
+    var ctx = canvas.getContext('2d');
+    var interval = setInterval(async function () {
+      if (!video.isConnected) { clearInterval(interval); return; }
+      if (video.paused || video.readyState < 2) return;
+      try { ctx.drawImage(video, 0, 0, 160, 90); }
+      catch (e) { clearInterval(interval); return; } // cross-origin source we can't read -- stop trying
+      var score = await classify(canvas);
+      if (score === null) { clearInterval(interval); return; }
+      video.classList.toggle('__sv_blurred', score >= THRESHOLD);
+    }, VIDEO_SAMPLE_INTERVAL_MS);
+  }
+  function scan() {
+    ensureStyle();
+    document.querySelectorAll('img:not([data-__svChecked])').forEach(checkImage);
+    document.querySelectorAll('video:not([data-__svWatching])').forEach(watchVideo);
+  }
+
+  ensureStyle();
+  scan();
+  setInterval(scan, SCAN_INTERVAL_MS); // catches images/video added dynamically after page load
+  var mo = new MutationObserver(function () { scan(); });
+  mo.observe(document.documentElement, { childList: true, subtree: true });
+})();
+`;
+async function copyMedianBlurScript(){
+  try{
+    await navigator.clipboard.writeText(MEDIAN_BLUR_SCRIPT);
+    toast("Script copied — paste it into Median's Custom JavaScript field");
+  }catch(e){
+    // Clipboard API can be restricted inside some WebViews — fall back to a manual-copy textarea.
+    const ta = document.createElement('textarea');
+    ta.value = MEDIAN_BLUR_SCRIPT;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try{
+      document.execCommand('copy');
+      toast("Script copied — paste it into Median's Custom JavaScript field");
+    }catch(e2){
+      toast('Could not copy automatically — use the Download .js button instead');
+    }
+    document.body.removeChild(ta);
+  }
+}
+function downloadMedianBlurScript(){
+  const blob = new Blob([MEDIAN_BLUR_SCRIPT], {type:'text/javascript'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'streamvault-blur-median-inject.js'; a.click();
+  URL.revokeObjectURL(url);
+  toast('Script downloaded');
 }
 
 /* ---- Link Health checker ----
