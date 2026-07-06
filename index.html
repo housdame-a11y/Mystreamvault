@@ -975,7 +975,10 @@ function router(){
     case 'live': root.innerHTML = renderLiveTV(); break;
     case 'collections': root.innerHTML = renderCollections(param); break;
     case 'settings': root.innerHTML = renderSettings(); break;
-    case 'detail': root.innerHTML = renderDetail(param); break;
+    case 'detail':
+      root.innerHTML = renderDetail(param);
+      { const detailItem = getItem(param); if(detailItem) loadTmdbSimilarRow(detailItem); }
+      break;
     default: root.innerHTML = renderHome();
   }
   startHeroAutoplay();
@@ -1779,6 +1782,8 @@ function renderDetail(id){
       </div>`;
   }
 
+  const similarLibraryItems = getSimilarLibraryItems(item);
+
   return `
     <div class="detail-backdrop">${item.backdrop?`<img src="${esc(item.backdrop)}" alt="" ${contentBlurImgAttrs()}>`:''}</div>
     <div class="detail-body">
@@ -1801,10 +1806,82 @@ function renderDetail(id){
         </div>
       </div>
     </div>
-    <div class="page">${body}</div>
+    <div class="page">
+      ${body}
+      ${similarLibraryItems.length ? rowHtml('More Like This', similarLibraryItems) : ''}
+      <div id="tmdbSimilarRow"></div>
+    </div>
   `;
 }
-function setDetailSeason(i){ state.detailSeason=i; document.getElementById('pageRoot').innerHTML = renderDetail(state.routeParam); }
+// Suggests titles already in the user's own library sharing genres with this one — always playable
+// since they're already in the collection, unlike a generic "similar movies" list from the internet.
+function getSimilarLibraryItems(item, limit){
+  limit = limit || 12;
+  const genres = new Set(item.genre||[]);
+  if(!genres.size) return [];
+  return state.lib.items
+    .filter(i=>i.id!==item.id)
+    .map(i=>({item:i, score:(i.genre||[]).filter(g=>genres.has(g)).length}))
+    .filter(x=>x.score>0)
+    .sort((a,b)=> b.score-a.score || new Date(b.item.dateAdded||0)-new Date(a.item.dateAdded||0))
+    .slice(0,limit)
+    .map(x=>x.item);
+}
+// TMDB's own "recommendations" for this title — external discovery, not yet in the library. Cards
+// open the Add Title flow pre-filled via TMDB rather than a player, since there's no source for them yet.
+async function loadTmdbSimilarRow(item){
+  const container = document.getElementById('tmdbSimilarRow');
+  if(!container) return;
+  if(!item.tmdbId || !state.settings.tmdb) return;
+  const type = item.type==='series' ? 'tv' : 'movie';
+  try{
+    const res = await fetch(`https://api.themoviedb.org/3/${type}/${item.tmdbId}/recommendations?api_key=${encodeURIComponent(state.settings.tmdb)}`);
+    const data = await res.json();
+    const results = (data.results||[]).filter(r=>r.poster_path).slice(0,12);
+    if(!container.isConnected || !results.length) return;
+    container.innerHTML = `
+      <div class="row">
+        <div class="row-head"><h3>You Might Also Like</h3></div>
+        <div class="row-track">${results.map(r=>externalSimilarCardHtml(r, type)).join('')}</div>
+      </div>`;
+  }catch(e){ /* discovery row is optional polish — fail quietly rather than showing an error */ }
+}
+function externalSimilarCardHtml(tmdbItem, type){
+  const title = type==='tv' ? tmdbItem.name : tmdbItem.title;
+  const year = ((type==='tv' ? tmdbItem.first_air_date : tmdbItem.release_date)||'').split('-')[0];
+  const poster = tmdbItem.poster_path ? `https://image.tmdb.org/t/p/w342${tmdbItem.poster_path}` : '';
+  return `
+    <div class="card" onclick="quickAddFromTmdb(${tmdbItem.id}, '${type}')" title="Add to your library">
+      ${poster ? `<img src="${esc(poster)}" alt="" loading="lazy" ${contentBlurImgAttrs()}>` : fallbackHtml(title)}
+      <span class="card-badge">${type==='tv'?'Series':'Movie'}</span>
+      <div class="card-overlay">
+        <div class="card-play" style="background:var(--highlight);">${ICON.plus}</div>
+        <div class="card-title">${esc(title)}</div>
+        <div class="card-meta">${esc(year||'')}${year?' • ':''}Add to library</div>
+      </div>
+    </div>`;
+}
+function quickAddFromTmdb(tmdbId, type){
+  state.editingId = null;
+  state.editType = type==='tv' ? 'series' : 'movie';
+  state.editGenres = [];
+  state.editActors = [];
+  state.editSources = [{label:'',url:''}];
+  state.editSeasons = [];
+  state.editImdbMeta = null;
+  state.editFormDraft = null;
+  renderEditModal(null);
+  applyTmdbDetails(tmdbId, type).then(info=>{
+    state.editImdbMeta = {imdbId:null, tmdbId:info.tmdbId, trailerKey:info.trailerKey, trailerChecked:!!info.trailerKey};
+    toast('Metadata fetched from TMDB');
+  }).catch(()=> toast('Could not fetch details for that title — add it manually below'));
+}
+function setDetailSeason(i){
+  state.detailSeason=i;
+  document.getElementById('pageRoot').innerHTML = renderDetail(state.routeParam);
+  const item = getItem(state.routeParam);
+  if(item) loadTmdbSimilarRow(item);
+}
 function toggleMovieWatched(id){
   const item = getItem(id);
   const watched = isFullyWatched(item);
@@ -2402,10 +2479,26 @@ function openEditModal(id){
   if(!state.editSources.length) state.editSources = [{label:'',url:''}];
   state.editSeasons = item ? JSON.parse(JSON.stringify(item.seasons||[])) : [];
   state.editImdbMeta = item ? {imdbId:item.imdbId||null, tmdbId:item.tmdbId||null, trailerKey:item.trailerKey||'', trailerChecked:!!item.trailerChecked} : null;
+  state.editFormDraft = null;
   renderEditModal(item);
+}
+// These 8 plain text fields only ever existed as live DOM input values, never captured into a JS
+// variable like editGenres/editActors/editSources/editSeasons are. That's fine as long as the modal
+// never gets replaced — but switching to a sub-modal (JSON season import, bulk paste) fully replaces
+// the DOM, silently discarding anything fetched via OMDb/TMDB/IMDb import that hadn't been saved yet.
+// captureEditFormDraft() snapshots them right before leaving; renderEditModal() prefers the draft
+// over the saved item's values whenever one exists, so returning to the form restores what was there.
+function captureEditFormDraft(){
+  const get = id => { const el = document.getElementById(id); return el ? el.value : undefined; };
+  state.editFormDraft = {
+    title: get('f_title'), year: get('f_year'), poster: get('f_poster'), backdrop: get('f_backdrop'),
+    logo: get('f_logo'), desc: get('f_desc'), rating: get('f_rating'), runtime: get('f_runtime'),
+  };
 }
 function renderEditModal(item){
   const genresPool = [...new Set([...DEFAULT_GENRES, ...allGenres()])];
+  const d = state.editFormDraft || {};
+  const fv = (key, itemKey)=> d[key]!==undefined ? d[key] : (item ? (item[itemKey||key]||'') : '');
   openModal(`
     <div class="modal-head"><h2>${item?'Edit Title':'Add Title'}</h2><button class="btn-icon" onclick="closeModal()">${ICON.close}</button></div>
     <div class="field imdb-import-field">
@@ -2421,8 +2514,8 @@ function renderEditModal(item){
       <button class="${state.editType==='series'?'active':''}" onclick="setEditType('series')">Series</button>
     </div>
     <div class="field-row">
-      <div class="field" style="flex:2"><label>Title</label><input id="f_title" value="${esc(item?.title||'')}" placeholder="e.g. Interstellar"></div>
-      <div class="field"><label>Year</label><input id="f_year" value="${esc(item?.year||'')}" placeholder="2014"></div>
+      <div class="field" style="flex:2"><label>Title</label><input id="f_title" value="${esc(fv('title'))}" placeholder="e.g. Interstellar"></div>
+      <div class="field"><label>Year</label><input id="f_year" value="${esc(fv('year'))}" placeholder="2014"></div>
     </div>
     <div style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
       <button class="btn btn-ghost" onclick="fetchOmdb()">Fetch from OMDb</button>
@@ -2442,14 +2535,14 @@ function renderEditModal(item){
       <div class="field-hint">Filled in automatically from OMDb, or add cast members manually.</div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Poster URL</label><input id="f_poster" value="${esc(item?.poster||'')}" placeholder="https://..."></div>
-      <div class="field"><label>Backdrop URL</label><input id="f_backdrop" value="${esc(item?.backdrop||'')}" placeholder="https://..."></div>
+      <div class="field"><label>Poster URL</label><input id="f_poster" value="${esc(fv('poster'))}" placeholder="https://..."></div>
+      <div class="field"><label>Backdrop URL</label><input id="f_backdrop" value="${esc(fv('backdrop'))}" placeholder="https://..."></div>
     </div>
-    <div class="field"><label>Logo URL <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional, shown on the detail page instead of text title)</span></label><input id="f_logo" value="${esc(item?.logo||'')}" placeholder="https://..."></div>
-    <div class="field"><label>Description</label><textarea id="f_desc" placeholder="Synopsis...">${esc(item?.description||'')}</textarea></div>
+    <div class="field"><label>Logo URL <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional, shown on the detail page instead of text title)</span></label><input id="f_logo" value="${esc(fv('logo'))}" placeholder="https://..."></div>
+    <div class="field"><label>Description</label><textarea id="f_desc" placeholder="Synopsis...">${esc(fv('desc','description'))}</textarea></div>
     <div class="field-row">
-      <div class="field" style="max-width:140px;"><label>Rating</label><input id="f_rating" value="${esc(item?.rating||'')}" placeholder="8.6"></div>
-      <div class="field" style="max-width:160px;"><label>Runtime</label><input id="f_runtime" value="${esc(item?.runtime||'')}" placeholder="148 min"></div>
+      <div class="field" style="max-width:140px;"><label>Rating</label><input id="f_rating" value="${esc(fv('rating'))}" placeholder="8.6"></div>
+      <div class="field" style="max-width:160px;"><label>Runtime</label><input id="f_runtime" value="${esc(fv('runtime'))}" placeholder="148 min"></div>
     </div>
 
     <div id="typeSpecific">${state.editType==='movie' ? sourcesEditorHtml() : seasonsEditorHtml()}</div>
@@ -2559,6 +2652,7 @@ function removeEpSource(si,ei,oi){
   refreshSeasons();
 }
 function openBulkPaste(si){
+  captureEditFormDraft();
   openModal(`
     <div class="modal-head"><h2>Bulk Paste URLs</h2><button class="btn-icon" onclick="renderEditModal(state.editingId?getItem(state.editingId):null)">${ICON.close}</button></div>
     <div class="field"><label>Paste one URL per line — episodes will be numbered automatically</label><textarea id="bulkText" style="min-height:180px;" placeholder="https://...
@@ -2583,6 +2677,7 @@ function applyBulkPaste(si){
 }
 
 function openSeasonsJsonImport(){
+  captureEditFormDraft();
   openModal(`
     <div class="modal-head"><h2>Import Multiple Seasons (JSON)</h2><button class="btn-icon" onclick="renderEditModal(state.editingId?getItem(state.editingId):null)">${ICON.close}</button></div>
     <div class="field">
@@ -2900,7 +2995,7 @@ function saveEditModal(){
       ...payload
     });
   }
-  saveLib(); closeModal(); router(); toast(state.editingId?'Changes saved':'Title added');
+  saveLib(); state.editFormDraft = null; closeModal(); router(); toast(state.editingId?'Changes saved':'Title added');
 }
 
 /* =========================================================
