@@ -235,6 +235,12 @@ a{color:inherit; text-decoration:none;}
 .card-remove:hover{background:#3a1218; border-color:#4d1a20; color:#ff8b93;}
 .card-progress{position:absolute; left:0; right:0; bottom:0; height:4px; background:rgba(255,255,255,.15); z-index:2;}
 .card-progress > div{height:100%; background:linear-gradient(90deg, var(--highlight), #2bc4c1);}
+.card-watchlist-badge{
+  position:absolute; bottom:9px; left:9px; z-index:2; width:22px; height:22px; border-radius:50%;
+  background:rgba(8,9,13,.85); border:1px solid rgba(61,219,217,.45); color:var(--highlight);
+  display:flex; align-items:center; justify-content:center;
+}
+.card-watchlist-badge svg{width:11px; height:11px;}
 .card-trailer{position:absolute; inset:0; z-index:1; background:#000; opacity:0; animation:cardTrailerFadeIn .5s ease forwards;}
 @keyframes cardTrailerFadeIn{from{opacity:0;} to{opacity:1;}}
 .card-trailer iframe{width:100%; height:100%; border:0; pointer-events:none; transform:scale(1.35); transform-origin:center;}
@@ -307,6 +313,17 @@ a{color:inherit; text-decoration:none;}
 .detail-cast{margin-bottom:22px;}
 .detail-cast-label{display:block; font-size:11px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:9px;}
 .detail-cast-tags{display:flex; flex-wrap:wrap; gap:8px;}
+.my-rating-widget{display:flex; align-items:center; gap:12px; margin-bottom:18px;}
+.my-rating-label{font-size:11px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.06em;}
+.my-rating-stars{display:flex; gap:2px;}
+.my-rating-star{width:26px; height:26px; display:flex; align-items:center; justify-content:center; color:var(--muted); transition:color var(--transition), transform var(--transition);}
+.my-rating-star svg{width:19px; height:19px;}
+.my-rating-star:hover{color:var(--highlight); transform:scale(1.15);}
+.my-rating-stars:has(.my-rating-star:hover) .my-rating-star{color:var(--muted);}
+.my-rating-star.is-filled{color:var(--highlight);}
+.my-rating-clear{width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:var(--muted); background:#161923; border:1px solid #232837;}
+.my-rating-clear svg{width:10px; height:10px;}
+.my-rating-clear:hover{color:#ff8b93; background:#3a1218; border-color:#4d1a20;}
 .detail-actions{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;}
 
 .season-select-row{display:flex; align-items:center; gap:12px; margin:30px 32px 16px 32px;}
@@ -643,6 +660,8 @@ const ICON = {
   antenna:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10a8 8 0 0 1 16 0"/><path d="M7 10a5 5 0 0 1 10 0"/><circle cx="12" cy="10" r="1.5" fill="currentColor" stroke="none"/><path d="M12 11.5V21M9 21h6"/></svg>',
   expand:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/></svg>',
   filter:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6 8v6l-4 2v-8z"/></svg>',
+  watchlist:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>',
+  watchlist:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>',
   volumeOff:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="m23 9-6 6M17 9l6 6"/></svg>',
   volumeOn:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>',
 };
@@ -935,7 +954,7 @@ function renderShell(){
   `;
   document.getElementById('bottomNav').innerHTML = navHtml;
 
-  const titles = {home:'Home', movies:'Movies', series:'TV Shows', live:'Live TV', library:'Library', collections:'Collections', settings:'Settings'};
+  const titles = {home:'Home', movies:'Movies', series:'TV Shows', live:'Live TV', library:'Library', watchlist:'Watchlist', collections:'Collections', settings:'Settings'};
   let topActions = '';
   if(['library','home','movies','series'].includes(state.route)){
     topActions += `<button class="btn btn-primary btn-icon-only" title="Add Title" onclick="openEditModal()">${ICON.plus}</button>`;
@@ -949,6 +968,7 @@ function renderShell(){
         <button class="topbar-search-icon" title="Search" onclick="toggleGlobalSearch()">${ICON.search}</button>
         <input id="globalSearchInput" class="global-search-input" placeholder="Search movies, shows & channels" oninput="onGlobalSearchInput(this.value)" value="${esc(state.globalSearchQuery||'')}">
       </div>
+      <a class="btn-icon ${state.route==='watchlist'?'is-active':''}" href="#watchlist" title="Watchlist">${ICON.watchlist}</a>
       <a class="btn-icon ${state.route==='collections'?'is-active':''}" href="#collections" title="Collections">${ICON.collections}</a>
       <a class="btn-icon ${state.route==='settings'?'is-active':''}" href="#settings" title="Settings">${ICON.settings}</a>
       ${topActions}
@@ -973,6 +993,7 @@ function router(){
     case 'movies': root.innerHTML = renderTypePage('movie'); break;
     case 'series': root.innerHTML = renderTypePage('series'); break;
     case 'live': root.innerHTML = renderLiveTV(); break;
+    case 'watchlist': root.innerHTML = renderWatchlist(); break;
     case 'collections': root.innerHTML = renderCollections(param); break;
     case 'settings': root.innerHTML = renderSettings(); break;
     case 'detail':
@@ -1157,6 +1178,7 @@ function cardHtml(item, opts){
       ${posterEl(item)}
       <span class="card-badge">${item.type==='series'?'Series':'Movie'}</span>
       ${isNew(item) ? `<span class="card-new">New</span>` : ''}
+      ${item.watchlist ? `<span class="card-watchlist-badge" title="On your watchlist">${ICON.watchlist}</span>` : ''}
       ${opts.removable ? `<button type="button" class="card-remove" title="Remove from Continue Watching" onclick="event.stopPropagation(); removeFromContinueWatching('${item.id}')">${ICON.close}</button>` : ''}
       <div class="card-overlay">
         <div class="card-play" onclick="event.stopPropagation(); quickPlay('${item.id}')">${ICON.play}</div>
@@ -1377,6 +1399,53 @@ function renderLibraryOnly(keepFocus){
     const el = document.querySelector('.search-input');
     if(el){ el.focus(); el.selectionStart = el.selectionEnd = el.value.length; }
   }
+}
+
+/* =========================================================
+   WATCHLIST
+========================================================= */
+function renderWatchlist(){
+  const items = state.lib.items.filter(i=>i.watchlist);
+  if(!items.length){
+    return `<div class="page">${emptyState('Your watchlist is empty', "Tap the clock icon on any title's detail page to add it here.", 'Browse Library', "location.hash='library'")}</div>`;
+  }
+  const sorted = [...items].sort((a,b)=> new Date(b.dateAdded||0)-new Date(a.dateAdded||0));
+  return `<div class="page"><div class="grid">${sorted.map(i=>cardHtml(i)).join('')}</div></div>`;
+}
+function ratingWidgetHtml(item){
+  const rating = item.myRating || 0;
+  let stars = '';
+  for(let i=1;i<=5;i++){
+    stars += `<button type="button" class="my-rating-star ${i<=rating?'is-filled':''}" title="Rate ${i} star${i>1?'s':''}" onclick="setMyRating('${item.id}', ${i})">${starSvg(i<=rating)}</button>`;
+  }
+  return `<div class="my-rating-widget">
+    <span class="my-rating-label">My Rating</span>
+    <div class="my-rating-stars">${stars}</div>
+    ${rating>0 ? `<button type="button" class="my-rating-clear" title="Clear rating" onclick="setMyRating('${item.id}', 0)">${ICON.close}</button>` : ''}
+  </div>`;
+}
+function starSvg(filled){
+  return `<svg viewBox="0 0 24 24" fill="${filled?'currentColor':'none'}" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><polygon points="12 2 14.9 8.6 22 9.3 16.5 14.1 18.2 21 12 17.3 5.8 21 7.5 14.1 2 9.3 9.1 8.6"/></svg>`;
+}
+function setMyRating(itemId, rating){
+  const item = getItem(itemId);
+  if(!item) return;
+  item.myRating = (item.myRating===rating) ? 0 : rating; // clicking the current rating again clears it
+  saveLib();
+  const root = document.getElementById('pageRoot');
+  if(root && state.route==='detail') root.innerHTML = renderDetail(state.routeParam);
+  loadTmdbSimilarRow(item);
+  toast(item.myRating ? `Rated ${item.myRating} star${item.myRating>1?'s':''}` : 'Rating cleared');
+}
+function toggleWatchlist(itemId){
+  const item = getItem(itemId);
+  if(!item) return;
+  item.watchlist = !item.watchlist;
+  saveLib();
+  const root = document.getElementById('pageRoot');
+  if(root && state.route==='detail') root.innerHTML = renderDetail(state.routeParam);
+  loadTmdbSimilarRow(item);
+  toast(item.watchlist ? 'Added to Watchlist' : 'Removed from Watchlist');
 }
 
 /* =========================================================
@@ -1796,12 +1865,14 @@ function renderDetail(id){
           ${item.rating?`<span class="tag">★ ${esc(item.rating)}</span>`:''}
           ${(item.genre||[]).map(g=>`<span class="tag">${esc(g)}</span>`).join('')}
         </div>
+        ${ratingWidgetHtml(item)}
         <p class="detail-desc">${esc(item.description||'No description added.')}</p>
         ${(item.actors&&item.actors.length) ? `<div class="detail-cast"><span class="detail-cast-label">Starring</span><div class="detail-cast-tags">${item.actors.map(a=>`<span class="tag">${esc(a)}</span>`).join('')}</div></div>` : ''}
         <div class="detail-actions">
           <button class="btn-icon" title="Edit" onclick="openEditModal('${item.id}')">${ICON.edit}</button>
           <button class="btn-icon" title="Delete" style="color:#ff8b93; border-color:#3a1a1e;" onclick="deleteItem('${item.id}')">${ICON.trash}</button>
           <button class="btn-icon" title="Add to Collection" onclick="openAddToCollection('${item.id}')">${ICON.bookmark}</button>
+          <button class="btn-icon ${item.watchlist?'is-active':''}" title="${item.watchlist?'Remove from Watchlist':'Add to Watchlist'}" onclick="toggleWatchlist('${item.id}')">${ICON.watchlist}</button>
           <button class="btn-icon" title="Check this title's sources" onclick="openLinkHealthCheck('${item.id}')">${ICON.search}</button>
         </div>
       </div>
