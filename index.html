@@ -515,8 +515,11 @@ a{color:inherit; text-decoration:none;}
   transition:transform var(--transition), background var(--transition); position:relative; overflow:hidden;
 }
 .collection-card:hover{transform:translateY(-3px); background:#141721;}
-.collection-card h4{font-size:16px; font-weight:800; margin-bottom:4px;}
+.collection-card h4{font-size:16px; font-weight:800; margin-bottom:4px; display:flex; align-items:center; gap:8px;}
 .collection-card span{font-size:12px; color:var(--muted);}
+.collection-card.watchlist-collection-card{border-color:rgba(61,219,217,.35); background:var(--highlight-dim);}
+.collection-card.watchlist-collection-card h4{color:var(--highlight);}
+.collection-card.watchlist-collection-card h4 svg{width:18px; height:18px;}
 .collection-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:16px;}
 
 .live-filter-wrap{position:relative;}
@@ -535,6 +538,40 @@ a{color:inherit; text-decoration:none;}
 .live-filter-group label{display:block; margin-bottom:6px;}
 
 .channel-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px;}
+
+.schedule-date-label{font-weight:800; font-size:14px; white-space:nowrap; padding:0 4px;}
+.schedule-list{display:flex; flex-direction:column; gap:10px;}
+.schedule-row{
+  display:flex; align-items:center; gap:14px; background:var(--surface); border:1px solid #1a1d26;
+  border-radius:10px; padding:10px 14px;
+}
+.schedule-time{width:64px; flex-shrink:0; font-weight:800; font-size:13px; color:var(--highlight); font-family:var(--display-font);}
+.schedule-thumb{width:52px; height:52px; border-radius:8px; overflow:hidden; flex-shrink:0; background:var(--surface2);}
+.schedule-thumb img{width:100%; height:100%; object-fit:cover;}
+.schedule-thumb .poster-fallback{font-size:16px; border-radius:8px;}
+.schedule-info{flex:1; min-width:0;}
+.schedule-show-title{font-weight:800; font-size:14px; margin-bottom:2px;}
+.schedule-ep-title{font-size:12.5px; color:#c7d5d3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.schedule-ep-tag{color:var(--highlight); font-weight:700;}
+.schedule-network{font-size:11px; color:var(--muted); margin-top:2px;}
+@media (max-width:860px){
+  .schedule-time{width:48px; font-size:12px;}
+  .schedule-thumb{width:44px; height:44px;}
+  .schedule-network{display:none;}
+}
+
+/* Home nav button — big, blue, centered, raised above the mobile bottom bar */
+.bottom-nav .nav-item-home{
+  flex:0 0 auto; width:56px; height:56px; border-radius:50%; position:relative; top:-16px;
+  background:linear-gradient(135deg, var(--highlight), #2bc4c1); color:#04211f;
+  box-shadow:0 6px 18px rgba(61,219,217,.45), 0 0 0 4px var(--bg);
+  justify-content:center; align-items:center;
+}
+.bottom-nav .nav-item-home svg{width:24px; height:24px;}
+.bottom-nav .nav-item-home span{display:none;}
+.bottom-nav .nav-item-home::after{display:none;}
+.bottom-nav .nav-item-home:hover{transform:translateY(-2px);}
+.sidebar .nav-item-home{background:var(--highlight-dim); color:var(--highlight); font-weight:800;}
 .channel-card{
   position:relative; background:var(--surface); border:1px solid #1a1d26; border-radius:12px; padding:14px;
   display:flex; align-items:center; gap:14px; cursor:pointer;
@@ -658,6 +695,7 @@ const ICON = {
   chevronLeft:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>',
   chevronRight:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>',
   antenna:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10a8 8 0 0 1 16 0"/><path d="M7 10a5 5 0 0 1 10 0"/><circle cx="12" cy="10" r="1.5" fill="currentColor" stroke="none"/><path d="M12 11.5V21M9 21h6"/></svg>',
+  schedule:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M12 14v3l2 1.5"/><circle cx="12" cy="16" r="4.5"/></svg>',
   expand:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/></svg>',
   filter:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6 8v6l-4 2v-8z"/></svg>',
   watchlist:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>',
@@ -694,8 +732,9 @@ function loadSettings(){
     if(typeof s.contentBlur !== 'boolean') s.contentBlur = false;
     if(!s.contentBlurLevel) s.contentBlurLevel = 'moderate';
     if(!s.contentBlurModelUrl) s.contentBlurModelUrl = '';
+    if(!s.scheduleCountry) s.scheduleCountry = 'US';
     return s;
-  }catch(e){ return {omdb:'',tmdb:'',vidsrcDomain:'vidsrc-embed.su', blockPopupAds:false, contentBlur:false, contentBlurLevel:'moderate', contentBlurModelUrl:''}; }
+  }catch(e){ return {omdb:'',tmdb:'',vidsrcDomain:'vidsrc-embed.su', blockPopupAds:false, contentBlur:false, contentBlurLevel:'moderate', contentBlurModelUrl:'', scheduleCountry:'US'}; }
 }
 function saveSettings(){ localStorage.setItem(SET_KEY, JSON.stringify(state.settings)); }
 
@@ -704,8 +743,8 @@ const state = {
   settings: loadSettings(),
   route: 'home',
   routeParam: null,
-  library: { filter:'all', search:'', sort:'recent' },
   liveTv: { category:'all', language:'all', search:'', filterOpen:false },
+  schedule: { date: todayISO(), search:'', cache:{} },
   detailSeason: 0,
   editingId: null,
   editType: 'movie',
@@ -934,16 +973,16 @@ function isFullyWatched(item){
    NAV / RENDER SHELL
 ========================================================= */
 const NAV_ITEMS = [
-  {id:'home', label:'Home', icon:'home'},
   {id:'movies', label:'Movies', icon:'movie'},
   {id:'series', label:'TV Shows', icon:'tv'},
+  {id:'home', label:'Home', icon:'home'},
   {id:'live', label:'Live TV', icon:'antenna'},
-  {id:'library', label:'Library', icon:'library'},
+  {id:'schedule', label:'Schedule', icon:'schedule'},
 ];
 
 function renderShell(){
   const navHtml = NAV_ITEMS.map(n=>`
-    <a class="nav-item ${state.route===n.id?'active':''}" href="#${n.id}">
+    <a class="nav-item ${n.id==='home'?'nav-item-home':''} ${state.route===n.id?'active':''}" href="#${n.id}">
       ${ICON[n.icon]}<span>${n.label}</span>
     </a>`).join('');
   document.getElementById('sidebar').innerHTML = `
@@ -954,9 +993,9 @@ function renderShell(){
   `;
   document.getElementById('bottomNav').innerHTML = navHtml;
 
-  const titles = {home:'Home', movies:'Movies', series:'TV Shows', live:'Live TV', library:'Library', watchlist:'Watchlist', collections:'Collections', settings:'Settings'};
+  const titles = {home:'Home', movies:'Movies', series:'TV Shows', live:'Live TV', schedule:'TV Schedule', collections:'Collections', settings:'Settings'};
   let topActions = '';
-  if(['library','home','movies','series'].includes(state.route)){
+  if(['home','movies','series'].includes(state.route)){
     topActions += `<button class="btn btn-primary btn-icon-only" title="Add Title" onclick="openEditModal()">${ICON.plus}</button>`;
   } else if(state.route==='live'){
     topActions += `<button class="btn btn-primary btn-icon-only" title="Add Channel" onclick="openChannelModal()">${ICON.plus}</button>`;
@@ -968,7 +1007,6 @@ function renderShell(){
         <button class="topbar-search-icon" title="Search" onclick="toggleGlobalSearch()">${ICON.search}</button>
         <input id="globalSearchInput" class="global-search-input" placeholder="Search movies, shows & channels" oninput="onGlobalSearchInput(this.value)" value="${esc(state.globalSearchQuery||'')}">
       </div>
-      <a class="btn-icon ${state.route==='watchlist'?'is-active':''}" href="#watchlist" title="Watchlist">${ICON.watchlist}</a>
       <a class="btn-icon ${state.route==='collections'?'is-active':''}" href="#collections" title="Collections">${ICON.collections}</a>
       <a class="btn-icon ${state.route==='settings'?'is-active':''}" href="#settings" title="Settings">${ICON.settings}</a>
       ${topActions}
@@ -989,11 +1027,10 @@ function router(){
   renderShell();
   const root = document.getElementById('pageRoot');
   switch(route){
-    case 'library': root.innerHTML = renderLibrary(); break;
     case 'movies': root.innerHTML = renderTypePage('movie'); break;
     case 'series': root.innerHTML = renderTypePage('series'); break;
     case 'live': root.innerHTML = renderLiveTV(); break;
-    case 'watchlist': root.innerHTML = renderWatchlist(); break;
+    case 'schedule': root.innerHTML = renderSchedule(); loadScheduleData(); break;
     case 'collections': root.innerHTML = renderCollections(param); break;
     case 'settings': root.innerHTML = renderSettings(); break;
     case 'detail':
@@ -1361,57 +1398,114 @@ function quickPlay(id){
 }
 
 /* =========================================================
-   LIBRARY
+   TV SCHEDULE (TVmaze)
 ========================================================= */
-function renderLibrary(){
-  const st = state.library;
-  let items = [...state.lib.items];
-  if(st.filter==='movie') items = items.filter(i=>i.type==='movie');
-  if(st.filter==='series') items = items.filter(i=>i.type==='series');
-  if(st.filter==='collections') return renderCollectionsList();
-  if(st.search) items = items.filter(i=> i.title.toLowerCase().includes(st.search.toLowerCase()));
-  if(st.sort==='az') items.sort((a,b)=> a.title.localeCompare(b.title));
-  else if(st.sort==='watched') items.sort((a,b)=> new Date(b.lastWatched||0)-new Date(a.lastWatched||0));
-  else items.sort((a,b)=> new Date(b.dateAdded||0)-new Date(a.dateAdded||0));
-
-  const chips = [['all','All'],['movie','Movies'],['series','Series'],['collections','Collections']];
-
+function todayISO(offsetDays){
+  const d = new Date();
+  d.setDate(d.getDate() + (offsetDays||0));
+  return d.toISOString().slice(0,10);
+}
+function formatScheduleDateLabel(iso){
+  const d = new Date(iso+'T00:00:00');
+  const diffDays = Math.round((d - new Date(todayISO()+'T00:00:00')) / 86400000);
+  const dateStr = d.toLocaleDateString(undefined, {weekday:'short', month:'short', day:'numeric'});
+  if(diffDays===0) return 'Today · '+dateStr;
+  if(diffDays===1) return 'Tomorrow · '+dateStr;
+  if(diffDays===-1) return 'Yesterday · '+dateStr;
+  return dateStr;
+}
+function renderSchedule(){
+  const st = state.schedule;
   return `
     <div class="page">
       <div class="filter-bar">
-        ${chips.map(([k,l])=>`<button class="chip-btn ${st.filter===k?'active':''}" onclick="setLibFilter('${k}')">${l}</button>`).join('')}
-        <input class="search-input" placeholder="Search titles..." value="${esc(st.search)}" oninput="setLibSearch(this.value)">
-        <select class="select-input" onchange="setLibSort(this.value)">
-          <option value="recent" ${st.sort==='recent'?'selected':''}>Recently Added</option>
-          <option value="az" ${st.sort==='az'?'selected':''}>A-Z</option>
-          <option value="watched" ${st.sort==='watched'?'selected':''}>Last Watched</option>
-        </select>
+        <button class="btn-icon" title="Previous day" onclick="shiftScheduleDate(-1)">${ICON.chevronLeft}</button>
+        <div class="schedule-date-label">${formatScheduleDateLabel(st.date)}</div>
+        <button class="btn-icon" title="Next day" onclick="shiftScheduleDate(1)">${ICON.chevronRight}</button>
+        <input class="search-input" style="max-width:90px;" value="${esc(state.settings.scheduleCountry)}" title="2-letter country code" oninput="setScheduleCountry(this.value)">
+        <input class="search-input" placeholder="Search schedule..." value="${esc(st.search)}" oninput="setScheduleSearch(this.value)">
       </div>
-      ${items.length ? `<div class="grid">${items.map(cardHtml).join('')}</div>` : emptyState('No titles found','Try a different search or add something new.')}
+      <div id="scheduleListing"></div>
     </div>`;
 }
-function setLibFilter(f){ state.library.filter=f; router.__manual__(); renderLibraryOnly(); }
-function setLibSearch(v){ state.library.search=v; renderLibraryOnly(true); }
-function setLibSort(v){ state.library.sort=v; renderLibraryOnly(); }
-function renderLibraryOnly(keepFocus){
-  document.getElementById('pageRoot').innerHTML = renderLibrary();
-  if(keepFocus){
-    const el = document.querySelector('.search-input');
-    if(el){ el.focus(); el.selectionStart = el.selectionEnd = el.value.length; }
+function shiftScheduleDate(delta){
+  const d = new Date(state.schedule.date+'T00:00:00');
+  d.setDate(d.getDate()+delta);
+  state.schedule.date = d.toISOString().slice(0,10);
+  document.getElementById('pageRoot').innerHTML = renderSchedule();
+  loadScheduleData();
+}
+function setScheduleCountry(val){
+  state.settings.scheduleCountry = val.trim().toUpperCase().slice(0,2) || 'US';
+  saveSettings();
+  loadScheduleData();
+}
+function setScheduleSearch(val){
+  state.schedule.search = val;
+  renderScheduleListing(state.schedule.cache[scheduleCacheKey()] || []);
+}
+function scheduleCacheKey(){
+  return state.settings.scheduleCountry+'_'+state.schedule.date;
+}
+async function loadScheduleData(){
+  const container = document.getElementById('scheduleListing');
+  if(!container) return;
+  const key = scheduleCacheKey();
+  if(state.schedule.cache[key]){ renderScheduleListing(state.schedule.cache[key]); return; }
+  container.innerHTML = `<div class="empty-state"><div class="spinner" style="margin:0 auto;"></div><p style="margin-top:16px; color:var(--muted);">Loading schedule…</p></div>`;
+  try{
+    const res = await fetch(`https://api.tvmaze.com/schedule?country=${encodeURIComponent(state.settings.scheduleCountry)}&date=${state.schedule.date}`);
+    if(!res.ok) throw new Error('TVmaze request failed (status '+res.status+')');
+    const data = await res.json();
+    state.schedule.cache[key] = data;
+    if(document.getElementById('scheduleListing')) renderScheduleListing(data);
+  }catch(e){
+    if(container.isConnected) container.innerHTML = `<div class="empty-state"><h3>Couldn't load the schedule</h3><p>${esc(e.message||'Check your connection and try again.')}</p></div>`;
   }
+}
+function renderScheduleListing(data){
+  const container = document.getElementById('scheduleListing');
+  if(!container) return;
+  const search = (state.schedule.search||'').trim().toLowerCase();
+  let list = data;
+  if(search) list = list.filter(ep=> ((ep.show&&ep.show.name)||'').toLowerCase().includes(search));
+  if(!list.length){
+    container.innerHTML = emptyState('Nothing found', 'Try a different date, country code, or search.', 'Today', "state.schedule.date=todayISO(); document.getElementById('pageRoot').innerHTML=renderSchedule(); loadScheduleData();");
+    return;
+  }
+  list = [...list].sort((a,b)=> (a.airtime||'').localeCompare(b.airtime||''));
+  container.innerHTML = `<div class="schedule-list">${list.map(scheduleRowHtml).join('')}</div>`;
+}
+function findChannelForNetwork(network){
+  if(!network) return null;
+  const channels = state.lib.channels||[];
+  const n = network.toLowerCase();
+  return channels.find(c=>c.name.toLowerCase()===n)
+    || channels.find(c=> c.name.toLowerCase().includes(n) || n.includes(c.name.toLowerCase()))
+    || null;
+}
+function scheduleRowHtml(ep){
+  const show = ep.show || {};
+  const img = (show.image && (show.image.medium||show.image.original)) || '';
+  const network = (show.network&&show.network.name) || (show.webChannel&&show.webChannel.name) || '';
+  const matched = findChannelForNetwork(network);
+  const epLabel = (ep.season && ep.number) ? `S${ep.season}E${ep.number}` : '';
+  return `
+    <div class="schedule-row">
+      <div class="schedule-time">${esc(ep.airtime||'--:--')}</div>
+      <div class="schedule-thumb">${img?`<img src="${esc(img)}" alt="" loading="lazy" ${contentBlurImgAttrs()}>`:fallbackHtml(show.name||'?')}</div>
+      <div class="schedule-info">
+        <div class="schedule-show-title">${esc(show.name||'Untitled')}</div>
+        <div class="schedule-ep-title">${epLabel?`<span class="schedule-ep-tag">${esc(epLabel)}</span> `:''}${esc(ep.name||'')}</div>
+        <div class="schedule-network">${esc(network||'Unknown network')}</div>
+      </div>
+      ${matched ? `<button class="btn btn-primary" style="flex-shrink:0;" onclick="playChannel('${matched.id}')">${ICON.play} Watch</button>` : ''}
+    </div>`;
 }
 
 /* =========================================================
    WATCHLIST
 ========================================================= */
-function renderWatchlist(){
-  const items = state.lib.items.filter(i=>i.watchlist);
-  if(!items.length){
-    return `<div class="page">${emptyState('Your watchlist is empty', "Tap the clock icon on any title's detail page to add it here.", 'Browse Library', "location.hash='library'")}</div>`;
-  }
-  const sorted = [...items].sort((a,b)=> new Date(b.dateAdded||0)-new Date(a.dateAdded||0));
-  return `<div class="page"><div class="grid">${sorted.map(i=>cardHtml(i)).join('')}</div></div>`;
-}
 function ratingWidgetHtml(item){
   const rating = item.myRating || 0;
   let stars = '';
@@ -1449,24 +1543,44 @@ function toggleWatchlist(itemId){
 }
 
 /* =========================================================
-   COLLECTIONS
+   COLLECTIONS (Watchlist lives here as a pinned sub-view)
 ========================================================= */
 function renderCollections(param){
+  if(param==='watchlist') return renderWatchlistView();
   if(param) return renderCollectionDetail(param);
   return renderCollectionsList();
 }
+function renderWatchlistView(){
+  const items = state.lib.items.filter(i=>i.watchlist);
+  const sorted = [...items].sort((a,b)=> new Date(b.dateAdded||0)-new Date(a.dateAdded||0));
+  return `
+    <div class="page">
+      <div class="filter-bar">
+        <a class="btn btn-ghost" href="#collections">&larr; All Collections</a>
+      </div>
+      <h2 style="margin-bottom:16px; display:flex; align-items:center; gap:10px;">${ICON.watchlist} Watchlist</h2>
+      ${sorted.length ? `<div class="grid">${sorted.map(i=>cardHtml(i)).join('')}</div>` : emptyState('Your watchlist is empty', "Tap the clock icon on any title's detail page to add it here.", 'Browse Movies', "location.hash='movies'")}
+    </div>`;
+}
 function renderCollectionsList(){
   const cols = state.lib.collections;
+  const watchlistCount = state.lib.items.filter(i=>i.watchlist).length;
   return `
     <div class="page">
       <div class="filter-bar">
         <button class="btn btn-primary" onclick="createCollection()">${ICON.plus} New Collection</button>
       </div>
-      ${cols.length ? `<div class="collection-grid">${cols.map(c=>`
-        <div class="collection-card" onclick="location.hash='collections/${c.id}'">
-          <h4>${esc(c.name)}</h4>
-          <span>${c.itemIds.length} title${c.itemIds.length===1?'':'s'}</span>
-        </div>`).join('')}</div>` : emptyState('No collections yet','Create a collection to organize your favorites.')}
+      <div class="collection-grid">
+        <div class="collection-card watchlist-collection-card" onclick="location.hash='collections/watchlist'">
+          <h4>${ICON.watchlist} Watchlist</h4>
+          <span>${watchlistCount} title${watchlistCount===1?'':'s'}</span>
+        </div>
+        ${cols.map(c=>`
+          <div class="collection-card" onclick="location.hash='collections/${c.id}'">
+            <h4>${esc(c.name)}</h4>
+            <span>${c.itemIds.length} title${c.itemIds.length===1?'':'s'}</span>
+          </div>`).join('')}
+      </div>
     </div>`;
 }
 function renderCollectionDetail(id){
@@ -1981,7 +2095,7 @@ function deleteItem(id){
   if(!confirm('Delete this title permanently?')) return;
   state.lib.items = state.lib.items.filter(i=>i.id!==id);
   state.lib.collections.forEach(c=> c.itemIds = c.itemIds.filter(x=>x!==id));
-  saveLib(); location.hash='library'; toast('Title deleted');
+  saveLib(); location.hash='home'; toast('Title deleted');
 }
 function openAddToCollection(itemId){
   if(!state.lib.collections.length){
