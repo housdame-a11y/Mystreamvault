@@ -326,6 +326,19 @@ a{color:inherit; text-decoration:none;}
 .my-rating-clear:hover{color:#ff8b93; background:#3a1218; border-color:#4d1a20;}
 .detail-actions{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;}
 
+.watch-progress-banner{
+  display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+  margin:26px 32px 0 32px; padding:14px 18px; background:var(--highlight-dim);
+  border:1px solid rgba(61,219,217,.3); border-radius:12px;
+}
+.watch-progress-banner.watch-progress-done{
+  justify-content:flex-start; color:var(--highlight); font-weight:700; font-size:14px;
+}
+.wpb-next{display:flex; flex-direction:column; gap:3px;}
+.wpb-label{font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--highlight);}
+.wpb-title{font-size:14px; font-weight:700;}
+.wpb-remaining{font-size:12.5px; color:var(--muted); font-weight:600; white-space:nowrap;}
+@media (max-width:860px){ .watch-progress-banner{margin-left:16px; margin-right:16px;} }
 .season-select-row{display:flex; align-items:center; gap:12px; margin:30px 32px 16px 32px;}
 .season-select-label{font-size:11.5px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.05em;}
 .season-select{min-width:220px; font-weight:700; padding:10px 16px;}
@@ -461,6 +474,14 @@ a{color:inherit; text-decoration:none;}
   animation:spin .8s linear infinite;
 }
 @keyframes spin{to{transform:rotate(360deg);}}
+.player-hide-overlay{
+  position:absolute; inset:0; z-index:10; background:rgba(5,6,9,.97); backdrop-filter:blur(60px);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+  color:var(--text); cursor:pointer; animation:cardTrailerFadeIn .25s ease;
+}
+.player-hide-icon{width:56px; height:56px; border-radius:50%; background:var(--highlight-dim); display:flex; align-items:center; justify-content:center; color:var(--highlight);}
+.player-hide-icon svg{width:26px; height:26px;}
+.player-hide-overlay span{font-size:13px; font-weight:700; color:var(--muted);}
 .player-bottom{position:absolute; bottom:0; left:0; right:0; padding:18px 24px; display:flex; justify-content:center; gap:10px; background:linear-gradient(0deg, rgba(0,0,0,.8), transparent); transition:opacity .4s ease;}
 .player-next-side{
   position:absolute; top:50%; right:24px; transform:translateY(-50%); z-index:6; width:190px;
@@ -560,10 +581,13 @@ a{color:inherit; text-decoration:none;}
   .schedule-network{display:none;}
 }
 
-/* Home nav button — big, blue, centered, raised above the mobile bottom bar */
+/* Home nav button — big, blue, centered, raised above the mobile bottom bar, ALWAYS (not just
+   when active) — !important needed because .bottom-nav .nav-item.active has higher specificity
+   (3 classes vs 2) and would otherwise override this back to transparent specifically when the
+   Home tab itself is the active route. */
 .bottom-nav .nav-item-home{
   flex:0 0 auto; width:56px; height:56px; border-radius:50%; position:relative; top:-16px;
-  background:linear-gradient(135deg, var(--highlight), #2bc4c1); color:#04211f;
+  background:linear-gradient(135deg, var(--highlight), #2bc4c1) !important; color:#04211f !important;
   box-shadow:0 6px 18px rgba(61,219,217,.45), 0 0 0 4px var(--bg);
   justify-content:center; align-items:center;
 }
@@ -571,7 +595,7 @@ a{color:inherit; text-decoration:none;}
 .bottom-nav .nav-item-home span{display:none;}
 .bottom-nav .nav-item-home::after{display:none;}
 .bottom-nav .nav-item-home:hover{transform:translateY(-2px);}
-.sidebar .nav-item-home{background:var(--highlight-dim); color:var(--highlight); font-weight:800;}
+.sidebar .nav-item-home{background:var(--highlight-dim) !important; color:var(--highlight) !important; font-weight:800;}
 .channel-card{
   position:relative; background:var(--surface); border:1px solid #1a1d26; border-radius:12px; padding:14px;
   display:flex; align-items:center; gap:14px; cursor:pointer;
@@ -699,7 +723,7 @@ const ICON = {
   expand:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/></svg>',
   filter:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6 8v6l-4 2v-8z"/></svg>',
   watchlist:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>',
-  watchlist:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>',
+  eyeOff:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a20.3 20.3 0 0 1 5.06-5.94M9.9 4.24A10.4 10.4 0 0 1 12 4c7 0 11 8 11 8a20.3 20.3 0 0 1-3.22 4.36M14.12 14.12a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/></svg>',
   volumeOff:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="m23 9-6 6M17 9l6 6"/></svg>',
   volumeOn:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>',
 };
@@ -744,7 +768,7 @@ const state = {
   route: 'home',
   routeParam: null,
   liveTv: { category:'all', language:'all', search:'', filterOpen:false },
-  schedule: { date: todayISO(), search:'', cache:{} },
+  schedule: { date: todayISO(), search:'', cache:{}, watchlistOnly:false },
   detailSeason: 0,
   editingId: null,
   editType: 'movie',
@@ -1422,11 +1446,26 @@ function renderSchedule(){
         <button class="btn-icon" title="Previous day" onclick="shiftScheduleDate(-1)">${ICON.chevronLeft}</button>
         <div class="schedule-date-label">${formatScheduleDateLabel(st.date)}</div>
         <button class="btn-icon" title="Next day" onclick="shiftScheduleDate(1)">${ICON.chevronRight}</button>
+        <button class="chip-btn ${st.watchlistOnly?'active':''}" title="Show only shows on your watchlist" onclick="toggleScheduleWatchlistOnly()">${ICON.watchlist} My Watchlist</button>
         <input class="search-input" style="max-width:90px;" value="${esc(state.settings.scheduleCountry)}" title="2-letter country code" oninput="setScheduleCountry(this.value)">
         <input class="search-input" placeholder="Search schedule..." value="${esc(st.search)}" oninput="setScheduleSearch(this.value)">
       </div>
       <div id="scheduleListing"></div>
     </div>`;
+}
+function toggleScheduleWatchlistOnly(){
+  state.schedule.watchlistOnly = !state.schedule.watchlistOnly;
+  document.getElementById('pageRoot').innerHTML = renderSchedule();
+  renderScheduleListing(state.schedule.cache[scheduleCacheKey()] || []);
+}
+function isShowOnWatchlist(showName){
+  if(!showName) return false;
+  const name = showName.toLowerCase().trim();
+  return state.lib.items.some(i=> i.type==='series' && i.watchlist && i.title && (
+    i.title.toLowerCase().trim()===name ||
+    i.title.toLowerCase().includes(name) ||
+    name.includes(i.title.toLowerCase())
+  ));
 }
 function shiftScheduleDate(delta){
   const d = new Date(state.schedule.date+'T00:00:00');
@@ -1468,9 +1507,11 @@ function renderScheduleListing(data){
   if(!container) return;
   const search = (state.schedule.search||'').trim().toLowerCase();
   let list = data;
+  if(state.schedule.watchlistOnly) list = list.filter(ep=> isShowOnWatchlist(ep.show&&ep.show.name));
   if(search) list = list.filter(ep=> ((ep.show&&ep.show.name)||'').toLowerCase().includes(search));
   if(!list.length){
-    container.innerHTML = emptyState('Nothing found', 'Try a different date, country code, or search.', 'Today', "state.schedule.date=todayISO(); document.getElementById('pageRoot').innerHTML=renderSchedule(); loadScheduleData();");
+    const msg = state.schedule.watchlistOnly ? 'None of your watchlisted shows are airing on this date/country.' : 'Try a different date, country code, or search.';
+    container.innerHTML = emptyState('Nothing found', msg, 'Today', "state.schedule.date=todayISO(); document.getElementById('pageRoot').innerHTML=renderSchedule(); loadScheduleData();");
     return;
   }
   list = [...list].sort((a,b)=> (a.airtime||'').localeCompare(b.airtime||''));
@@ -1936,6 +1977,7 @@ function renderDetail(id){
     const activeIdx = Math.min(state.detailSeason, Math.max(seasons.length-1,0));
     const active = seasons[activeIdx];
     body = `
+      ${watchProgressBannerHtml(item)}
       <div class="season-select-row">
         ${seasons.length ? `
           <label for="seasonSelect" class="season-select-label">Season</label>
@@ -2000,6 +2042,37 @@ function renderDetail(id){
 }
 // Suggests titles already in the user's own library sharing genres with this one — always playable
 // since they're already in the collection, unlike a generic "similar movies" list from the internet.
+// Computes "next episode to watch" and how many are left — TV Time-style tracking, based on the
+// same watched/progress data already tracked per episode, just walked in real season/episode order.
+function getWatchProgressSummary(item){
+  if(item.type!=='series') return null;
+  const allEpisodes = [];
+  (item.seasons||[]).forEach(s=> (s.episodes||[]).forEach(e=> allEpisodes.push({season:s.number, episode:e})));
+  if(!allEpisodes.length) return null;
+  allEpisodes.sort((a,b)=> a.season-b.season || a.episode.number-b.episode.number);
+  const prog = item.progress || {};
+  const remaining = allEpisodes.filter(x=>{
+    const key = 's'+x.season+'e'+x.episode.number;
+    return !(prog[key] && prog[key].watched);
+  });
+  return { total: allEpisodes.length, remaining: remaining.length, next: remaining[0] || null };
+}
+function watchProgressBannerHtml(item){
+  if(!item.watchlist) return '';
+  const summary = getWatchProgressSummary(item);
+  if(!summary || !summary.total) return '';
+  if(summary.remaining===0){
+    return `<div class="watch-progress-banner watch-progress-done">${ICON.check} All caught up!</div>`;
+  }
+  const next = summary.next;
+  return `<div class="watch-progress-banner">
+    <div class="wpb-next">
+      <span class="wpb-label">Next Up</span>
+      <span class="wpb-title">S${next.season}E${next.episode.number} — ${esc(next.episode.title||('Episode '+next.episode.number))}</span>
+    </div>
+    <div class="wpb-remaining">${summary.remaining} episode${summary.remaining===1?'':'s'} remaining</div>
+  </div>`;
+}
 function getSimilarLibraryItems(item, limit){
   limit = limit || 12;
   const genres = new Set(item.genre||[]);
@@ -3269,6 +3342,10 @@ function playNextEpisode(){
 function openPlayer(item, seasonNum, epNum, sources){
   sources = sources || [];
   if(!sources.length){ toast('No sources available'); return; }
+  if(seasonNum!=null && item.type==='series' && !item.watchlist){
+    item.watchlist = true;
+    toast('Added to Watchlist — tracking your progress');
+  }
   state.player = {
     itemId: item.id, seasonNum, epNum, sources, sourceIdx:0,
     key: seasonNum!=null ? 's'+seasonNum+'e'+epNum : 'movie',
@@ -3321,6 +3398,7 @@ function renderPlayer(){
         <div class="player-sub">${esc(p.subtitle)} ${src.label?'· '+esc(src.label):''}</div>
       </div>
       <div class="player-top-actions">
+        <button class="btn-icon" title="Hide screen" onclick="togglePlayerHide()">${ICON.eyeOff}</button>
         <button class="btn-icon" id="playerFullscreenBtn" title="Fullscreen" onclick="togglePlayerFullscreen()">${ICON.expand}</button>
         <button class="btn-icon" onclick="closePlayer()">${ICON.close}</button>
       </div>
@@ -3441,6 +3519,22 @@ function togglePlayerFullscreen(){
   if(!document.fullscreenElement) stage.requestFullscreen?.().catch(()=>{});
   else document.exitFullscreen?.().catch(()=>{});
 }
+// A manual, on-demand "cover the screen" toggle — a plain opaque/blurred overlay placed on top of
+// the video. Unlike the AI-based Content Blur feature, this needs no pixel analysis at all, so it
+// works identically on direct video AND third-party iframes (VidSrc, live TV) — the one thing this
+// app's smart detection can never reach, a manual cover always can, since it's just visually on top.
+function togglePlayerHide(){
+  const stage = document.getElementById('playerStage');
+  if(!stage) return;
+  const existing = document.getElementById('playerHideOverlay');
+  if(existing){ existing.remove(); return; }
+  const overlay = document.createElement('div');
+  overlay.id = 'playerHideOverlay';
+  overlay.className = 'player-hide-overlay';
+  overlay.innerHTML = `<div class="player-hide-icon">${ICON.eyeOff}</div><span>Screen Hidden — tap to reveal</span>`;
+  overlay.onclick = ()=> overlay.remove();
+  stage.appendChild(overlay);
+}
 function showUpNextBanner(next){
   const el = document.getElementById('upNextBanner');
   if(!el) return;
@@ -3539,6 +3633,7 @@ document.addEventListener('keydown', e=>{
   const vid = document.getElementById('playerVideoEl');
   scheduleHideControls();
   if(e.key==='f' || e.key==='F'){ e.preventDefault(); togglePlayerFullscreen(); return; }
+  if(e.key==='h' || e.key==='H'){ e.preventDefault(); togglePlayerHide(); return; }
   if(!vid) return; // remaining shortcuts only apply to direct video sources, not third-party iframes
   if(e.key===' ' || e.code==='Space'){ e.preventDefault(); vid.paused ? vid.play() : vid.pause(); }
   else if(e.key==='ArrowRight'){ e.preventDefault(); vid.currentTime = Math.min(vid.duration||Infinity, vid.currentTime+10); }
