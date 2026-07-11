@@ -997,6 +997,34 @@ function movieProgressPct(item){
   if(!p || !p.duration) return p && p.watched ? 100 : 0;
   return Math.min(100, Math.round((p.timestamp/p.duration)*100));
 }
+// Pulls a minute value out of strings like "148 min" / "45m" / "1h 30m" — falls back when missing
+// or unparsable, since not every title has runtime data (e.g. titles added without OMDb/TMDB fetch).
+function parseRuntimeMinutes(runtimeStr, fallback){
+  if(!runtimeStr) return fallback;
+  const s = String(runtimeStr);
+  const hm = s.match(/(\d+)\s*h(?:r)?\s*(\d+)?\s*m?/i);
+  if(hm) return parseInt(hm[1],10)*60 + (hm[2]?parseInt(hm[2],10):0);
+  const m = s.match(/(\d+)/);
+  return m ? parseInt(m[1],10) : fallback;
+}
+// Total known runtime (in seconds) for whatever's currently playing — a movie, or one specific
+// episode. Used to convert "time the player has been open" into a real percentage instead of the
+// old flat "5 minutes = fully watched" placeholder.
+function getPlaybackDurationSeconds(item, seasonNum, epNum){
+  if(seasonNum!=null){
+    const season = (item.seasons||[]).find(s=>s.number===seasonNum);
+    const ep = season && (season.episodes||[]).find(e=>e.number===epNum);
+    const movieFallback = parseRuntimeMinutes(item.runtime, null);
+    const epRuntime = ep && ep.runtime;
+    return parseRuntimeMinutes(epRuntime, movieFallback || 45) * 60;
+  }
+  return parseRuntimeMinutes(item.runtime, 120) * 60;
+}
+// TV episodes count as watched at 90% (credits tend to run longer relative to a shorter runtime);
+// movies at 95%, a bit stricter since their credits are a smaller share of the total length.
+function getWatchedThreshold(seasonNum){
+  return seasonNum!=null ? 0.90 : 0.95;
+}
 function isStarted(item){
   if(item.type==='movie'){
     const p=(item.progress||{}).movie;
@@ -3150,6 +3178,7 @@ async function applyTmdbDetails(tmdbId, tmdbType){
           title: e.name || `Episode ${e.episode_number}`,
           thumbnail: e.still_path ? `https://image.tmdb.org/t/p/w300${e.still_path}` : '',
           overview: e.overview || '',
+          runtime: e.runtime || null,
           sources: [{label:'',url:''}]
         }));
         seasonsData.push({number: s.season_number, episodes});
@@ -3312,7 +3341,7 @@ function saveEditModal(){
     payload.seasons = state.editSeasons.map(s=>({
       number: s.number,
       episodes: (s.episodes||[]).map(e=>({
-        number:e.number, title:e.title.trim(), thumbnail:e.thumbnail||'', overview:e.overview||'', myRating:e.myRating||0,
+        number:e.number, title:e.title.trim(), thumbnail:e.thumbnail||'', overview:e.overview||'', myRating:e.myRating||0, runtime:e.runtime||null,
         sources:(e.sources||[]).filter(src=>src.url.trim()).map(src=>({label:src.label.trim()||'Source', url:src.url.trim()}))
       }))
     }));
@@ -3521,7 +3550,7 @@ function renderPlayer(){
     if(saved && saved.timestamp) vid.currentTime = saved.timestamp;
     p._interval = setInterval(()=>{
       if(!vid.duration || !isFinite(vid.duration)) return;
-      saveProgress(item, p.key, vid.currentTime, vid.duration, vid.currentTime >= vid.duration-5);
+      saveProgress(item, p.key, vid.currentTime, vid.duration, vid.currentTime >= vid.duration*getWatchedThreshold(p.seasonNum));
     }, 5000);
     vid.addEventListener('ended', ()=>{
       if(isFinite(vid.duration)) saveProgress(item, p.key, vid.duration, vid.duration, true);
@@ -3533,10 +3562,29 @@ function renderPlayer(){
       else toast('This source failed to play');
     });
   } else {
-    clearTimeout(p._watchTimer);
-    p._watchTimer = setTimeout(()=>{
-      saveProgress(item, p.key, 300, 300, true);
-    }, 5*60*1000);
+    // We have zero visibility inside a third-party iframe (VidSrc, etc.) — no currentTime, no
+    // play/pause events, nothing. The only signal available at all is how long our own player
+    // has been open. So progress here is real elapsed wall-clock time against the title's known
+    // runtime (from OMDb/TMDB), not verified playback — it resumes from wherever a previous
+    // session left off (supports watching across multiple sittings), and pauses counting while
+    // the browser tab itself is hidden/unfocused (the one case we CAN detect reliably). It does
+    // NOT know if you paused *inside* the iframe's own player while keeping our tab focused —
+    // that's a real gap with no fix available short of the source's own cooperation.
+    clearInterval(p._watchTimer);
+    const totalSeconds = getPlaybackDurationSeconds(item, p.seasonNum, p.epNum);
+    const savedIf = (item.progress||{})[p.key];
+    let elapsed = (savedIf && savedIf.timestamp) || 0;
+    let lastTick = Date.now();
+    p._watchTimer = setInterval(()=>{
+      const now = Date.now();
+      const delta = (now - lastTick) / 1000;
+      lastTick = now;
+      if(!document.hidden) elapsed += delta;
+      elapsed = Math.min(elapsed, totalSeconds);
+      const watched = totalSeconds>0 && elapsed >= totalSeconds*getWatchedThreshold(p.seasonNum);
+      saveProgress(item, p.key, elapsed, totalSeconds, watched);
+      if(watched){ clearInterval(p._watchTimer); if(next) showUpNextBanner(next); }
+    }, 10000);
   }
 }
 let hlsJsLoadPromise = null;
@@ -3659,7 +3707,7 @@ function tryNextSource(){
 function cleanupPlayerTimers(){
   if(state.player){
     clearInterval(state.player._interval);
-    clearTimeout(state.player._watchTimer);
+    clearInterval(state.player._watchTimer);
     clearInterval(state.player._upNextInterval);
     clearInterval(state.player._blurInterval);
     if(state.player._hls){ try{ state.player._hls.destroy(); }catch(e){} state.player._hls = null; }
