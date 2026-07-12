@@ -633,6 +633,10 @@ a{color:inherit; text-decoration:none;}
 .schedule-ep-title{font-size:12.5px; color:#c7d5d3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 .schedule-ep-tag{color:var(--highlight); font-weight:700;}
 .schedule-network{font-size:11px; color:var(--muted); margin-top:2px;}
+.schedule-countdown{
+  flex-shrink:0; background:var(--highlight-dim); border:1px solid rgba(61,219,217,.3); color:var(--highlight);
+  font-weight:800; font-size:12.5px; padding:6px 12px; border-radius:20px; font-family:var(--display-font); white-space:nowrap;
+}
 @media (max-width:860px){
   .schedule-time{width:48px; font-size:12px;}
   .schedule-thumb{width:44px; height:44px;}
@@ -826,7 +830,7 @@ const state = {
   route: 'home',
   routeParam: null,
   liveTv: { category:'all', language:'all', search:'', filterOpen:false },
-  schedule: { date: todayISO(), search:'', cache:{}, watchlistOnly:false },
+  schedule: { date: todayISO(), search:'', cache:{}, tab:'mine', myShowsCache:{} },
   detailSeason: 0,
   editingId: null,
   editType: 'movie',
@@ -1134,13 +1138,14 @@ function router(){
   if(route==='detail') state.detailSeason = 0;
   stopHeroAutoplay();
   clearAllCardHoverTimers();
+  stopMyShowsCountdown();
   renderShell();
   const root = document.getElementById('pageRoot');
   switch(route){
     case 'movies': root.innerHTML = renderTypePage('movie'); break;
     case 'series': root.innerHTML = renderTypePage('series'); break;
     case 'live': root.innerHTML = renderLiveTV(); break;
-    case 'schedule': root.innerHTML = renderSchedule(); loadScheduleData(); break;
+    case 'schedule': root.innerHTML = renderSchedule(); if((state.schedule.tab||'mine')==='mine') loadMyShowsSchedule(); else loadScheduleData(); break;
     case 'collections': root.innerHTML = renderCollections(param); break;
     case 'settings': root.innerHTML = renderSettings(); break;
     case 'detail':
@@ -1555,32 +1560,30 @@ function formatScheduleDateLabel(iso){
 }
 function renderSchedule(){
   const st = state.schedule;
+  const tab = st.tab || 'mine';
   return `
     <div class="page">
       <div class="filter-bar">
-        <button class="btn-icon" title="Previous day" onclick="shiftScheduleDate(-1)">${ICON.chevronLeft}</button>
-        <div class="schedule-date-label">${formatScheduleDateLabel(st.date)}</div>
-        <button class="btn-icon" title="Next day" onclick="shiftScheduleDate(1)">${ICON.chevronRight}</button>
-        <button class="chip-btn ${st.watchlistOnly?'active':''}" title="Show only shows on your watchlist" onclick="toggleScheduleWatchlistOnly()">${ICON.watchlist} My Watchlist</button>
-        <input class="search-input" style="max-width:90px;" value="${esc(state.settings.scheduleCountry)}" title="2-letter country code" oninput="setScheduleCountry(this.value)">
-        <input class="search-input" placeholder="Search schedule..." value="${esc(st.search)}" oninput="setScheduleSearch(this.value)">
+        <select id="scheduleTabSelect" class="select-input" style="width:auto; border-radius:8px;" onchange="setScheduleTab(this.value)">
+          <option value="mine" ${tab==='mine'?'selected':''}>My TV Shows</option>
+          <option value="broad" ${tab==='broad'?'selected':''}>Live TV</option>
+        </select>
+        ${tab==='broad' ? `
+          <button class="btn-icon" title="Previous day" onclick="shiftScheduleDate(-1)">${ICON.chevronLeft}</button>
+          <div class="schedule-date-label">${formatScheduleDateLabel(st.date)}</div>
+          <button class="btn-icon" title="Next day" onclick="shiftScheduleDate(1)">${ICON.chevronRight}</button>
+          <span class="tag" title="Change the country in Settings → TV Schedule">${esc(state.settings.scheduleCountry)}</span>
+        ` : ''}
+        <input class="search-input" placeholder="${tab==='mine'?'Search my shows...':'Search schedule...'}" value="${esc(st.search)}" oninput="setScheduleSearch(this.value)">
       </div>
       <div id="scheduleListing"></div>
     </div>`;
 }
-function toggleScheduleWatchlistOnly(){
-  state.schedule.watchlistOnly = !state.schedule.watchlistOnly;
+function setScheduleTab(val){
+  state.schedule.tab = val;
+  stopMyShowsCountdown();
   document.getElementById('pageRoot').innerHTML = renderSchedule();
-  renderScheduleListing(state.schedule.cache[scheduleCacheKey()] || []);
-}
-function isShowOnWatchlist(showName){
-  if(!showName) return false;
-  const name = showName.toLowerCase().trim();
-  return state.lib.items.some(i=> i.type==='series' && i.watchlist && i.title && (
-    i.title.toLowerCase().trim()===name ||
-    i.title.toLowerCase().includes(name) ||
-    name.includes(i.title.toLowerCase())
-  ));
+  if(val==='mine') loadMyShowsSchedule(); else loadScheduleData();
 }
 function shiftScheduleDate(delta){
   const d = new Date(state.schedule.date+'T00:00:00');
@@ -1589,14 +1592,25 @@ function shiftScheduleDate(delta){
   document.getElementById('pageRoot').innerHTML = renderSchedule();
   loadScheduleData();
 }
-function setScheduleCountry(val){
+function saveScheduleCountry(){
+  const val = document.getElementById('scheduleCountryInput').value;
   state.settings.scheduleCountry = val.trim().toUpperCase().slice(0,2) || 'US';
   saveSettings();
-  loadScheduleData();
+  state.schedule.cache = {};
+  toast('Schedule country saved');
+  if(state.route==='schedule' && (state.schedule.tab||'mine')==='broad'){
+    document.getElementById('pageRoot').innerHTML = renderSchedule();
+    loadScheduleData();
+  }
 }
 function setScheduleSearch(val){
   state.schedule.search = val;
-  renderScheduleListing(state.schedule.cache[scheduleCacheKey()] || []);
+  const tab = state.schedule.tab||'mine';
+  if(tab==='mine'){
+    if(state.schedule._myShowsResults) renderMyShowsListing(state.schedule._myShowsResults);
+  } else {
+    renderScheduleListing(state.schedule.cache[scheduleCacheKey()] || []);
+  }
 }
 function scheduleCacheKey(){
   return state.settings.scheduleCountry+'_'+state.schedule.date;
@@ -1622,15 +1636,148 @@ function renderScheduleListing(data){
   if(!container) return;
   const search = (state.schedule.search||'').trim().toLowerCase();
   let list = data;
-  if(state.schedule.watchlistOnly) list = list.filter(ep=> isShowOnWatchlist(ep.show&&ep.show.name));
   if(search) list = list.filter(ep=> ((ep.show&&ep.show.name)||'').toLowerCase().includes(search));
   if(!list.length){
-    const msg = state.schedule.watchlistOnly ? 'None of your watchlisted shows are airing on this date/country.' : 'Try a different date, country code, or search.';
-    container.innerHTML = emptyState('Nothing found', msg, 'Today', "state.schedule.date=todayISO(); document.getElementById('pageRoot').innerHTML=renderSchedule(); loadScheduleData();");
+    container.innerHTML = emptyState('Nothing found', 'Try a different date, country code, or search.', 'Today', "state.schedule.date=todayISO(); document.getElementById('pageRoot').innerHTML=renderSchedule(); loadScheduleData();");
     return;
   }
   list = [...list].sort((a,b)=> (a.airtime||'').localeCompare(b.airtime||''));
   container.innerHTML = `<div class="schedule-list">${list.map(scheduleRowHtml).join('')}</div>`;
+}
+
+/* ---------- My TV Shows (watchlist + TVmaze next-episode countdown) ---------- */
+function getWatchlistShows(){
+  return state.lib.items.filter(i=> i.type==='series' && i.watchlist);
+}
+async function loadMyShowsSchedule(){
+  const container = document.getElementById('scheduleListing');
+  if(!container) return;
+  const shows = getWatchlistShows();
+  if(!shows.length){
+    container.innerHTML = emptyState('No TV shows on your watchlist', 'Add a series to your watchlist from its detail page to see its next-episode countdown here.', 'Browse TV Shows', "location.hash='series'");
+    return;
+  }
+  container.innerHTML = `<div class="empty-state"><div class="spinner" style="margin:0 auto;"></div><p style="margin-top:16px; color:var(--muted);">Loading your shows…</p></div>`;
+  const results = await Promise.all(shows.map(fetchMyShowSchedule));
+  if(!document.getElementById('scheduleListing')) return;
+  state.schedule._myShowsResults = results;
+  renderMyShowsListing(results);
+}
+async function fetchMyShowSchedule(item){
+  const cacheKey = (item.title||'').toLowerCase().trim();
+  const cached = state.schedule.myShowsCache[cacheKey];
+  if(cached && (Date.now()-cached.fetchedAt) < 6*60*60*1000) return {item, show:cached.show};
+  try{
+    const res = await fetch(`https://api.tvmaze.com/singlesearch/shows?q=${encodeURIComponent(item.title)}&embed[]=nextepisode&embed[]=previousepisode`);
+    if(!res.ok) throw new Error('not found');
+    const show = await res.json();
+    state.schedule.myShowsCache[cacheKey] = {show, fetchedAt:Date.now()};
+    return {item, show};
+  }catch(e){
+    state.schedule.myShowsCache[cacheKey] = {show:null, fetchedAt:Date.now()};
+    return {item, show:null};
+  }
+}
+function nextEpisodeAirstamp(show){
+  const ep = show && show._embedded && show._embedded.nextepisode;
+  if(!ep || !ep.airstamp) return null;
+  const t = new Date(ep.airstamp).getTime();
+  return isNaN(t) ? null : t;
+}
+function renderMyShowsListing(results){
+  const container = document.getElementById('scheduleListing');
+  if(!container) return;
+  const search = (state.schedule.search||'').trim().toLowerCase();
+  let list = results;
+  if(search) list = list.filter(r=> (r.item.title||'').toLowerCase().includes(search));
+  if(!list.length){
+    container.innerHTML = emptyState('Nothing found', 'Try a different search.', '', '');
+    return;
+  }
+  list = [...list].sort((a,b)=>{
+    const an = nextEpisodeAirstamp(a.show), bn = nextEpisodeAirstamp(b.show);
+    if(an && bn) return an-bn;
+    if(an) return -1;
+    if(bn) return 1;
+    return (a.item.title||'').localeCompare(b.item.title||'');
+  });
+  container.innerHTML = `<div class="schedule-list">${list.map(myShowRowHtml).join('')}</div>`;
+  startMyShowsCountdown();
+}
+function myShowRowHtml(r){
+  const {item, show} = r;
+  const img = (show && show.image && (show.image.medium||show.image.original)) || item.poster || '';
+  const nextEp = show && show._embedded && show._embedded.nextepisode;
+  const airstamp = nextEpisodeAirstamp(show);
+  const epLabel = (nextEp && nextEp.season && nextEp.number) ? `S${nextEp.season}E${nextEp.number}` : '';
+  const network = (show && ((show.network&&show.network.name)||(show.webChannel&&show.webChannel.name))) || '';
+  const statusHtml = airstamp
+    ? `<span class="schedule-countdown" data-airstamp="${airstamp}">--</span>`
+    : (show ? `<span class="schedule-network" style="margin-top:0;">No upcoming episode</span>` : `<span class="schedule-network" style="margin-top:0; color:#ff8b93;">Not found on TVmaze</span>`);
+  return `
+    <div class="schedule-row" style="cursor:pointer;" onclick="openMyShowModal('${item.id}')">
+      <div class="schedule-thumb">${img?`<img src="${esc(img)}" alt="" loading="lazy" ${contentBlurImgAttrs()}>`:fallbackHtml(item.title||'?')}</div>
+      <div class="schedule-info">
+        <div class="schedule-show-title">${esc(item.title)}</div>
+        <div class="schedule-ep-title">${epLabel?`<span class="schedule-ep-tag">${esc(epLabel)}</span> `:''}${esc((nextEp&&nextEp.name)||'')}</div>
+        <div class="schedule-network">${esc(network)}</div>
+      </div>
+      ${statusHtml}
+    </div>`;
+}
+let myShowsCountdownTimer = null;
+function startMyShowsCountdown(){
+  stopMyShowsCountdown();
+  updateMyShowsCountdown();
+  myShowsCountdownTimer = setInterval(updateMyShowsCountdown, 1000);
+}
+function stopMyShowsCountdown(){
+  if(myShowsCountdownTimer){ clearInterval(myShowsCountdownTimer); myShowsCountdownTimer = null; }
+}
+function updateMyShowsCountdown(){
+  const els = document.querySelectorAll('.schedule-countdown');
+  if(!els.length){ stopMyShowsCountdown(); return; }
+  els.forEach(el=>{
+    const target = parseInt(el.dataset.airstamp, 10);
+    const diff = target - Date.now();
+    el.textContent = diff<=0 ? 'Airing now' : formatCountdown(diff);
+  });
+}
+function formatCountdown(ms){
+  const totalSec = Math.floor(ms/1000);
+  const d = Math.floor(totalSec/86400), h = Math.floor((totalSec%86400)/3600), m = Math.floor((totalSec%3600)/60), s = totalSec%60;
+  if(d>0) return `${d}d ${h}h`;
+  if(h>0) return `${h}h ${m}m`;
+  if(m>0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+function openMyShowModal(itemId){
+  const item = getItem(itemId);
+  if(!item) return;
+  const cacheKey = (item.title||'').toLowerCase().trim();
+  const cached = state.schedule.myShowsCache[cacheKey];
+  const show = cached && cached.show;
+  if(!show){
+    openModal(`
+      <div class="modal-head"><h2>${esc(item.title)}</h2><button class="btn-icon" onclick="closeModal()">${ICON.close}</button></div>
+      <p style="color:var(--muted); padding:4px 2px;">Couldn't find this show on TVmaze.</p>`);
+    return;
+  }
+  const nextEp = show._embedded && show._embedded.nextepisode;
+  const stripTags = (h)=> (h||'').replace(/<[^>]+>/g,'');
+  const summary = stripTags(nextEp && nextEp.summary ? nextEp.summary : show.summary) || 'No synopsis available.';
+  const epImg = nextEp && nextEp.image && (nextEp.image.medium||nextEp.image.original);
+  const airDate = nextEp && nextEp.airstamp ? new Date(nextEp.airstamp).toLocaleString(undefined,{weekday:'long', month:'short', day:'numeric', hour:'numeric', minute:'2-digit'}) : null;
+  openModal(`
+    <div class="modal-head"><h2>${esc(show.name||item.title)}</h2><button class="btn-icon" onclick="closeModal()">${ICON.close}</button></div>
+    <div style="display:flex; gap:16px; padding:2px; flex-wrap:wrap;">
+      ${epImg?`<img src="${esc(epImg)}" alt="" style="width:170px; border-radius:8px; flex-shrink:0; object-fit:cover; aspect-ratio:16/9;" ${contentBlurImgAttrs()}>`:''}
+      <div style="min-width:0; flex:1;">
+        ${nextEp?`<div class="schedule-ep-tag" style="margin-bottom:6px; font-size:13px;">${nextEp.season&&nextEp.number?`S${nextEp.season}E${nextEp.number} — `:''}${esc(nextEp.name||'')}</div>`:''}
+        ${airDate?`<div style="color:var(--highlight); font-weight:700; font-size:13px; margin-bottom:10px;">Airs ${esc(airDate)}</div>`:'<div style="color:var(--muted); font-size:13px; margin-bottom:10px;">No upcoming episode scheduled</div>'}
+        <p style="color:#c7d5d3; font-size:13.5px; line-height:1.6;">${esc(summary)}</p>
+      </div>
+    </div>`);
 }
 function findChannelForNetwork(network){
   if(!network) return null;
@@ -1806,12 +1953,6 @@ function renderLiveTV(){
   const st = state.liveTv;
   const cats = ['all', ...new Set(channels.map(c=>c.category||'General'))];
   const langs = ['all', ...new Set(channels.map(c=>c.language).filter(Boolean))];
-  let list = [...channels];
-  if(st.category!=='all') list = list.filter(c=>(c.category||'General')===st.category);
-  if(st.language!=='all') list = list.filter(c=>(c.language||'')===st.language);
-  if(st.search) list = list.filter(c=>c.name.toLowerCase().includes(st.search.toLowerCase()));
-  list.sort((a,b)=>a.name.localeCompare(b.name));
-
   const activeCount = (st.category!=='all'?1:0) + (st.language!=='all'?1:0);
 
   return `
@@ -1826,8 +1967,18 @@ function renderLiveTV(){
         <input class="search-input" placeholder="Search channels..." value="${esc(st.search)}" oninput="setLiveTvSearch(this.value)">
         <button class="btn btn-ghost" onclick="openChannelsJsonImport()">${ICON.plus} Import Channels</button>
       </div>
-      ${list.length ? `<div class="channel-grid">${list.map(channelCardHtml).join('')}</div>` : emptyState('No channels found','Try a different search, type, or language.','Add Channel','openChannelModal()','Import Channels','openChannelsJsonImport()')}
+      <div id="liveChannelListing">${liveChannelListingHtml()}</div>
     </div>`;
+}
+function liveChannelListingHtml(){
+  const channels = state.lib.channels || [];
+  const st = state.liveTv;
+  let list = [...channels];
+  if(st.category!=='all') list = list.filter(c=>(c.category||'General')===st.category);
+  if(st.language!=='all') list = list.filter(c=>(c.language||'')===st.language);
+  if(st.search) list = list.filter(c=>c.name.toLowerCase().includes(st.search.toLowerCase()));
+  list.sort((a,b)=>a.name.localeCompare(b.name));
+  return list.length ? `<div class="channel-grid">${list.map(channelCardHtml).join('')}</div>` : emptyState('No channels found','Try a different search, type, or language.','Add Channel','openChannelModal()','Import Channels','openChannelsJsonImport()');
 }
 function liveFilterPanelHtml(cats, langs, st){
   return `
@@ -1884,9 +2035,8 @@ function setLiveTvCategory(c){ state.liveTv.category=c; document.getElementById(
 function setLiveTvLanguage(l){ state.liveTv.language=l; document.getElementById('pageRoot').innerHTML = renderLiveTV(); }
 function setLiveTvSearch(v){
   state.liveTv.search=v;
-  document.getElementById('pageRoot').innerHTML = renderLiveTV();
-  const el = document.querySelector('.search-input');
-  if(el){ el.focus(); el.selectionStart = el.selectionEnd = el.value.length; }
+  const el = document.getElementById('liveChannelListing');
+  if(el) el.innerHTML = liveChannelListingHtml();
 }
 
 function openChannelModal(id){
@@ -2425,6 +2575,17 @@ function renderSettings(){
             Stops third-party embeds from opening popup tabs or redirecting the page. It can't remove ads shown <em>inside</em> the player itself — that content lives on another site's server, outside what any webpage (including this one) can see or filter; a browser extension like uBlock Origin is the only thing that actually does that. Some ad-supported sources detect this and refuse to play ("Media Unavailable") — if a specific source breaks, turn this off. Doesn't affect direct .m3u8/mp4 sources, since those don't run third-party scripts at all.
           </div>
         </div>
+      </div>
+      <div class="settings-section">
+        <h3>TV Schedule</h3>
+        <div class="field">
+          <label>Live TV Country</label>
+          <input id="scheduleCountryInput" value="${esc(s.scheduleCountry)}" placeholder="US" maxlength="2" style="max-width:100px;">
+          <div class="field-hint">
+            2-letter country code (e.g. <code>US</code>, <code>GB</code>, <code>FR</code>) used by the <b>Live TV</b> tab on the Schedule page — the full broadcast schedule for that country/date. The <b>My TV Shows</b> tab doesn't need this; it just tracks next-episode air dates for whatever's on your watchlist. Both pull data from the free <a href="https://www.tvmaze.com/api" target="_blank" rel="noopener">TVmaze API</a> — no API key needed.
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveScheduleCountry()">Save</button>
       </div>
       <div class="settings-section">
         <h3>Link Health</h3>
