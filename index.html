@@ -2984,6 +2984,7 @@ function seasonsEditorHtml(){
           <div class="ep-editor-head">
             <span style="color:var(--muted);font-size:12px;width:20px;">#${e.number}</span>
             <input placeholder="Episode title" value="${esc(e.title||'')}" oninput="state.editSeasons[${si}].episodes[${ei}].title=this.value">
+            <input type="number" min="1" placeholder="Min" title="Runtime in minutes — used to calculate watch progress" value="${e.runtime||''}" style="flex:0 0 64px; width:64px;" oninput="state.editSeasons[${si}].episodes[${ei}].runtime=parseInt(this.value)||null">
             <button type="button" class="btn-icon" onclick="removeEpisode(${si},${ei})">${ICON.close}</button>
           </div>
           ${(e.sources||[]).map((src,oi)=>`
@@ -3005,7 +3006,7 @@ function removeSeason(si){ state.editSeasons.splice(si,1); refreshSeasons(); }
 function addEpisode(si){
   const s = state.editSeasons[si];
   const num = (s.episodes.length ? Math.max(...s.episodes.map(e=>e.number)) : 0) + 1;
-  s.episodes.push({number:num, title:'', thumbnail:'', sources:[{label:'',url:''}]});
+  s.episodes.push({number:num, title:'', thumbnail:'', overview:'', runtime:null, myRating:0, sources:[{label:'',url:''}]});
   refreshSeasons();
 }
 function removeEpisode(si,ei){ state.editSeasons[si].episodes.splice(ei,1); refreshSeasons(); }
@@ -3059,7 +3060,7 @@ function openSeasonsJsonImport(){
     "episodes": [ { "title": "S2E1", "url": "https://..." } ]
   }
 ]'></textarea>
-      <div class="field-hint">Array of seasons (or <code>{"seasons":[...]}</code>). Each episode accepts <code>"url"</code>, <code>"urls":[...]</code>, or <code>"sources":[{"label","url"}]</code>. Seasons that already exist (matching number) get replaced.</div>
+      <div class="field-hint">Array of seasons (or <code>{"seasons":[...]}</code>). Each episode accepts <code>"url"</code>, <code>"urls":[...]</code>, or <code>"sources":[{"label","url"}]</code>. If you've already fetched metadata (title, thumbnail, synopsis, runtime) from TMDB/IMDb, importing here only updates the stream links for matching episodes — everything else fetched stays intact. New seasons/episodes not already present get added.</div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="renderEditModal(state.editingId?getItem(state.editingId):null)">Cancel</button>
@@ -3095,14 +3096,44 @@ function applySeasonsJsonImport(){
   let normalized;
   try{ normalized = normalizeSeasonsJson(data); }
   catch(e){ toast(e.message); return; }
+
+  let linksUpdated = 0, episodesAdded = 0, seasonsAdded = 0;
   normalized.forEach(ns=>{
-    const idx = state.editSeasons.findIndex(s=>s.number===ns.number);
-    if(idx>-1) state.editSeasons[idx] = ns; else state.editSeasons.push(ns);
+    const season = state.editSeasons.find(s=>s.number===ns.number);
+    if(!season){
+      // Brand new season we don't have yet — nothing to merge with, add it as-is.
+      state.editSeasons.push(ns);
+      seasonsAdded++;
+      episodesAdded += ns.episodes.length;
+      return;
+    }
+    season.episodes = season.episodes || [];
+    ns.episodes.forEach(newEp=>{
+      const existingEp = season.episodes.find(e=>e.number===newEp.number);
+      if(existingEp){
+        // Only replace the links. Title/thumbnail/overview/runtime/rating already fetched from
+        // TMDB/IMDb stay untouched — this is the whole point: re-pasting a links-only JSON after
+        // fetching metadata shouldn't wipe that metadata back out.
+        existingEp.sources = newEp.sources;
+        // Fill in title/thumbnail only if we don't already have a real one (a generic
+        // "Episode N" placeholder counts as not having one).
+        if(newEp.title && (!existingEp.title || /^Episode \d+$/i.test(existingEp.title))) existingEp.title = newEp.title;
+        if(newEp.thumbnail && !existingEp.thumbnail) existingEp.thumbnail = newEp.thumbnail;
+        linksUpdated++;
+      } else {
+        season.episodes.push(newEp);
+        episodesAdded++;
+      }
+    });
+    season.episodes.sort((a,b)=>a.number-b.number);
   });
   state.editSeasons.sort((a,b)=>a.number-b.number);
   renderEditModal(state.editingId?getItem(state.editingId):null);
-  const epCount = normalized.reduce((n,s)=>n+s.episodes.length,0);
-  toast(`Imported ${normalized.length} season(s), ${epCount} episode(s)`);
+  const parts = [];
+  if(linksUpdated) parts.push(`updated links for ${linksUpdated} episode(s)`);
+  if(episodesAdded) parts.push(`added ${episodesAdded} new episode(s)`);
+  if(seasonsAdded) parts.push(`${seasonsAdded} new season(s)`);
+  toast(parts.length ? parts.join(', ').replace(/^./, c=>c.toUpperCase()) : 'Nothing to import');
 }
 
 async function fetchOmdb(){
