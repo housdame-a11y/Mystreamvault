@@ -199,6 +199,39 @@ a{color:inherit; text-decoration:none;}
   .hero-nav-btn{display:none;}
 }
 
+/* ---------- Panoramic Banner (cinematic, full-width, for the most newly added title) ---------- */
+.panoramic-banner{
+  position:relative; width:100%; aspect-ratio:32/9; max-height:420px; min-height:180px;
+  overflow:hidden; cursor:pointer; margin:0 0 8px 0; background:#0c0e13;
+}
+.panoramic-banner img{
+  position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center 30%;
+  transition:transform .6s cubic-bezier(.22,1,.36,1);
+}
+.panoramic-banner:hover img{transform:scale(1.035);}
+.panoramic-banner::after{
+  content:''; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(0deg, var(--bg) 0%, rgba(8,9,13,.55) 26%, rgba(8,9,13,0) 55%),
+             linear-gradient(180deg, rgba(8,9,13,.5) 0%, rgba(8,9,13,0) 22%);
+}
+.panoramic-banner-overlay{
+  position:absolute; left:0; right:0; bottom:0; z-index:2; padding:28px 40px;
+  display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap;
+}
+.panoramic-banner-badge{
+  display:inline-flex; align-items:center; gap:6px; background:rgba(8,9,13,.55); color:var(--highlight);
+  font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
+  padding:6px 13px; border-radius:20px; border:1px solid rgba(61,219,217,.35); backdrop-filter:blur(6px);
+}
+.panoramic-banner-btns{display:flex; gap:12px;}
+.panoramic-banner-btns .btn{position:relative; z-index:3; padding:11px 22px; font-size:13.5px;}
+@media (max-width:860px){
+  .panoramic-banner{aspect-ratio:16/9; margin:0;}
+  .panoramic-banner-overlay{padding:16px 18px; flex-direction:column; align-items:flex-start;}
+}
+body.tv-mode .panoramic-banner-overlay{padding:36px 48px;}
+body.tv-mode .panoramic-banner-btns .btn{padding:15px 30px; font-size:16px;}
+
 /* ---------- Rows / Cards ---------- */
 .row{margin:38px 0;}
 .row-head{display:flex; align-items:center; justify-content:space-between; padding:0 32px; margin-bottom:16px;}
@@ -283,6 +316,21 @@ a{color:inherit; text-decoration:none;}
 .card-favorite-btn svg{width:11px; height:11px;}
 .card:hover .card-favorite-btn{opacity:1;}
 .card-favorite-btn.is-fav{opacity:1; background:rgba(8,9,13,.85); border-color:rgba(255,107,129,.45); color:#ff6b81;}
+
+.card-see-all{
+  background:linear-gradient(155deg, var(--surface2), var(--surface));
+  border:1px solid rgba(61,219,217,.22);
+  display:flex; align-items:center; justify-content:center;
+}
+.card-see-all:hover{border-color:rgba(61,219,217,.5);}
+.see-all-inner{display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center; padding:12px;}
+.see-all-count{
+  font-family:var(--display-font); font-weight:900; font-size:22px; color:var(--highlight);
+}
+.see-all-label{
+  display:flex; align-items:center; gap:3px; font-size:12.5px; font-weight:700; color:var(--text);
+}
+.see-all-label svg{width:13px; height:13px; color:var(--highlight);}
 
 .notifications-panel{
   position:absolute; top:66px; right:80px; width:340px; max-height:420px; overflow-y:auto;
@@ -1329,7 +1377,9 @@ function renderShell(){
 
 function router(){
   const hash = location.hash.replace('#','') || 'home';
-  const [route, param] = hash.split('/');
+  const hashParts = hash.split('/');
+  const route = hashParts[0];
+  const param = hashParts.slice(1).join('/'); // rejoin so multi-segment routes (e.g. genre/movie/Drama) keep every part
   state.route = route;
   state.routeParam = param || null;
   if(route==='detail') state.detailSeason = 0;
@@ -1345,6 +1395,13 @@ function router(){
     case 'schedule': root.innerHTML = renderSchedule(); if((state.schedule.tab||'mine')==='mine') loadMyShowsSchedule(); else loadScheduleData(); break;
     case 'collections': root.innerHTML = renderCollections(param); break;
     case 'settings': root.innerHTML = renderSettings(); break;
+    case 'genre': {
+      const genreParts = param.split('/');
+      const genreTypeParam = genreParts[0];
+      const genreName = decodeURIComponent(genreParts.slice(1).join('/') || '');
+      root.innerHTML = renderGenrePage(genreTypeParam, genreName);
+      break;
+    }
     case 'detail':
       root.innerHTML = renderDetail(param);
       { const detailItem = getItem(param); if(detailItem) loadTmdbSimilarRow(detailItem); }
@@ -1380,13 +1437,13 @@ function renderHome(){
   let rows = '';
   if(continueWatching.length) rows += rowHtml('Continue Watching', continueWatching, {removable:true});
   if(favorites.length) rows += rowHtml('Favorites', favorites);
-  rows += rowHtml('Recently Added', recentlyAdded);
+  rows += rowHtml('Recently Added', recentlyAdded.slice(0, GENRE_ROW_CAP));
   allGenres().forEach(g=>{
     const inGenre = recentlyAdded.filter(i=>(i.genre||[]).includes(g));
-    if(inGenre.length) rows += rowHtml(g, inGenre);
+    if(inGenre.length) rows += genreRowHtml(g, inGenre, 'all');
   });
 
-  return `${heroCarouselHtml(heroItems)}<div class="page">${rows}</div>`;
+  return `${heroCarouselHtml(heroItems)}${panoramicBannerHtml(recentlyAdded[0])}<div class="page">${rows}</div>`;
 }
 
 function renderTypePage(type){
@@ -1402,13 +1459,48 @@ function renderTypePage(type){
 
   let rows = '';
   if(continueWatching.length) rows += rowHtml('Continue Watching', continueWatching, {removable:true});
-  rows += rowHtml('Recently Added', recentlyAdded);
+  rows += rowHtml('Recently Added', recentlyAdded.slice(0, GENRE_ROW_CAP));
   allGenres().forEach(g=>{
     const inGenre = recentlyAdded.filter(i=>(i.genre||[]).includes(g));
-    if(inGenre.length) rows += rowHtml(g, inGenre);
+    if(inGenre.length) rows += genreRowHtml(g, inGenre, type);
   });
 
-  return `${heroCarouselHtml(heroItems)}<div class="page">${rows}</div>`;
+  return `${heroCarouselHtml(heroItems)}${panoramicBannerHtml(recentlyAdded[0])}<div class="page">${rows}</div>`;
+}
+
+function renderGenrePage(typeParam, genre){
+  const backHref = typeParam==='movie' ? 'movies' : typeParam==='series' ? 'series' : 'home';
+  const backLabel = typeParam==='movie' ? 'Movies' : typeParam==='series' ? 'TV Shows' : 'Home';
+  let items = state.lib.items.filter(i=>(i.genre||[]).includes(genre));
+  if(typeParam==='movie' || typeParam==='series') items = items.filter(i=>i.type===typeParam);
+  items = [...items].sort((a,b)=> new Date(b.dateAdded||0)-new Date(a.dateAdded||0));
+  return `
+    <div class="page">
+      <div class="filter-bar">
+        <a class="btn btn-ghost" href="#${backHref}">&larr; ${esc(backLabel)}</a>
+      </div>
+      <h2 style="margin-bottom:16px;">${esc(genre)}</h2>
+      ${items.length ? `<div class="grid">${items.map(i=>cardHtml(i)).join('')}</div>` : emptyState(`No ${esc(genre)} titles`, 'Nothing in this genre yet.')}
+    </div>`;
+}
+/* ---- Panoramic Banner: cinematic full-width artwork for the most recently added title.
+   Only rendered when that specific title has a Panoramic Banner URL set — if it doesn't, the
+   banner is simply absent (it doesn't fall back to an older title), and it reappears the moment
+   a Panoramic Banner URL is added to that title. ---- */
+function panoramicBannerHtml(item){
+  if(!item || !item.panoramicBanner) return '';
+  const showResume = isStarted(item) && !isFullyWatched(item);
+  return `
+    <div class="panoramic-banner" onclick="location.hash='detail/${item.id}'">
+      <img src="${esc(item.panoramicBanner)}" alt="${esc(item.title)}" draggable="false" ${contentBlurImgAttrs()}>
+      <div class="panoramic-banner-overlay">
+        <span class="panoramic-banner-badge">Newly Added</span>
+        <div class="panoramic-banner-btns">
+          <button class="btn btn-primary" onclick="event.stopPropagation(); quickPlay('${item.id}')">${ICON.play} ${showResume?'Resume':'Play'}</button>
+          <button class="btn btn-ghost" onclick="event.stopPropagation(); location.hash='detail/${item.id}'">More Info</button>
+        </div>
+      </div>
+    </div>`;
 }
 
 /* ---- Hero carousel ---- */
@@ -1515,6 +1607,38 @@ function rowHtml(title, items, opts){
       <div class="row-head"><h3>${esc(title)}</h3></div>
       <div class="row-track">${items.map(i=>cardHtml(i, opts)).join('')}</div>
     </div>`;
+}
+
+// A row is capped at 10 tiles: if there are more than 10 titles, only the first 9 are shown and
+// the 10th tile becomes a "See All" card linking to a page with the full list. If there are 10 or
+// fewer titles, they're all shown as-is (no See All tile needed since nothing is hidden).
+const GENRE_ROW_CAP = 10;
+function cappedRowHtml(title, items, seeAllHref){
+  let cardsHtml;
+  if(items.length > GENRE_ROW_CAP){
+    const shown = items.slice(0, GENRE_ROW_CAP-1);
+    cardsHtml = shown.map(i=>cardHtml(i)).join('') + seeAllTileHtml(seeAllHref, items.length);
+  } else {
+    cardsHtml = items.map(i=>cardHtml(i)).join('');
+  }
+  return `
+    <div class="row">
+      <div class="row-head"><h3>${esc(title)}</h3></div>
+      <div class="row-track">${cardsHtml}</div>
+    </div>`;
+}
+function seeAllTileHtml(href, totalCount){
+  return `
+    <div class="card card-see-all" onclick="location.hash='${href}'">
+      <div class="see-all-inner">
+        <span class="see-all-count">+${totalCount - (GENRE_ROW_CAP-1)}</span>
+        <span class="see-all-label">See All${ICON.chevronRight}</span>
+      </div>
+    </div>`;
+}
+function genreRowHtml(genre, items, typeParam){
+  const href = `genre/${encodeURIComponent(typeParam)}/${encodeURIComponent(genre)}`;
+  return cappedRowHtml(genre, items, href);
 }
 
 function isNew(item){
@@ -3470,6 +3594,7 @@ function captureEditFormDraft(){
   state.editFormDraft = {
     title: get('f_title'), year: get('f_year'), poster: get('f_poster'), backdrop: get('f_backdrop'),
     logo: get('f_logo'), desc: get('f_desc'), rating: get('f_rating'), runtime: get('f_runtime'),
+    panoramicBanner: get('f_panoramic'),
   };
 }
 function renderEditModal(item){
@@ -3514,6 +3639,11 @@ function renderEditModal(item){
     <div class="field-row">
       <div class="field"><label>Poster URL</label><input id="f_poster" value="${esc(fv('poster'))}" placeholder="https://..."></div>
       <div class="field"><label>Backdrop URL</label><input id="f_backdrop" value="${esc(fv('backdrop'))}" placeholder="https://..."></div>
+    </div>
+    <div class="field">
+      <label>Panoramic Banner URL <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional)</span></label>
+      <input id="f_panoramic" value="${esc(fv('panoramicBanner'))}" placeholder="https://...">
+      <div class="field-hint">A wide, cinematic artwork (like a Netflix/Disney+/Prime Video hero banner) with the title treatment already baked into the image. When this title is the most recently added one, its banner appears full-width under the carousel on Home. Leave blank and the banner section simply won't show for this title.</div>
     </div>
     <div class="field"><label>Logo URL <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional, shown on the detail page instead of text title)</span></label><input id="f_logo" value="${esc(fv('logo'))}" placeholder="https://..."></div>
     <div class="field"><label>Description</label><textarea id="f_desc" placeholder="Synopsis...">${esc(fv('desc','description'))}</textarea></div>
@@ -3966,6 +4096,7 @@ function saveEditModal(){
     actors: state.editActors,
     poster: document.getElementById('f_poster').value.trim(),
     backdrop: document.getElementById('f_backdrop').value.trim(),
+    panoramicBanner: document.getElementById('f_panoramic') ? document.getElementById('f_panoramic').value.trim() : '',
     logo: document.getElementById('f_logo') ? document.getElementById('f_logo').value.trim() : '',
     description: document.getElementById('f_desc').value.trim(),
     rating: document.getElementById('f_rating').value.trim(),
