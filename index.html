@@ -199,38 +199,29 @@ a{color:inherit; text-decoration:none;}
   .hero-nav-btn{display:none;}
 }
 
-/* ---------- Panoramic Banner (cinematic, full-width, for the most newly added title) ---------- */
-.panoramic-banner{
-  position:relative; width:100%; aspect-ratio:32/9; max-height:420px; min-height:180px;
-  overflow:hidden; cursor:pointer; margin:0 0 8px 0; background:#0c0e13;
+/* ---------- Panoramic Card (wide card variant of the newly-added title, lives inside a
+   horizontally-scrollable row like any other card row) ---------- */
+.row-track .panoramic-card{
+  flex:0 0 calc(100% - 4px); width:calc(100% - 4px); aspect-ratio:32/9; max-height:420px; min-height:180px;
 }
-.panoramic-banner img{
-  position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center 30%;
-  transition:transform .6s cubic-bezier(.22,1,.36,1);
-}
-.panoramic-banner:hover img{transform:scale(1.035);}
-.panoramic-banner::after{
-  content:''; position:absolute; inset:0; pointer-events:none;
-  background:linear-gradient(0deg, var(--bg) 0%, rgba(8,9,13,.55) 26%, rgba(8,9,13,0) 55%),
-             linear-gradient(180deg, rgba(8,9,13,.5) 0%, rgba(8,9,13,0) 22%);
-}
-.panoramic-banner-overlay{
-  position:absolute; left:0; right:0; bottom:0; z-index:2; padding:28px 40px;
-  display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap;
-}
-.panoramic-banner-badge{
+.panoramic-card img{object-position:center 30%;}
+.panoramic-card-badge{
+  position:absolute; top:12px; left:12px; z-index:2;
   display:inline-flex; align-items:center; gap:6px; background:rgba(8,9,13,.55); color:var(--highlight);
   font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
   padding:6px 13px; border-radius:20px; border:1px solid rgba(61,219,217,.35); backdrop-filter:blur(6px);
 }
-.panoramic-banner-btns{display:flex; gap:12px;}
-.panoramic-banner-btns .btn{position:relative; z-index:3; padding:11px 22px; font-size:13.5px;}
-@media (max-width:860px){
-  .panoramic-banner{aspect-ratio:16/9; margin:0;}
-  .panoramic-banner-overlay{padding:16px 18px; flex-direction:column; align-items:flex-start;}
+.panoramic-card-overlay{
+  position:absolute; inset:0; z-index:1; display:flex; flex-direction:column; justify-content:flex-end; padding:20px 26px;
+  background:linear-gradient(0deg, rgba(5,6,9,.9) 8%, rgba(5,6,9,.2) 55%, transparent 100%);
 }
-body.tv-mode .panoramic-banner-overlay{padding:36px 48px;}
-body.tv-mode .panoramic-banner-btns .btn{padding:15px 30px; font-size:16px;}
+.panoramic-card-overlay .card-title{font-size:16px;}
+.panoramic-card-overlay .card-meta{font-size:12px;}
+@media (max-width:860px){
+  .row-track .panoramic-card{aspect-ratio:16/9;}
+}
+body.tv-mode .panoramic-card-overlay{padding:32px 40px;}
+body.tv-mode .panoramic-card-overlay .card-title{font-size:19px;}
 
 /* ---------- Rows / Cards ---------- */
 .row{margin:38px 0;}
@@ -1436,6 +1427,7 @@ function renderHome(){
 
   let rows = '';
   if(continueWatching.length) rows += rowHtml('Continue Watching', continueWatching, {removable:true});
+  rows += panoramicBannerHtml(recentlyAdded[0]);
   if(favorites.length) rows += rowHtml('Favorites', favorites);
   rows += rowHtml('Recently Added', recentlyAdded.slice(0, GENRE_ROW_CAP));
   allGenres().forEach(g=>{
@@ -1443,7 +1435,7 @@ function renderHome(){
     if(inGenre.length) rows += genreRowHtml(g, inGenre, 'all');
   });
 
-  return `${heroCarouselHtml(heroItems)}${panoramicBannerHtml(recentlyAdded[0])}<div class="page">${rows}</div>`;
+  return `${heroCarouselHtml(heroItems)}<div class="page">${rows}</div>`;
 }
 
 function renderTypePage(type){
@@ -1459,13 +1451,14 @@ function renderTypePage(type){
 
   let rows = '';
   if(continueWatching.length) rows += rowHtml('Continue Watching', continueWatching, {removable:true});
+  rows += panoramicBannerHtml(recentlyAdded[0]);
   rows += rowHtml('Recently Added', recentlyAdded.slice(0, GENRE_ROW_CAP));
   allGenres().forEach(g=>{
     const inGenre = recentlyAdded.filter(i=>(i.genre||[]).includes(g));
     if(inGenre.length) rows += genreRowHtml(g, inGenre, type);
   });
 
-  return `${heroCarouselHtml(heroItems)}${panoramicBannerHtml(recentlyAdded[0])}<div class="page">${rows}</div>`;
+  return `${heroCarouselHtml(heroItems)}<div class="page">${rows}</div>`;
 }
 
 function renderGenrePage(typeParam, genre){
@@ -1483,21 +1476,25 @@ function renderGenrePage(typeParam, genre){
       ${items.length ? `<div class="grid">${items.map(i=>cardHtml(i)).join('')}</div>` : emptyState(`No ${esc(genre)} titles`, 'Nothing in this genre yet.')}
     </div>`;
 }
-/* ---- Panoramic Banner: cinematic full-width artwork for the most recently added title.
+/* ---- Panoramic Card: a wide, panoramic-aspect card for the most recently added title, living
+   inside its own horizontally-scrollable row (same row/card mechanics as the rest of the app).
    Only rendered when that specific title has a Panoramic Banner URL set — if it doesn't, the
-   banner is simply absent (it doesn't fall back to an older title), and it reappears the moment
-   a Panoramic Banner URL is added to that title. ---- */
+   card is simply absent (it doesn't fall back to an older title), and it reappears the moment
+   a Panoramic Banner URL is added to that title. No Play / More Info buttons — like any other
+   card, the whole thing is just clickable through to the detail page. ---- */
 function panoramicBannerHtml(item){
   if(!item || !item.panoramicBanner) return '';
-  const showResume = isStarted(item) && !isFullyWatched(item);
   return `
-    <div class="panoramic-banner" onclick="location.hash='detail/${item.id}'">
-      <img src="${esc(item.panoramicBanner)}" alt="${esc(item.title)}" draggable="false" ${contentBlurImgAttrs()}>
-      <div class="panoramic-banner-overlay">
-        <span class="panoramic-banner-badge">Newly Added</span>
-        <div class="panoramic-banner-btns">
-          <button class="btn btn-primary" onclick="event.stopPropagation(); quickPlay('${item.id}')">${ICON.play} ${showResume?'Resume':'Play'}</button>
-          <button class="btn btn-ghost" onclick="event.stopPropagation(); location.hash='detail/${item.id}'">More Info</button>
+    <div class="row panoramic-row">
+      <div class="row-track">
+        <div class="card panoramic-card" onclick="location.hash='detail/${item.id}'">
+          <img src="${esc(item.panoramicBanner)}" alt="${esc(item.title)}" draggable="false" ${contentBlurImgAttrs()}>
+          <span class="card-shine"></span>
+          <span class="panoramic-card-badge">Newly Added</span>
+          <div class="panoramic-card-overlay">
+            <div class="card-title">${esc(item.title)}</div>
+            <div class="card-meta">${esc(item.year||'')}${item.genre&&item.genre.length?' • '+esc(item.genre[0]):''}</div>
+          </div>
         </div>
       </div>
     </div>`;
