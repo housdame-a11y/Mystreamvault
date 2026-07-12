@@ -199,29 +199,15 @@ a{color:inherit; text-decoration:none;}
   .hero-nav-btn{display:none;}
 }
 
-/* ---------- Panoramic Card (wide card variant of the newly-added title, lives inside a
-   horizontally-scrollable row like any other card row) ---------- */
+/* ---------- Panoramic Cards (wide card variants of the same title, up to 6 in a
+   horizontally-scrollable row, plain artwork with no text overlay) ---------- */
 .row-track .panoramic-card{
-  flex:0 0 calc(100% - 4px); width:calc(100% - 4px); aspect-ratio:32/9; max-height:420px; min-height:180px;
+  flex:0 0 340px; width:340px; aspect-ratio:32/9; max-height:420px; min-height:140px;
 }
 .panoramic-card img{object-position:center 30%;}
-.panoramic-card-badge{
-  position:absolute; top:12px; left:12px; z-index:2;
-  display:inline-flex; align-items:center; gap:6px; background:rgba(8,9,13,.55); color:var(--highlight);
-  font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
-  padding:6px 13px; border-radius:20px; border:1px solid rgba(61,219,217,.35); backdrop-filter:blur(6px);
-}
-.panoramic-card-overlay{
-  position:absolute; inset:0; z-index:1; display:flex; flex-direction:column; justify-content:flex-end; padding:20px 26px;
-  background:linear-gradient(0deg, rgba(5,6,9,.9) 8%, rgba(5,6,9,.2) 55%, transparent 100%);
-}
-.panoramic-card-overlay .card-title{font-size:16px;}
-.panoramic-card-overlay .card-meta{font-size:12px;}
 @media (max-width:860px){
-  .row-track .panoramic-card{aspect-ratio:16/9;}
+  .row-track .panoramic-card{flex-basis:78vw; width:78vw; aspect-ratio:16/9;}
 }
-body.tv-mode .panoramic-card-overlay{padding:32px 40px;}
-body.tv-mode .panoramic-card-overlay .card-title{font-size:19px;}
 
 /* ---------- Rows / Cards ---------- */
 .row{margin:38px 0;}
@@ -1425,11 +1411,18 @@ function renderHome(){
 
   const favorites = items.filter(i=>i.favorite).sort((a,b)=> new Date(b.dateAdded||0)-new Date(a.dateAdded||0));
 
+  // The most-recently-added title, if it has panoramic banners set, is "featured" — shown in its
+  // own scrollable panoramic row instead of appearing in Recently Added. As soon as a newer title
+  // is added it takes over as the featured one (whether or not it itself has banners), and the
+  // previous title falls back into Recently Added like normal.
+  const featured = recentlyAdded[0] && getPanoramicBanners(recentlyAdded[0]).length ? recentlyAdded[0] : null;
+  const recentlyAddedRowItems = featured ? recentlyAdded.filter(i=>i.id!==featured.id) : recentlyAdded;
+
   let rows = '';
   if(continueWatching.length) rows += rowHtml('Continue Watching', continueWatching, {removable:true});
-  rows += panoramicBannerHtml(recentlyAdded[0]);
+  rows += panoramicBannerHtml(featured);
   if(favorites.length) rows += rowHtml('Favorites', favorites);
-  rows += rowHtml('Recently Added', recentlyAdded.slice(0, GENRE_ROW_CAP));
+  rows += rowHtml('Recently Added', recentlyAddedRowItems.slice(0, GENRE_ROW_CAP));
   allGenres().forEach(g=>{
     const inGenre = recentlyAdded.filter(i=>(i.genre||[]).includes(g));
     if(inGenre.length) rows += genreRowHtml(g, inGenre, 'all');
@@ -1449,10 +1442,13 @@ function renderTypePage(type){
   const continueWatching = watched.filter(i=>!isFullyWatched(i));
   const recentlyAdded = [...items].sort((a,b)=> new Date(b.dateAdded||0)-new Date(a.dateAdded||0));
 
+  const featured = recentlyAdded[0] && getPanoramicBanners(recentlyAdded[0]).length ? recentlyAdded[0] : null;
+  const recentlyAddedRowItems = featured ? recentlyAdded.filter(i=>i.id!==featured.id) : recentlyAdded;
+
   let rows = '';
   if(continueWatching.length) rows += rowHtml('Continue Watching', continueWatching, {removable:true});
-  rows += panoramicBannerHtml(recentlyAdded[0]);
-  rows += rowHtml('Recently Added', recentlyAdded.slice(0, GENRE_ROW_CAP));
+  rows += panoramicBannerHtml(featured);
+  rows += rowHtml('Recently Added', recentlyAddedRowItems.slice(0, GENRE_ROW_CAP));
   allGenres().forEach(g=>{
     const inGenre = recentlyAdded.filter(i=>(i.genre||[]).includes(g));
     if(inGenre.length) rows += genreRowHtml(g, inGenre, type);
@@ -1476,26 +1472,33 @@ function renderGenrePage(typeParam, genre){
       ${items.length ? `<div class="grid">${items.map(i=>cardHtml(i)).join('')}</div>` : emptyState(`No ${esc(genre)} titles`, 'Nothing in this genre yet.')}
     </div>`;
 }
-/* ---- Panoramic Card: a wide, panoramic-aspect card for the most recently added title, living
-   inside its own horizontally-scrollable row (same row/card mechanics as the rest of the app).
-   Only rendered when that specific title has a Panoramic Banner URL set — if it doesn't, the
-   card is simply absent (it doesn't fall back to an older title), and it reappears the moment
-   a Panoramic Banner URL is added to that title. No Play / More Info buttons — like any other
-   card, the whole thing is just clickable through to the detail page. ---- */
+/* Up to 6 panoramic banner URLs per title. Falls back to the old single `panoramicBanner`
+   string field so titles created before this was multi-banner still work. */
+function getPanoramicBanners(item){
+  if(!item) return [];
+  if(Array.isArray(item.panoramicBanners) && item.panoramicBanners.length) return item.panoramicBanners.slice(0,6);
+  if(item.panoramicBanner) return [item.panoramicBanner];
+  return [];
+}
+
+/* ---- Panoramic Row: up to 6 wide, panoramic-aspect cards for the same most-recently-added
+   title, living in their own horizontally-scrollable row (same row/card mechanics as the rest
+   of the app). Only rendered when that title has at least one Panoramic Banner URL set — if it
+   doesn't, the row is simply absent (it doesn't fall back to an older title), and it reappears
+   the moment a Panoramic Banner URL is added to that title. Plain art only — no title, no genre,
+   no "Newly Added" tag, no Play / More Info buttons; like any other card, the whole thing is just
+   clickable through to the detail page. ---- */
 function panoramicBannerHtml(item){
-  if(!item || !item.panoramicBanner) return '';
+  const banners = getPanoramicBanners(item);
+  if(!banners.length) return '';
   return `
     <div class="row panoramic-row">
       <div class="row-track">
+        ${banners.map(url => `
         <div class="card panoramic-card" onclick="location.hash='detail/${item.id}'">
-          <img src="${esc(item.panoramicBanner)}" alt="${esc(item.title)}" draggable="false" ${contentBlurImgAttrs()}>
+          <img src="${esc(url)}" alt="${esc(item.title)}" draggable="false" ${contentBlurImgAttrs()}>
           <span class="card-shine"></span>
-          <span class="panoramic-card-badge">Newly Added</span>
-          <div class="panoramic-card-overlay">
-            <div class="card-title">${esc(item.title)}</div>
-            <div class="card-meta">${esc(item.year||'')}${item.genre&&item.genre.length?' • '+esc(item.genre[0]):''}</div>
-          </div>
-        </div>
+        </div>`).join('')}
       </div>
     </div>`;
 }
@@ -3638,9 +3641,9 @@ function renderEditModal(item){
       <div class="field"><label>Backdrop URL</label><input id="f_backdrop" value="${esc(fv('backdrop'))}" placeholder="https://..."></div>
     </div>
     <div class="field">
-      <label>Panoramic Banner URL <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional)</span></label>
-      <input id="f_panoramic" value="${esc(fv('panoramicBanner'))}" placeholder="https://...">
-      <div class="field-hint">A wide, cinematic artwork (like a Netflix/Disney+/Prime Video hero banner) with the title treatment already baked into the image. When this title is the most recently added one, its banner appears full-width under the carousel on Home. Leave blank and the banner section simply won't show for this title.</div>
+      <label>Panoramic Banner URLs <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional, up to 6)</span></label>
+      <textarea id="f_panoramic" rows="4" placeholder="https://... (one URL per line, up to 6)">${esc(d.panoramicBanner!==undefined ? d.panoramicBanner : getPanoramicBanners(item).join('\n'))}</textarea>
+      <div class="field-hint">Wide, cinematic artwork (like a Netflix/Disney+/Prime Video hero banner) — one URL per line, up to 6. When this title is the most recently added one, these banners appear as a scrollable row of cards under Continue Watching on Home, and the title is left out of the Recently Added row until a newer title takes its place. Leave blank and the row simply won't show for this title.</div>
     </div>
     <div class="field"><label>Logo URL <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional, shown on the detail page instead of text title)</span></label><input id="f_logo" value="${esc(fv('logo'))}" placeholder="https://..."></div>
     <div class="field"><label>Description</label><textarea id="f_desc" placeholder="Synopsis...">${esc(fv('desc','description'))}</textarea></div>
@@ -4093,7 +4096,7 @@ function saveEditModal(){
     actors: state.editActors,
     poster: document.getElementById('f_poster').value.trim(),
     backdrop: document.getElementById('f_backdrop').value.trim(),
-    panoramicBanner: document.getElementById('f_panoramic') ? document.getElementById('f_panoramic').value.trim() : '',
+    panoramicBanners: document.getElementById('f_panoramic') ? document.getElementById('f_panoramic').value.split('\n').map(s=>s.trim()).filter(Boolean).slice(0,6) : [],
     logo: document.getElementById('f_logo') ? document.getElementById('f_logo').value.trim() : '',
     description: document.getElementById('f_desc').value.trim(),
     rating: document.getElementById('f_rating').value.trim(),
@@ -4126,6 +4129,7 @@ function saveEditModal(){
       delete item.trailerKey;
       delete item.tmdbId;
     }
+    delete item.panoramicBanner;
     Object.assign(item, payload);
   } else {
     state.lib.items.push({
