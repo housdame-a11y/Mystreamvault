@@ -205,6 +205,18 @@ a{color:inherit; text-decoration:none;}
    glow sits behind the whole row, and each card carries a slow-pulsing highlight ring — no badge
    text needed, it just reads as "freshly lit up". ---------- */
 .panoramic-row{position:relative;}
+.panoramic-caption{
+  position:relative; z-index:2; display:flex; align-items:center; gap:7px;
+  padding:0 32px; margin-bottom:8px;
+  font-size:11.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
+  color:rgba(199,213,211,.5);
+}
+.panoramic-caption::before{
+  content:''; width:5px; height:5px; border-radius:50%; flex-shrink:0;
+  background:var(--highlight); box-shadow:0 0 6px rgba(61,219,217,.7);
+}
+.panoramic-caption b{color:var(--text); font-weight:700; text-transform:none; letter-spacing:0; opacity:.85;}
+@media (max-width:860px){ .panoramic-caption{padding:0 16px;} }
 .panoramic-row::before{
   content:''; position:absolute; left:16px; right:16px; top:-14px; bottom:-14px; z-index:0;
   background:radial-gradient(ellipse at center, rgba(61,219,217,.16) 0%, rgba(61,219,217,.05) 45%, transparent 75%);
@@ -1080,6 +1092,7 @@ const state = {
   route: 'home',
   routeParam: null,
   liveTv: { category:'all', language:'all', search:'', filterOpen:false },
+  browse: { movie:{sort:'recent', filter:'all'}, series:{sort:'recent', filter:'all'} },
   schedule: { date: todayISO(), search:'', cache:{}, tab:'mine', myShowsCache:{} },
   detailSeason: 0,
   editingId: null,
@@ -1369,7 +1382,7 @@ function renderShell(){
     <div class="topbar-actions">
       <div class="topbar-search ${state.globalSearchOpen?'open':''}" id="topbarSearch">
         <button class="topbar-search-icon" title="Search" onclick="event.stopPropagation(); toggleGlobalSearch()">${ICON.search}</button>
-        <input id="globalSearchInput" class="global-search-input" placeholder="Search movies, shows & channels" oninput="onGlobalSearchInput(this.value)" value="${esc(state.globalSearchQuery||'')}">
+        <input id="globalSearchInput" class="global-search-input" dir="ltr" placeholder="Search movies, shows & channels" oninput="onGlobalSearchInput(this.value)" value="${esc(state.globalSearchQuery||'')}">
       </div>
       <button class="btn-icon notif-bell-btn" id="notifBellBtn" title="Notifications" onclick="event.stopPropagation(); toggleNotifications()">
         ${ICON.bell}${unreadNotifCount()>0 ? `<span class="notif-badge">${unreadNotifCount()>9?'9+':unreadNotifCount()}</span>` : ''}
@@ -1443,16 +1456,18 @@ function renderHome(){
 
   const favorites = items.filter(i=>i.favorite).sort((a,b)=> new Date(b.dateAdded||0)-new Date(a.dateAdded||0));
 
-  // The most-recently-added title, if it has panoramic banners set, is "featured" — shown in its
-  // own scrollable panoramic row instead of appearing in Recently Added. As soon as a newer title
-  // is added it takes over as the featured one (whether or not it itself has banners), and the
-  // previous title falls back into Recently Added like normal.
-  const featured = recentlyAdded[0] && getPanoramicBanners(recentlyAdded[0]).length ? recentlyAdded[0] : null;
+  // The most-recently-added title always gets a panoramic row if it has *any* banner art —
+  // including the automatic TMDB-backdrop fallback. But it only gets pulled out of Recently
+  // Added when you've manually curated banners for it yourself; the automatic fallback is just
+  // a visual nicety and never hides a title from the normal list.
+  const newest = recentlyAdded[0];
+  const panoramicItem = newest && getPanoramicBanners(newest).length ? newest : null;
+  const featured = newest && hasManualPanoramicBanners(newest) ? newest : null;
   const recentlyAddedRowItems = featured ? recentlyAdded.filter(i=>i.id!==featured.id) : recentlyAdded;
 
   let rows = '';
   if(continueWatching.length) rows += rowHtml('Continue Watching', continueWatching, {removable:true});
-  rows += panoramicBannerHtml(featured);
+  rows += panoramicBannerHtml(panoramicItem);
   if(favorites.length) rows += rowHtml('Favorites', favorites);
   rows += rowHtml('Recently Added', recentlyAddedRowItems.slice(0, GENRE_ROW_CAP));
   allGenres().forEach(g=>{
@@ -1469,24 +1484,71 @@ function renderTypePage(type){
   if(!items.length){
     return `<div class="page">${emptyState(`No ${label} yet`, `Add your first ${type==='movie'?'movie':'series'} to get started.`)}</div>`;
   }
+  const bp = state.browse[type];
+  const isDefaultView = bp.sort==='recent' && bp.filter==='all';
+  const filterBarHtml = `
+    <div class="filter-bar">
+      <select class="select-input" title="Sort" onchange="setBrowseSort('${type}', this.value)">
+        <option value="recent" ${bp.sort==='recent'?'selected':''}>Recently Added</option>
+        <option value="year" ${bp.sort==='year'?'selected':''}>Year</option>
+        <option value="rating" ${bp.sort==='rating'?'selected':''}>My Rating</option>
+        <option value="az" ${bp.sort==='az'?'selected':''}>A–Z</option>
+      </select>
+      <select class="select-input" title="Filter" onchange="setBrowseFilter('${type}', this.value)">
+        <option value="all" ${bp.filter==='all'?'selected':''}>All Titles</option>
+        <option value="unwatched" ${bp.filter==='unwatched'?'selected':''}>Unwatched Only</option>
+      </select>
+    </div>`;
+
+  // Sorting/filtering flattens the page into a single grid — genre rows and the hero carousel
+  // are a "browse by recency/genre" experience that doesn't map cleanly onto "sorted by rating"
+  // or "unwatched only", so once either control leaves its default we switch views entirely
+  // rather than trying to sort/filter inside every row.
+  if(!isDefaultView){
+    let list = [...items];
+    if(bp.filter==='unwatched') list = list.filter(i=>!isStarted(i));
+    list = sortBrowseItems(list, bp.sort);
+    return `
+      <div class="page">
+        ${filterBarHtml}
+        ${list.length ? `<div class="grid">${list.map(i=>cardHtml(i)).join('')}</div>` : emptyState('Nothing matches', 'Try a different sort or filter.', 'Reset', `setBrowseFilter('${type}','all'); setBrowseSort('${type}','recent');`)}
+      </div>`;
+  }
+
   const heroItems = [...items].sort((a,b)=> new Date(b.dateAdded||0)-new Date(a.dateAdded||0)).slice(0,5);
   const watched = items.filter(isStarted).sort((a,b)=> new Date(b.lastWatched||0)-new Date(a.lastWatched||0));
   const continueWatching = watched.filter(i=>!isFullyWatched(i));
   const recentlyAdded = [...items].sort((a,b)=> new Date(b.dateAdded||0)-new Date(a.dateAdded||0));
 
-  const featured = recentlyAdded[0] && getPanoramicBanners(recentlyAdded[0]).length ? recentlyAdded[0] : null;
+  const newest = recentlyAdded[0];
+  const panoramicItem = newest && getPanoramicBanners(newest).length ? newest : null;
+  const featured = newest && hasManualPanoramicBanners(newest) ? newest : null;
   const recentlyAddedRowItems = featured ? recentlyAdded.filter(i=>i.id!==featured.id) : recentlyAdded;
 
   let rows = '';
   if(continueWatching.length) rows += rowHtml('Continue Watching', continueWatching, {removable:true});
-  rows += panoramicBannerHtml(featured);
+  rows += panoramicBannerHtml(panoramicItem);
   rows += rowHtml('Recently Added', recentlyAddedRowItems.slice(0, GENRE_ROW_CAP));
   allGenres().forEach(g=>{
     const inGenre = recentlyAdded.filter(i=>(i.genre||[]).includes(g));
     if(inGenre.length) rows += genreRowHtml(g, inGenre, type);
   });
 
-  return `${heroCarouselHtml(heroItems)}<div class="page">${rows}</div>`;
+  return `${heroCarouselHtml(heroItems)}<div class="page">${filterBarHtml}${rows}</div>`;
+}
+function sortBrowseItems(list, sort){
+  if(sort==='year') return list.sort((a,b)=> (parseInt(b.year)||0) - (parseInt(a.year)||0));
+  if(sort==='rating') return list.sort((a,b)=> (b.myRating||0)-(a.myRating||0) || (parseFloat(b.rating)||0)-(parseFloat(a.rating)||0));
+  if(sort==='az') return list.sort((a,b)=> (a.title||'').localeCompare(b.title||''));
+  return list.sort((a,b)=> new Date(b.dateAdded||0)-new Date(a.dateAdded||0)); // 'recent'
+}
+function setBrowseSort(type, val){
+  state.browse[type].sort = val;
+  document.getElementById('pageRoot').innerHTML = renderTypePage(type);
+}
+function setBrowseFilter(type, val){
+  state.browse[type].filter = val;
+  document.getElementById('pageRoot').innerHTML = renderTypePage(type);
 }
 
 function renderGenrePage(typeParam, genre){
@@ -1505,12 +1567,24 @@ function renderGenrePage(typeParam, genre){
     </div>`;
 }
 /* Up to 6 panoramic banner URLs per title. Falls back to the old single `panoramicBanner`
-   string field so titles created before this was multi-banner still work. */
+   field, then to the TMDB backdrop if neither is set — so the row still shows *something*
+   for a freshly-imported title even if you never paste custom banner art. */
 function getPanoramicBanners(item){
   if(!item) return [];
   if(Array.isArray(item.panoramicBanners) && item.panoramicBanners.length) return item.panoramicBanners.slice(0,6);
   if(item.panoramicBanner) return [item.panoramicBanner];
+  if(item.backdrop) return [item.backdrop];
   return [];
+}
+/* Whether the panoramic banners were something *you* actually set, as opposed to the
+   automatic backdrop fallback above. This is what decides whether a title gets pulled out of
+   Recently Added to be featured — the auto fallback alone should never do that; only your own
+   curated banner links should. */
+function hasManualPanoramicBanners(item){
+  if(!item) return false;
+  if(Array.isArray(item.panoramicBanners) && item.panoramicBanners.length) return true;
+  if(item.panoramicBanner) return true;
+  return false;
 }
 
 /* ---- Panoramic Row: up to 6 wide, panoramic-aspect cards for the same most-recently-added
@@ -1525,6 +1599,7 @@ function panoramicBannerHtml(item){
   if(!banners.length) return '';
   return `
     <div class="row panoramic-row">
+      <div class="panoramic-caption">Just Added &middot; <b>${esc(item.title)}</b></div>
       <div class="row-track">
         ${banners.map(url => `
         <div class="card panoramic-card" onclick="location.hash='detail/${item.id}'">
@@ -1808,14 +1883,16 @@ async function fetchTmdbTrailer(item){
 /* ---- Global search ---- */
 function toggleGlobalSearch(){
   state.globalSearchOpen = !state.globalSearchOpen;
+  const container = document.getElementById('topbarSearch');
+  const input = document.getElementById('globalSearchInput');
+  if(container) container.classList.toggle('open', state.globalSearchOpen);
   if(!state.globalSearchOpen){
     state.globalSearchQuery = '';
+    if(input) input.value = '';
     const box = document.getElementById('globalSearchResults');
     if(box){ box.innerHTML=''; box.classList.remove('show'); }
-  }
-  renderShell();
-  if(state.globalSearchOpen){
-    setTimeout(()=>{ const el = document.getElementById('globalSearchInput'); if(el) el.focus(); }, 60);
+  } else {
+    setTimeout(()=>{ if(input){ input.focus(); const len = input.value.length; input.setSelectionRange(len, len); } }, 60);
   }
 }
 function onGlobalSearchInput(v){
