@@ -779,6 +779,146 @@ a{color:inherit; text-decoration:none;}
 @media (prefers-reduced-motion:reduce){
   *{transition:none !important; animation:none !important;}
 }
+
+/* ==========================================================
+   ANDROID TV LAYOUT
+   Detected via: URL param ?tv=1  OR  screen width >= 1280px
+   and no fine pointer (i.e. a TV / D-pad device, not a desktop mouse)
+   ========================================================== */
+body.tv-mode {
+  font-size: 18px;
+}
+/* Hide mobile bottom nav and regular sidebar in TV mode */
+body.tv-mode .bottom-nav { display: none !important; }
+
+/* TV sidebar — wider, larger text, taller items */
+body.tv-mode .sidebar {
+  width: 280px;
+  padding: 32px 20px;
+  gap: 6px;
+}
+body.tv-mode .brand { padding-bottom: 28px; margin-bottom: 16px; }
+body.tv-mode .brand .mark { width: 42px; height: 42px; font-size: 18px; }
+body.tv-mode .brand span { font-size: 22px; }
+
+body.tv-mode .nav-item {
+  padding: 16px 18px;
+  font-size: 16px;
+  border-radius: 12px;
+  gap: 16px;
+}
+body.tv-mode .nav-item svg { width: 24px; height: 24px; }
+
+/* TV focus ring — D-pad navigation highlights focused elements */
+body.tv-mode *:focus {
+  outline: 3px solid var(--highlight) !important;
+  outline-offset: 3px !important;
+}
+body.tv-mode .nav-item:focus {
+  background: var(--highlight-dim);
+  color: var(--highlight);
+  outline: 3px solid var(--highlight) !important;
+}
+
+/* TV topbar */
+body.tv-mode .topbar {
+  padding: 22px 48px;
+}
+body.tv-mode .topbar h1 { font-size: 30px; }
+
+/* TV page padding */
+body.tv-mode .page { padding: 0 48px; }
+body.tv-mode .hero-carousel { margin: 24px 48px 12px 48px; height: 58vh; }
+body.tv-mode .hero-content h2 { font-size: 52px; }
+body.tv-mode .hero-content p { font-size: 17px; }
+body.tv-mode .hero-btns .btn { padding: 16px 32px; font-size: 16px; }
+body.tv-mode .hero-nav-btn { opacity: 1; width: 52px; height: 52px; } /* always visible on TV */
+
+/* TV cards — bigger, always show overlay, larger focus ring */
+body.tv-mode .card { flex: 0 0 220px; width: 220px; border-radius: 14px; }
+body.tv-mode .card:focus,
+body.tv-mode .card:focus-within {
+  transform: scale(1.09) translateY(-6px);
+  box-shadow: 0 24px 50px rgba(0,0,0,.7), 0 0 0 3px var(--highlight);
+  border-color: var(--highlight);
+  z-index: 5;
+  outline: none !important;
+}
+body.tv-mode .card .card-overlay { opacity: 1; } /* always show title/play on TV */
+body.tv-mode .card .card-play { width: 44px; height: 44px; }
+body.tv-mode .card .card-play svg { width: 20px; height: 20px; }
+body.tv-mode .card .card-title { font-size: 14px; }
+body.tv-mode .card .card-meta { font-size: 12px; }
+body.tv-mode .card-badge { font-size: 11px; padding: 4px 10px; }
+body.tv-mode .row-head h3 { font-size: 22px; }
+body.tv-mode .row-head { padding: 0 48px; }
+body.tv-mode .row-track { padding: 10px 48px 28px 48px; gap: 20px; }
+
+/* TV buttons — larger tap targets */
+body.tv-mode .btn { padding: 14px 24px; font-size: 15px; border-radius: 10px; }
+body.tv-mode .btn:focus { outline: 3px solid var(--highlight) !important; }
+body.tv-mode .btn-icon { width: 48px; height: 48px; }
+
+/* TV detail page */
+body.tv-mode .detail-backdrop { margin: 24px 48px; }
+body.tv-mode .detail-body { padding: 0 48px; gap: 36px; }
+body.tv-mode .detail-poster { width: 220px; }
+body.tv-mode .detail-info { padding-top: 110px; }
+body.tv-mode .detail-info h2 { font-size: 38px; }
+body.tv-mode .detail-desc { font-size: 16px; }
+body.tv-mode .tag { font-size: 14px; padding: 6px 14px; }
+
+/* TV episode list */
+body.tv-mode .episode-card { padding: 14px; gap: 20px; }
+body.tv-mode .episode-card:focus { 
+  background: var(--highlight-dim); 
+  border-color: rgba(61,219,217,.5);
+  outline: 3px solid var(--highlight) !important;
+  transform: translateX(6px);
+}
+body.tv-mode .ep-thumb { width: 150px; height: 85px; }
+body.tv-mode .ep-info .ep-title { font-size: 17px; }
+body.tv-mode .ep-overview { font-size: 14px; }
+
+/* TV player controls — larger */
+body.tv-mode .player-title { font-size: 20px; }
+body.tv-mode .player-sub { font-size: 15px; }
+body.tv-mode .player-top { padding: 28px 40px; }
+body.tv-mode .player-top-actions .btn-icon { width: 52px; height: 52px; }
+body.tv-mode .player-top-actions .btn-icon svg { width: 22px; height: 22px; }
+
+/* TV settings */
+body.tv-mode .settings-section { max-width: 720px; padding: 28px; }
+body.tv-mode .settings-section h3 { font-size: 18px; }
+body.tv-mode .field label { font-size: 13px; }
+body.tv-mode .field input,
+body.tv-mode .field textarea,
+body.tv-mode .field select { font-size: 16px; padding: 14px 16px; }
+
+/* TV on-screen D-pad hint bar */
+#tvDpadHint {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 999;
+  background: rgba(8,9,13,.92);
+  border-top: 1px solid #1a1d26;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  padding: 10px 32px;
+  font-size: 13px;
+  color: var(--muted);
+  backdrop-filter: blur(10px);
+}
+body.tv-mode #tvDpadHint { display: flex; }
+#tvDpadHint span { display: flex; align-items: center; gap: 6px; }
+#tvDpadHint kbd {
+  background: #1e2330; border: 1px solid #2c3244; border-radius: 6px;
+  padding: 3px 8px; font-size: 12px; color: var(--text); font-family: inherit;
+  box-shadow: 0 2px 0 #0a0b10;
+}
+body.tv-mode .main { padding-bottom: 52px; } /* room for D-pad hint bar */
 </style>
 </head>
 <body>
@@ -797,6 +937,14 @@ a{color:inherit; text-decoration:none;}
 <div class="overlay" id="modalOverlay"><div class="modal" id="modalBody"></div></div>
 <div class="player-overlay" id="playerOverlay"></div>
 <div id="toast"></div>
+
+<!-- Android TV D-pad hint bar (only visible in tv-mode) -->
+<div id="tvDpadHint">
+  <span><kbd>↑ ↓ ← →</kbd> Navigate</span>
+  <span><kbd>OK / Enter</kbd> Select</span>
+  <span><kbd>Back</kbd> Go back</span>
+  <span><kbd>▶ Play</kbd> Quick play</span>
+</div>
 
 <script>
 /* =========================================================
@@ -2739,6 +2887,22 @@ function renderSettings(){
         <button class="btn btn-primary" onclick="openLinkHealthCheck()">${ICON.search} Check All Sources</button>
       </div>
       <div class="settings-section">
+        <h3>Sync Between Devices</h3>
+        <p class="field-hint" style="margin-bottom:14px;">
+          Move your entire library (movies, shows, live channels, progress) from one device to another — phone to Android TV, or any device to any device. No account needed.
+        </p>
+        <div style="background:var(--highlight-dim); border:1px solid rgba(61,219,217,.25); border-radius:10px; padding:14px; margin-bottom:14px;">
+          <div style="font-size:12px; font-weight:800; color:var(--highlight); text-transform:uppercase; letter-spacing:.06em; margin-bottom:8px;">Step 1 — On this device</div>
+          <button class="btn btn-primary" style="width:100%; justify-content:center;" onclick="copyBackupCode()">📋 Copy Backup Code</button>
+          <div class="field-hint" style="margin-top:8px;">Copies a short code to your clipboard. Send it to yourself via WhatsApp, Telegram, email, or SMS.</div>
+        </div>
+        <div style="background:#12141c; border:1px solid #232837; border-radius:10px; padding:14px;">
+          <div style="font-size:12px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:8px;">Step 2 — On the other device</div>
+          <button class="btn btn-ghost" style="width:100%; justify-content:center;" onclick="openRestoreFromCode()">📥 Restore from Code</button>
+          <div class="field-hint" style="margin-top:8px;">Paste the code you sent yourself to load your library on this device.</div>
+        </div>
+      </div>
+      <div class="settings-section">
         <h3>Backup</h3>
         <div class="settings-row">
           <button class="btn btn-ghost" onclick="exportLibrary()">Export Library (JSON)</button>
@@ -3177,6 +3341,95 @@ function clearAllData(){
   if(!confirm('Are you absolutely sure? This cannot be undone.')) return;
   state.lib = {items:[], collections:[], channels:[]};
   saveLib(); location.hash='home'; toast('All data cleared');
+}
+
+/* ---- Device-to-device sync via backup code ---- */
+function encodeBackupCode(data){
+  // JSON → UTF-8 bytes → base64. We use btoa via a TextEncoder-safe approach
+  // so non-ASCII characters in titles/descriptions survive the round-trip.
+  const json = JSON.stringify(data);
+  const bytes = new TextEncoder().encode(json);
+  let binary = '';
+  bytes.forEach(b => binary += String.fromCharCode(b));
+  return btoa(binary);
+}
+function decodeBackupCode(code){
+  // Reverse: base64 → binary → UTF-8 bytes → JSON
+  const binary = atob(code.trim().replace(/\s+/g, ''));
+  const bytes = new Uint8Array(binary.length);
+  for(let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const json = new TextDecoder().decode(bytes);
+  return JSON.parse(json);
+}
+async function copyBackupCode(){
+  const itemCount = state.lib.items.length;
+  const channelCount = (state.lib.channels||[]).length;
+  if(!itemCount && !channelCount){ toast('Your library is empty — nothing to copy'); return; }
+  try{
+    const code = encodeBackupCode(state.lib);
+    await navigator.clipboard.writeText(code);
+    toast(`✅ Backup code copied! (${itemCount} title${itemCount===1?'':'s'}, ${channelCount} channel${channelCount===1?'':'s'}) — now paste it into WhatsApp, Telegram, or email and send it to yourself.`);
+  }catch(e){
+    // Fallback for devices where clipboard API is restricted (some Android WebViews)
+    openModal(`
+      <div class="modal-head"><h2>Your Backup Code</h2><button class="btn-icon" onclick="closeModal()">${ICON.close}</button></div>
+      <p class="field-hint" style="margin-bottom:12px;">Clipboard access was blocked. Select all the text below, copy it, then send it to yourself via WhatsApp, Telegram, or email.</p>
+      <textarea id="backupCodeOutput" readonly style="min-height:160px; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11px; word-break:break-all;">${encodeBackupCode(state.lib)}</textarea>
+      <div class="modal-footer">
+        <button class="btn btn-primary" onclick="selectAndCopyBackupOutput()">Select All & Copy</button>
+        <button class="btn btn-ghost" onclick="closeModal()">Close</button>
+      </div>
+    `);
+  }
+}
+function selectAndCopyBackupOutput(){
+  const ta = document.getElementById('backupCodeOutput');
+  if(!ta) return;
+  ta.select();
+  try{ document.execCommand('copy'); toast('Copied! Now paste it into WhatsApp, Telegram, or email.'); }
+  catch(e){ toast('Select the text manually and copy it'); }
+}
+function openRestoreFromCode(){
+  openModal(`
+    <div class="modal-head"><h2>Restore from Code</h2><button class="btn-icon" onclick="closeModal()">${ICON.close}</button></div>
+    <p class="field-hint" style="margin-bottom:14px;">
+      Open the message you sent yourself on this device, copy the backup code, then paste it below.
+    </p>
+    <div class="field">
+      <label>Paste your backup code here</label>
+      <textarea id="restoreCodeInput" style="min-height:160px; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11px; word-break:break-all;" placeholder="Paste the long code here…"></textarea>
+    </div>
+    <div style="background:rgba(255,107,129,.08); border:1px solid rgba(255,107,129,.25); border-radius:8px; padding:10px 12px; margin-bottom:4px;">
+      <div style="font-size:12px; color:#ff8b93; font-weight:700;">⚠️ This will replace your current library on this device.</div>
+      <div style="font-size:11.5px; color:var(--muted); margin-top:3px;">Export a backup first if you have anything here you want to keep.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="applyRestoreFromCode()">Restore Library</button>
+    </div>
+  `);
+}
+function applyRestoreFromCode(){
+  const raw = (document.getElementById('restoreCodeInput').value||'').trim();
+  if(!raw){ toast('Paste a backup code first'); return; }
+  try{
+    const data = decodeBackupCode(raw);
+    if(!data.items) throw new Error('invalid');
+    state.lib = {
+      items: data.items || [],
+      collections: data.collections || [],
+      channels: data.channels || [],
+      notifications: data.notifications || [],
+    };
+    saveLib();
+    closeModal();
+    router();
+    const itemCount = state.lib.items.length;
+    const channelCount = (state.lib.channels||[]).length;
+    toast(`✅ Library restored! ${itemCount} title${itemCount===1?'':'s'}, ${channelCount} channel${channelCount===1?'':'s'}.`);
+  }catch(e){
+    toast('That code looks wrong — make sure you copied the whole thing without cutting it off.');
+  }
 }
 
 /* =========================================================
@@ -4217,6 +4470,131 @@ document.addEventListener('keydown', e=>{
    INIT
 ========================================================= */
 router.__manual__ = function(){};
+
+/* =========================================================
+   ANDROID TV MODE
+   Activated by: ?tv=1 in the URL, OR localStorage flag,
+   OR auto-detected (large screen + no fine pointer = TV/projector)
+========================================================= */
+function isTvMode(){
+  // Auto-detect only: large screen + coarse pointer (remote/gamepad) or no hover capability
+  const coarse = window.matchMedia('(pointer: coarse)').matches;
+  const wide = window.innerWidth >= 1280;
+  const noHover = window.matchMedia('(hover: none)').matches;
+  return wide && (coarse || noHover);
+}
+
+// Make all interactive elements reachable via D-pad (tabindex=0)
+function makeFocusable(){
+  if(!document.body.classList.contains('tv-mode')) return;
+  // Cards, episode cards, channel cards, nav items, buttons, links
+  document.querySelectorAll('.card, .episode-card, .channel-card, .collection-card, .watchlist-row, .schedule-row, .nav-item').forEach(el=>{
+    if(!el.hasAttribute('tabindex')) el.setAttribute('tabindex','0');
+  });
+}
+
+// Re-run makeFocusable whenever the page re-renders
+const _origRouter = router;
+window.addEventListener('hashchange', ()=> setTimeout(makeFocusable, 120));
+// Patch router to always re-apply after render
+const _patchedRouter = router;
+
+// D-pad / keyboard navigation in TV mode
+document.addEventListener('keydown', e=>{
+  if(!document.body.classList.contains('tv-mode')) return;
+
+  // Back button (Escape or AndroidTV back = Escape in WebView)
+  if(e.key === 'Escape' || e.key === 'GoBack'){
+    if(document.getElementById('playerOverlay').classList.contains('open')){ closePlayer(); return; }
+    if(document.getElementById('modalOverlay').classList.contains('open')){ closeModal(); return; }
+    if(state.route !== 'home'){ history.back(); return; }
+  }
+
+  // Play button on remote — quick play focused card
+  if(e.key === 'MediaPlayPause' || e.key === 'Play'){
+    const focused = document.activeElement;
+    if(focused && focused.classList.contains('card')){
+      const id = focused.getAttribute('onclick')||'';
+      const m = id.match(/detail\/([^']+)/);
+      if(m) quickPlay(m[1]);
+    }
+    return;
+  }
+
+  // Enter/OK on focused card or nav item
+  if(e.key === 'Enter'){
+    const focused = document.activeElement;
+    if(focused && (focused.classList.contains('card') || focused.classList.contains('nav-item') || focused.classList.contains('episode-card') || focused.classList.contains('channel-card') || focused.classList.contains('collection-card') || focused.classList.contains('watchlist-row') || focused.classList.contains('schedule-row'))){
+      e.preventDefault();
+      focused.click();
+      return;
+    }
+  }
+
+  // Arrow key spatial navigation between focusable elements
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){
+    const player = document.getElementById('playerOverlay');
+    if(player && player.classList.contains('open')) return; // let player handle arrows
+
+    const focusable = Array.from(document.querySelectorAll(
+      '.card, .episode-card, .channel-card, .collection-card, .watchlist-row, .schedule-row, .nav-item, .btn, .btn-icon, input, select, textarea, [tabindex="0"]'
+    )).filter(el=>{
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0 && !el.closest('.player-overlay');
+    });
+
+    const current = document.activeElement;
+    if(!focusable.length) return;
+
+    if(!focusable.includes(current)){
+      // Nothing focused yet — focus the first card or nav item
+      const first = focusable.find(el=>el.classList.contains('nav-item') || el.classList.contains('card'));
+      if(first){ e.preventDefault(); first.focus(); }
+      return;
+    }
+
+    const cr = current.getBoundingClientRect();
+    const cx = cr.left + cr.width/2;
+    const cy = cr.top + cr.height/2;
+
+    // Find the best candidate in the pressed direction
+    let best = null, bestScore = Infinity;
+    for(const el of focusable){
+      if(el === current) continue;
+      const r = el.getBoundingClientRect();
+      const ex = r.left + r.width/2;
+      const ey = r.top + r.height/2;
+      const dx = ex - cx, dy = ey - cy;
+
+      let inDir = false;
+      if(e.key==='ArrowRight' && dx > 10) inDir = true;
+      if(e.key==='ArrowLeft'  && dx < -10) inDir = true;
+      if(e.key==='ArrowDown'  && dy > 10) inDir = true;
+      if(e.key==='ArrowUp'    && dy < -10) inDir = true;
+      if(!inDir) continue;
+
+      // Score: prioritise alignment on the perpendicular axis, then distance
+      const perpendicular = (e.key==='ArrowLeft'||e.key==='ArrowRight') ? Math.abs(dy) : Math.abs(dx);
+      const distance = Math.sqrt(dx*dx + dy*dy);
+      const score = perpendicular * 2 + distance;
+      if(score < bestScore){ bestScore = score; best = el; }
+    }
+
+    if(best){
+      e.preventDefault();
+      best.focus();
+      best.scrollIntoView({block:'nearest', inline:'nearest', behavior:'smooth'});
+    }
+  }
+}, true);
+
+// Init TV mode on load — fully automatic, no user action needed
+if(isTvMode()){
+  document.body.classList.add('tv-mode');
+}
+setTimeout(makeFocusable, 200);
+window.addEventListener('hashchange', ()=> setTimeout(makeFocusable, 200));
+
 router();
 </script>
 </body>
