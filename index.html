@@ -145,6 +145,7 @@ a{color:inherit; text-decoration:none;}
 .gsr-poster{width:38px; height:56px; border-radius:6px; overflow:hidden; flex-shrink:0; background:var(--surface2); display:flex; align-items:center; justify-content:center;}
 .gsr-poster img{width:100%; height:100%; object-fit:cover;}
 .gsr-poster .poster-fallback{font-size:16px;}
+.gsr-poster svg{width:15px; height:15px; color:var(--muted);}
 .gsr-title{font-size:13px; font-weight:700; line-height:1.3;}
 .gsr-meta{font-size:11px; color:var(--muted); margin-top:3px; display:flex; align-items:center;}
 .gsr-empty{padding:16px; text-align:center; color:var(--muted); font-size:13px;}
@@ -643,6 +644,19 @@ a{color:inherit; text-decoration:none;}
 .pns-play-icon svg{width:18px; height:18px; color:#fff; filter:drop-shadow(0 2px 4px rgba(0,0,0,.5));}
 .pns-meta{display:none;}
 .player-hover-zone{position:absolute; top:0; left:0; right:0; height:90px; z-index:4;}
+/* Sits directly in front of a third-party iframe embed so a click is hit-tested against this div,
+   not the iframe underneath — the ad script inside the embed's page never receives the click event
+   at all, which is what stops popup/redirect ads without needing the `sandbox` attribute (which some
+   ad-supported mirrors detect and refuse to play against). Fully transparent, purely functional. */
+.player-click-shield{position:absolute; inset:0; z-index:5; background:transparent; cursor:default;}
+.player-click-shield-hint{
+  position:absolute; bottom:70px; left:50%; transform:translateX(-50%); z-index:5;
+  display:flex; align-items:center; gap:7px; padding:8px 14px; border-radius:20px;
+  background:rgba(8,10,14,.82); backdrop-filter:blur(8px); border:1px solid rgba(61,219,217,.25);
+  color:var(--highlight); font-size:12px; font-weight:700; white-space:nowrap;
+  animation:cardTrailerFadeIn .3s ease; pointer-events:none;
+}
+.player-click-shield-hint svg{width:14px; height:14px;}
 .player-overlay.controls-hidden .player-top-info,
 .player-overlay.controls-hidden .player-top-fade,
 .player-overlay.controls-hidden .player-bottom,
@@ -1025,6 +1039,7 @@ const ICON = {
   collections:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 9h18M9 4v14"/></svg>',
   settings:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 0 1-4 0v-.09A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 0 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 0 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 0 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>',
   play:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>',
+  pause:'<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
   plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
   close:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
   edit:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
@@ -1046,6 +1061,8 @@ const ICON = {
   volumeOn:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>',
   bell:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
   link:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
+  shield:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 5 3 8.5 7 10 4-1.5 7-5 7-10V6z"/></svg>',
+  shieldOff:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 5 3 8.5 7 10 4-1.5 7-5 7-10V6z" opacity=".35"/><path d="M4 4l16 16"/></svg>',
 };
 function heartSvg(filled){
   return `<svg viewBox="0 0 24 24" fill="${filled?'currentColor':'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-10-9.1C.5 8.6 2 5 5.5 5c2 0 3.3 1 4.5 2.5C11.2 6 12.5 5 14.5 5 18 5 19.5 8.6 22 11.9 19.5 16.4 12 21 12 21z"/></svg>`;
@@ -1081,8 +1098,9 @@ function loadSettings(){
     if(!s.contentBlurLevel) s.contentBlurLevel = 'moderate';
     if(!s.contentBlurModelUrl) s.contentBlurModelUrl = '';
     if(!s.scheduleCountry) s.scheduleCountry = 'US';
+    if(!Array.isArray(s.recentSearches)) s.recentSearches = [];
     return s;
-  }catch(e){ return {omdb:'',tmdb:'',vidsrcDomain:'vidsrc-embed.su', blockPopupAds:false, contentBlur:false, contentBlurLevel:'moderate', contentBlurModelUrl:'', scheduleCountry:'US'}; }
+  }catch(e){ return {omdb:'',tmdb:'',vidsrcDomain:'vidsrc-embed.su', blockPopupAds:false, contentBlur:false, contentBlurLevel:'moderate', contentBlurModelUrl:'', scheduleCountry:'US', recentSearches:[]}; }
 }
 function saveSettings(){ localStorage.setItem(SET_KEY, JSON.stringify(state.settings)); }
 
@@ -1442,6 +1460,28 @@ window.addEventListener('scroll', ()=>{
 /* =========================================================
    HOME / MOVIES / TV SHOWS
 ========================================================= */
+/* "Because You Liked X" — picks your most recently favorited title as the seed, then surfaces
+   other library titles sharing at least one genre with it, ranked by how much genre overlap they
+   have. Distinct from the TMDB-similar row on the detail page: that one calls out to TMDB for a
+   single title you're actively viewing; this one runs entirely on your own library + favorites,
+   on the Home page, and rotates automatically as your favorites change. */
+function getBecauseYouLikedRow(items){
+  const favorites = items.filter(i=>i.favorite);
+  if(!favorites.length) return null;
+  const seed = [...favorites].sort((a,b)=> new Date(b.favoritedAt||b.dateAdded||0) - new Date(a.favoritedAt||a.dateAdded||0))[0];
+  const seedGenres = seed.genre || [];
+  if(!seedGenres.length) return null;
+  let related = items.filter(i=> i.id!==seed.id && (i.genre||[]).some(g=>seedGenres.includes(g)));
+  if(!related.length) return null;
+  related = related.sort((a,b)=>{
+    const overlapA = (a.genre||[]).filter(g=>seedGenres.includes(g)).length;
+    const overlapB = (b.genre||[]).filter(g=>seedGenres.includes(g)).length;
+    if(overlapB!==overlapA) return overlapB-overlapA;
+    return new Date(b.dateAdded||0)-new Date(a.dateAdded||0);
+  });
+  return {seed, items: related.slice(0, GENRE_ROW_CAP)};
+}
+
 function renderHome(){
   const items = state.lib.items;
   if(!items.length){
@@ -1469,6 +1509,8 @@ function renderHome(){
   if(continueWatching.length) rows += rowHtml('Continue Watching', continueWatching, {removable:true});
   rows += panoramicBannerHtml(panoramicItem);
   if(favorites.length) rows += rowHtml('Favorites', favorites);
+  const becauseYouLiked = getBecauseYouLikedRow(items);
+  if(becauseYouLiked) rows += rowHtml(`Because You Liked "${becauseYouLiked.seed.title}"`, becauseYouLiked.items);
   rows += rowHtml('Recently Added', recentlyAddedRowItems.slice(0, GENRE_ROW_CAP));
   allGenres().forEach(g=>{
     const inGenre = recentlyAdded.filter(i=>(i.genre||[]).includes(g));
@@ -1893,17 +1935,50 @@ function toggleGlobalSearch(){
     if(box){ box.innerHTML=''; box.classList.remove('show'); }
   } else {
     setTimeout(()=>{ if(input){ input.focus(); const len = input.value.length; input.setSelectionRange(len, len); } }, 60);
+    renderGlobalSearchResults(); // shows recent searches immediately if the box is empty
   }
 }
 function onGlobalSearchInput(v){
   state.globalSearchQuery = v;
   renderGlobalSearchResults();
 }
+function addRecentSearch(term){
+  term = (term||'').trim();
+  if(!term) return;
+  let recents = state.settings.recentSearches || [];
+  recents = recents.filter(t=> t.toLowerCase() !== term.toLowerCase());
+  recents.unshift(term);
+  state.settings.recentSearches = recents.slice(0,4);
+  saveSettings();
+}
+function clearRecentSearches(){
+  state.settings.recentSearches = [];
+  saveSettings();
+  renderGlobalSearchResults();
+}
+function applyRecentSearch(term){
+  state.globalSearchQuery = term;
+  const input = document.getElementById('globalSearchInput');
+  if(input){ input.value = term; input.focus(); }
+  renderGlobalSearchResults();
+}
 function renderGlobalSearchResults(){
   const q = (state.globalSearchQuery||'').trim().toLowerCase();
   const box = document.getElementById('globalSearchResults');
   if(!box) return;
-  if(!q){ box.innerHTML=''; box.classList.remove('show'); return; }
+  if(!q){
+    const recents = state.settings.recentSearches || [];
+    if(!recents.length){ box.innerHTML=''; box.classList.remove('show'); return; }
+    box.innerHTML = `
+      <div class="notif-header"><span>Recent Searches</span><button type="button" class="notif-clear" onclick="event.stopPropagation(); clearRecentSearches()">Clear</button></div>
+      ${recents.map(term=>`
+      <div class="gsr-item" onclick="applyRecentSearch('${esc(term).replace(/'/g,"&#39;")}')">
+        <div class="gsr-poster">${ICON.schedule}</div>
+        <div class="gsr-title">${esc(term)}</div>
+      </div>`).join('')}`;
+    box.classList.add('show');
+    return;
+  }
   const itemMatches = state.lib.items.filter(i=> i.title.toLowerCase().includes(q)).slice(0,6);
   const channelMatches = (state.lib.channels||[]).filter(c=> c.name.toLowerCase().includes(q)).slice(0,4);
   if(!itemMatches.length && !channelMatches.length){
@@ -1925,10 +2000,12 @@ function renderGlobalSearchResults(){
   box.classList.add('show');
 }
 function goToSearchResult(id){
+  addRecentSearch(state.globalSearchQuery);
   toggleGlobalSearch();
   location.hash = 'detail/'+id;
 }
 function goToChannelResult(id){
+  addRecentSearch(state.globalSearchQuery);
   toggleGlobalSearch();
   if(state.route!=='live'){ location.hash = 'live'; setTimeout(()=>playChannel(id), 80); }
   else playChannel(id);
@@ -2348,6 +2425,7 @@ function toggleFavorite(itemId){
   const item = getItem(itemId);
   if(!item) return;
   item.favorite = !item.favorite;
+  if(item.favorite) item.favoritedAt = new Date().toISOString();
   saveLib();
   // Update every on-screen favorite button for this item directly (card + detail action button)
   // instead of forcing a full re-render — keeps grid scroll position and hover state intact.
@@ -4393,7 +4471,9 @@ function renderPlayer(){
       <div class="player-top-actions">
         <div class="player-top-pinned">
           <button class="btn-icon" title="Hide screen" onclick="togglePlayerHide()">${ICON.eyeOff}</button>
+          <button class="btn-icon" id="playerPlayBtn" title="Pause" onclick="togglePlayerPlayPause()">${ICON.pause}</button>
           <button class="btn-icon" id="playerMuteBtn" title="Mute" onclick="togglePlayerMute()">${ICON.volumeOn}</button>
+          ${embed.kind==='iframe' ? `<button class="btn-icon" id="playerShieldBtn" title="Block clicks (popup protection)" onclick="togglePlayerClickShield()">${ICON.shieldOff}</button>` : ''}
         </div>
         <div class="player-top-fade">
           <button class="btn-icon" id="playerFullscreenBtn" title="Fullscreen" onclick="togglePlayerFullscreen()">${ICON.expand}</button>
@@ -4414,6 +4494,7 @@ function renderPlayer(){
     ${p.sources.length>1 ? `<div class="player-bottom"><button class="btn btn-ghost" onclick="tryNextSource()">Try Next Source</button></div>` : ''}
   `;
   scheduleHideControls();
+  if(document.fullscreenElement) applyPlayerClickShield(true);
 
   const isVideoLike = embed.kind==='video' || embed.kind==='hls';
   const stageEl = document.getElementById(isVideoLike ? 'playerVideoEl' : 'playerIframeEl');
@@ -4438,6 +4519,10 @@ function renderPlayer(){
   if(isVideoLike){
     const vidEl = document.getElementById('playerVideoEl');
     if(vidEl && state.player) state.player._blurInterval = startVideoContentBlurWatch(vidEl);
+    if(vidEl){
+      vidEl.addEventListener('play', ()=> setPlayerPlayIcon(true));
+      vidEl.addEventListener('pause', ()=> setPlayerPlayIcon(false));
+    }
   }
 
   if(isLive) return; // no progress tracking / watch timers for live channels
@@ -4542,6 +4627,83 @@ function togglePlayerFullscreen(){
   // being left behind outside it, invisible and unclickable.
   if(!document.fullscreenElement) el.requestFullscreen?.().catch(()=>{});
   else document.exitFullscreen?.().catch(()=>{});
+}
+// Auto-engage the click shield the moment fullscreen actually kicks in (not on the button press —
+// requestFullscreen is async and can be denied), and drop it again on exit so windowed-mode clicks
+// into the embed (choosing a mirror/quality inside its own UI, etc.) still work normally.
+document.addEventListener('fullscreenchange', ()=>{
+  if(!state.player) return;
+  const inFullscreen = !!document.fullscreenElement;
+  applyPlayerClickShield(inFullscreen);
+});
+// force: true = show, false = hide, undefined = toggle current state
+function togglePlayerClickShield(force){
+  const shown = !!document.getElementById('playerClickShield');
+  applyPlayerClickShield(force!==undefined ? force : !shown, true);
+}
+function applyPlayerClickShield(show, showHint){
+  const stage = document.getElementById('playerStage');
+  const btn = document.getElementById('playerShieldBtn');
+  if(!stage) return;
+  const existing = document.getElementById('playerClickShield');
+  if(existing) existing.remove();
+  const oldHint = document.getElementById('playerClickShieldHint');
+  if(oldHint) oldHint.remove();
+  // Only iframe embeds can spawn popups — a direct <video>/HLS source has no third-party page
+  // behind it to click into, so the shield is meaningless (and would just block native controls).
+  if(show && document.getElementById('playerIframeEl')){
+    const shield = document.createElement('div');
+    shield.id = 'playerClickShield';
+    shield.className = 'player-click-shield';
+    stage.appendChild(shield);
+    if(showHint){
+      const hint = document.createElement('div');
+      hint.id = 'playerClickShieldHint';
+      hint.className = 'player-click-shield-hint';
+      hint.innerHTML = `${ICON.shield} Blocking clicks to stop popups`;
+      stage.appendChild(hint);
+      setTimeout(()=>{ if(hint.isConnected) hint.remove(); }, 2500);
+    }
+  }
+  if(btn){
+    const active = show && !!document.getElementById('playerClickShield');
+    btn.classList.toggle('is-active', active);
+    btn.title = active ? 'Allow clicks (turn off popup protection)' : 'Block clicks (popup protection)';
+    btn.innerHTML = active ? ICON.shield : ICON.shieldOff;
+  }
+}
+function setPlayerPlayIcon(isPlaying){
+  const btn = document.getElementById('playerPlayBtn');
+  if(!btn) return;
+  btn.title = isPlaying ? 'Pause' : 'Play';
+  btn.innerHTML = isPlaying ? ICON.pause : ICON.play;
+}
+function togglePlayerPlayPause(){
+  const btn = document.getElementById('playerPlayBtn');
+  if(!btn) return;
+  const vid = document.getElementById('playerVideoEl');
+  if(vid){
+    // Real control — this is our own <video> element, so play()/pause() works exactly like the
+    // native controls do. The icon updates itself via the play/pause listeners in renderPlayer,
+    // so it stays correct even if you pause some other way (native scrubber, spacebar).
+    if(vid.paused) vid.play().catch(()=>{}); else vid.pause();
+    return;
+  }
+  // Third-party iframe embeds: there's no DOM access into a cross-origin iframe at all, so this can
+  // only ever *send a request* via postMessage — reliable for YouTube's documented player API, a
+  // harmless no-op for everything else (most VidSrc-family mirrors and similar implement their own
+  // player with no public control protocol). The button's icon still flips to reflect what you
+  // asked for, since there's no way to confirm what the source actually did with the request.
+  const iframe = document.getElementById('playerIframeEl');
+  if(!iframe) return;
+  const willPause = btn.dataset.playing !== 'false';
+  try{ iframe.contentWindow.postMessage(JSON.stringify({event:'command', func: willPause?'pauseVideo':'playVideo', args:[]}), '*'); }catch(e){}
+  btn.dataset.playing = willPause ? 'false' : 'true';
+  setPlayerPlayIcon(!willPause);
+  if(!btn.dataset.warned){
+    btn.dataset.warned = '1';
+    toast('Play/Pause is reliable on YouTube — other embeds may not respond to it');
+  }
 }
 function togglePlayerMute(){
   const btn = document.getElementById('playerMuteBtn');
