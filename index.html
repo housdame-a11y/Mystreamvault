@@ -601,6 +601,48 @@ a{color:inherit; text-decoration:none;}
 .player-top-fade{display:flex; align-items:center; gap:8px; transition:opacity .4s ease;}
 .player-stage{flex:1; position:relative; background:#000;}
 .player-stage iframe, .player-stage video{width:100%; height:100%; border:0; display:block;}
+/* Fake-pause fade: the stage background is always solid #000 behind these, so opacity-only
+   transitions never show a white flash while the iframe is being unloaded/recreated. */
+.player-stage iframe, .player-stage video{opacity:1; transition:opacity .38s ease;}
+.player-stage iframe.player-fade-out, .player-stage video.player-fade-out{opacity:0;}
+
+/* ---------- Fake-pause cover (Netflix-style "paused" state) ----------
+   Shown in place of the iframe once it has been unloaded. Purely visual — the third-party
+   embed underneath is completely gone from the DOM at this point (see closePlayerCover). */
+.player-pause-cover{
+  position:absolute; inset:0; z-index:4; background:#000;
+  display:flex; align-items:center; justify-content:center;
+  opacity:0; transition:opacity .42s ease; cursor:pointer;
+}
+.player-pause-cover.visible{opacity:1;}
+.player-pause-cover-bg{
+  position:absolute; inset:0; background-size:cover; background-position:center center;
+  filter:blur(3px) brightness(.4) saturate(1.1); transform:scale(1.06);
+}
+.player-pause-cover::after{
+  content:''; position:absolute; inset:0;
+  background:radial-gradient(ellipse at center, rgba(5,6,9,.35) 0%, rgba(5,6,9,.85) 100%);
+}
+.player-pause-cover-content{
+  position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; gap:16px;
+  text-align:center; padding:24px; max-width:520px;
+}
+.player-pause-resume-btn{
+  width:78px; height:78px; border-radius:50%; border:2px solid rgba(255,255,255,.5);
+  background:rgba(255,255,255,.08); backdrop-filter:blur(6px); color:#fff;
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+  transition:transform var(--transition), background var(--transition), border-color var(--transition), box-shadow var(--transition);
+}
+.player-pause-resume-btn svg{width:32px; height:32px; margin-left:3px;}
+.player-pause-cover:hover .player-pause-resume-btn{
+  transform:scale(1.08); background:var(--highlight); border-color:var(--highlight); color:#04211f;
+  box-shadow:0 0 0 8px rgba(61,219,217,.16);
+}
+.player-pause-title{font-size:22px; font-weight:800; font-family:var(--display-font); color:#fff;}
+.player-pause-sub{font-size:13.5px; color:var(--muted); font-weight:600;}
+.player-pause-resume-label{font-size:14.5px; font-weight:700; color:var(--highlight); letter-spacing:.01em;}
+.player-pause-progress{width:260px; height:4px; border-radius:3px; background:rgba(255,255,255,.15); overflow:hidden; margin-top:2px;}
+.player-pause-progress > div{height:100%; background:linear-gradient(90deg, var(--highlight), #2bc4c1);}
 .content-blurred{filter:blur(32px) saturate(70%); transition:filter .3s ease; cursor:pointer;}
 .content-blurred:hover{filter:blur(18px) saturate(70%);}
 .content-blur-revealed{filter:none;}
@@ -625,7 +667,19 @@ a{color:inherit; text-decoration:none;}
 .player-hide-icon{width:56px; height:56px; border-radius:50%; background:var(--highlight-dim); display:flex; align-items:center; justify-content:center; color:var(--highlight);}
 .player-hide-icon svg{width:26px; height:26px;}
 .player-hide-overlay span{font-size:13px; font-weight:700; color:var(--muted);}
-.player-bottom{position:absolute; bottom:0; left:0; right:0; z-index:5; padding:18px 24px; display:flex; justify-content:center; gap:10px; background:linear-gradient(0deg, rgba(0,0,0,.8), transparent); transition:opacity .4s ease;}
+.player-bottom{
+  position:absolute; bottom:0; left:0; right:0; z-index:5; padding:16px 24px;
+  display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:10px;
+  background:linear-gradient(0deg, rgba(0,0,0,.8), transparent); transition:opacity .4s ease;
+}
+.player-bottom-left{display:flex; justify-content:flex-start;}
+.player-bottom-center{display:flex; justify-content:center;}
+.player-bottom-right{display:flex; justify-content:flex-end;}
+.player-bottom .btn-icon{background:rgba(22,25,35,.6); border-color:rgba(255,255,255,.12);}
+.player-bottom .btn-icon:hover{background:rgba(22,25,35,.9);}
+/* Applied to Play/Pause + the two skip buttons while an iframe rebuild (pause/resume/seek) is in
+   flight — blocks rapid repeat clicks from starting a second rebuild on top of one already running. */
+.player-bottom .btn-icon.is-busy{opacity:.4; pointer-events:none;}
 .player-next-side{
   position:absolute; top:50%; right:24px; transform:translateY(-50%); z-index:6;
   width:52px; height:52px; border-radius:50%; overflow:hidden; cursor:pointer;
@@ -971,6 +1025,9 @@ body.tv-mode .player-sub { font-size: 15px; }
 body.tv-mode .player-top { padding: 28px 40px; }
 body.tv-mode .player-top-actions .btn-icon { width: 52px; height: 52px; }
 body.tv-mode .player-top-actions .btn-icon svg { width: 22px; height: 22px; }
+body.tv-mode .player-bottom { padding: 24px 40px; }
+body.tv-mode .player-bottom .btn-icon { width: 52px; height: 52px; }
+body.tv-mode .player-bottom .btn-icon svg { width: 22px; height: 22px; }
 
 /* TV settings */
 body.tv-mode .settings-section { max-width: 720px; padding: 28px; }
@@ -1065,6 +1122,8 @@ const ICON = {
   link:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
   shield:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 5 3 8.5 7 10 4-1.5 7-5 7-10V6z"/></svg>',
   shieldOff:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 5 3 8.5 7 10 4-1.5 7-5 7-10V6z" opacity=".35"/><path d="M4 4l16 16"/></svg>',
+  skipBack20:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.51 11a9 9 0 1 1 .5 4.5"/><path d="M3 5v6h6"/><text x="12.3" y="15.7" font-size="7.2" font-weight="800" fill="currentColor" stroke="none" text-anchor="middle" font-family="Arial, sans-serif">20</text></svg>',
+  skipForward20:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.49 11a9 9 0 1 0-.5 4.5"/><path d="M21 5v6h-6"/><text x="11.7" y="15.7" font-size="7.2" font-weight="800" fill="currentColor" stroke="none" text-anchor="middle" font-family="Arial, sans-serif">20</text></svg>',
 };
 function heartSvg(filled){
   return `<svg viewBox="0 0 24 24" fill="${filled?'currentColor':'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-10-9.1C.5 8.6 2 5 5.5 5c2 0 3.3 1 4.5 2.5C11.2 6 12.5 5 14.5 5 18 5 19.5 8.6 22 11.9 19.5 16.4 12 21 12 21z"/></svg>`;
@@ -1101,8 +1160,12 @@ function loadSettings(){
     if(!s.contentBlurModelUrl) s.contentBlurModelUrl = '';
     if(!s.scheduleCountry) s.scheduleCountry = 'US';
     if(!Array.isArray(s.recentSearches)) s.recentSearches = [];
+    // Optional cloud mirror for watch progress (see PLAYBACK MANAGER > syncProgressToCloud).
+    // Left blank by default — everything works purely from localStorage until these are filled in.
+    if(!s.supabaseUrl) s.supabaseUrl = '';
+    if(!s.supabaseKey) s.supabaseKey = '';
     return s;
-  }catch(e){ return {omdb:'',tmdb:'',vidsrcDomain:'vidsrc-embed.su', blockPopupAds:false, contentBlur:false, contentBlurLevel:'moderate', contentBlurModelUrl:'', scheduleCountry:'US', recentSearches:[]}; }
+  }catch(e){ return {omdb:'',tmdb:'',vidsrcDomain:'vidsrc-embed.su', blockPopupAds:false, contentBlur:false, contentBlurLevel:'moderate', contentBlurModelUrl:'', scheduleCountry:'US', recentSearches:[], supabaseUrl:'', supabaseKey:''}; }
 }
 function saveSettings(){ localStorage.setItem(SET_KEY, JSON.stringify(state.settings)); }
 
@@ -3193,6 +3256,15 @@ function renderSettings(){
         <button class="btn btn-primary" onclick="saveScheduleCountry()">Save</button>
       </div>
       <div class="settings-section">
+        <h3>Cloud Progress Sync <span style="font-weight:600; color:var(--muted); text-transform:none;">(optional)</span></h3>
+        <p class="field-hint" style="margin-bottom:14px;">
+          Watch progress always saves to this device's local storage first — that's the source of truth and everything works fully offline. Fill these in to <em>also</em> mirror progress to your own Supabase project (best-effort, fails silently if unreachable). Requires a <code>watch_progress</code> table with an INSERT/UPSERT policy for the anon key. Leave blank to skip this entirely.
+        </p>
+        <div class="field"><label>Supabase Project URL</label><input id="supabaseUrlInput" value="${esc(s.supabaseUrl)}" placeholder="https://xxxx.supabase.co"></div>
+        <div class="field"><label>Supabase Anon Key</label><input id="supabaseKeyInput" value="${esc(s.supabaseKey)}" placeholder="eyJhbGciOi..."></div>
+        <button class="btn btn-primary" onclick="saveSupabaseConfig()">Save Cloud Sync Settings</button>
+      </div>
+      <div class="settings-section">
         <h3>Link Health</h3>
         <p class="field-hint" style="margin-bottom:14px;">
           Scans every stream URL in your library — movies, episodes, and live channels — to catch sources that have gone fully offline (dead domain, connection refused, timeout). Browsers can't read the actual response from another site, so this can't detect a source that loads but shows a 404 or an "unavailable" page — only ones that don't respond at all. Treat it as a first pass, not a guarantee.
@@ -3237,6 +3309,12 @@ function saveApiKeys(){
 function saveVidsrcDomain(){
   state.settings.vidsrcDomain = document.getElementById('vidsrcDomain').value;
   saveSettings(); toast('VidSrc domain saved');
+}
+function saveSupabaseConfig(){
+  state.settings.supabaseUrl = document.getElementById('supabaseUrlInput').value.trim().replace(/\/$/, '');
+  state.settings.supabaseKey = document.getElementById('supabaseKeyInput').value.trim();
+  saveSettings();
+  toast(state.settings.supabaseUrl && state.settings.supabaseKey ? 'Cloud sync enabled' : 'Cloud sync settings saved');
 }
 function toggleBlockPopupAds(checked){
   state.settings.blockPopupAds = !!checked;
@@ -4462,16 +4540,26 @@ function renderPlayer(){
   // VidSrc-family players (vaplayer.ru, vidsrc.me, etc.) all honour this parameter and seek to it
   // on load — so when autoplay=1 is set and the player can't show its own "resume?" dialog, we do
   // the seek ourselves by baking the timestamp directly into the src before the iframe is created.
+  // buildResumeEmbedUrl() is the same helper the fake-pause/resume flow (PLAYBACK MANAGER, below)
+  // uses to rebuild the iframe src when the user hits Resume — this is just its first use, on open.
   let iframeSrc = embed.src;
+  let resumeAtOpen = 0;
   if(embed.kind === 'iframe' && !isLive){
+    // Base URL (no t= param) — kept on state.player so the fake-pause/resume cycle can always
+    // rebuild a clean src from the *original* embed link, never stacking timestamps on top of
+    // each other across multiple pause/resume cycles.
+    p._embedBaseUrl = embed.src;
     const savedForResume = (item && item.progress && item.progress[p.key]);
-    const resumeAt = savedForResume && !savedForResume.watched ? Math.floor(savedForResume.timestamp) : 0;
-    if(resumeAt > 5){
-      // Append t= without breaking existing query params
-      const sep = iframeSrc.includes('?') ? '&' : '?';
-      iframeSrc = `${iframeSrc}${sep}t=${resumeAt}`;
-    }
+    resumeAtOpen = savedForResume && !savedForResume.watched ? Math.floor(savedForResume.timestamp) : 0;
+    iframeSrc = buildResumeEmbedUrl(embed.src, resumeAtOpen);
   }
+  // Fresh mount (open / next episode / retry source) always starts in the real "playing" state —
+  // any previous fake-pause cover or in-flight rebuild lock no longer applies to whatever is being
+  // rendered now (renderPlayer replaces the whole overlay, so nothing from before still exists to
+  // finish rebuilding).
+  p.fakePaused = false;
+  p._playbackBusy = false;
+  p._elapsedSeconds = resumeAtOpen;
   if(embed.kind==='video'){
     stageHtml = `<video id="playerVideoEl" src="${esc(embed.src)}" controls autoplay></video>`;
   } else if(embed.kind==='hls'){
@@ -4494,12 +4582,10 @@ function renderPlayer(){
       <div class="player-top-actions">
         <div class="player-top-pinned">
           <button class="btn-icon" title="Hide screen" onclick="togglePlayerHide()">${ICON.eyeOff}</button>
-          <button class="btn-icon" id="playerPlayBtn" title="Pause" onclick="togglePlayerPlayPause()">${ICON.pause}</button>
           <button class="btn-icon" id="playerMuteBtn" title="Mute" onclick="togglePlayerMute()">${ICON.volumeOn}</button>
           ${embed.kind==='iframe' ? `<button class="btn-icon" id="playerShieldBtn" title="Block clicks (popup protection)" onclick="togglePlayerClickShield()">${ICON.shieldOff}</button>` : ''}
         </div>
         <div class="player-top-fade">
-          <button class="btn-icon" id="playerFullscreenBtn" title="Fullscreen" onclick="togglePlayerFullscreen()">${ICON.expand}</button>
           <button class="btn-icon" onclick="closePlayer()">${ICON.close}</button>
         </div>
       </div>
@@ -4514,7 +4600,19 @@ function renderPlayer(){
     <div class="player-next-side" title="Next: S${next.seasonNum}E${next.ep.number} — ${esc(next.ep.title||('Episode '+next.ep.number)).replace(/"/g,'&quot;')}" onclick="playNextEpisode()">
       <div class="pns-thumb">${next.ep.thumbnail?`<img src="${esc(next.ep.thumbnail)}" alt="">`:''}<span class="pns-play-icon">${ICON.play}</span></div>
     </div>` : ''}
-    ${p.sources.length>1 ? `<div class="player-bottom"><button class="btn btn-ghost" onclick="tryNextSource()">Try Next Source</button></div>` : ''}
+    <div class="player-bottom">
+      <div class="player-bottom-left">
+        ${embed.kind==='iframe' && !isLive ? `<button class="btn-icon" id="playerSkipBackBtn" title="Back 20 seconds" onclick="seekPlayer(-20)">${ICON.skipBack20}</button>` : ''}
+        <button class="btn-icon" id="playerPlayBtn" title="Pause" onclick="togglePlayerPlayPause()">${ICON.pause}</button>
+        ${embed.kind==='iframe' && !isLive ? `<button class="btn-icon" id="playerSkipForwardBtn" title="Forward 20 seconds" onclick="seekPlayer(20)">${ICON.skipForward20}</button>` : ''}
+      </div>
+      <div class="player-bottom-center">
+        ${p.sources.length>1 ? `<button class="btn btn-ghost" onclick="tryNextSource()">Try Next Source</button>` : ''}
+      </div>
+      <div class="player-bottom-right">
+        <button class="btn-icon" id="playerFullscreenBtn" title="Fullscreen" onclick="togglePlayerFullscreen()">${ICON.expand}</button>
+      </div>
+    </div>
   `;
   scheduleHideControls();
   if(document.fullscreenElement) applyPlayerClickShield(true);
@@ -4583,21 +4681,11 @@ function renderPlayer(){
     // the browser tab itself is hidden/unfocused (the one case we CAN detect reliably). It does
     // NOT know if you paused *inside* the iframe's own player while keeping our tab focused —
     // that's a real gap with no fix available short of the source's own cooperation.
-    clearInterval(p._watchTimer);
-    const totalSeconds = getPlaybackDurationSeconds(item, p.seasonNum, p.epNum);
-    const savedIf = (item.progress||{})[p.key];
-    let elapsed = (savedIf && savedIf.timestamp) || 0;
-    let lastTick = Date.now();
-    p._watchTimer = setInterval(()=>{
-      const now = Date.now();
-      const delta = (now - lastTick) / 1000;
-      lastTick = now;
-      if(!document.hidden) elapsed += delta;
-      elapsed = Math.min(elapsed, totalSeconds);
-      const watched = totalSeconds>0 && elapsed >= totalSeconds*getWatchedThreshold(p.seasonNum);
-      saveProgress(item, p.key, elapsed, totalSeconds, watched);
-      if(watched){ clearInterval(p._watchTimer); if(next) showUpNextBanner(next); }
-    }, 10000);
+    // p._elapsedSeconds was already seeded above (from saved progress) before this iframe was
+    // created — startIframeWatchTimer both starts the ticking AND is reused verbatim by
+    // fakeResumePlayer() below, so pause/resume cycles behave identically to the initial open.
+    p._totalSeconds = getPlaybackDurationSeconds(item, p.seasonNum, p.epNum);
+    startIframeWatchTimer(item, p, next);
   }
 }
 let hlsJsLoadPromise = null;
@@ -4719,21 +4807,14 @@ function togglePlayerPlayPause(){
     if(vid.paused) vid.play().catch(()=>{}); else vid.pause();
     return;
   }
-  // Third-party iframe embeds: there's no DOM access into a cross-origin iframe at all, so this can
-  // only ever *send a request* via postMessage — reliable for YouTube's documented player API, a
-  // harmless no-op for everything else (most VidSrc-family mirrors and similar implement their own
-  // player with no public control protocol). The button's icon still flips to reflect what you
-  // asked for, since there's no way to confirm what the source actually did with the request.
-  const iframe = document.getElementById('playerIframeEl');
-  if(!iframe) return;
-  const willPause = btn.dataset.playing !== 'false';
-  try{ iframe.contentWindow.postMessage(JSON.stringify({event:'command', func: willPause?'pauseVideo':'playVideo', args:[]}), '*'); }catch(e){}
-  btn.dataset.playing = willPause ? 'false' : 'true';
-  setPlayerPlayIcon(!willPause);
-  if(!btn.dataset.warned){
-    btn.dataset.warned = '1';
-    toast('Play/Pause is reliable on YouTube — other embeds may not respond to it');
-  }
+  // Third-party iframe embeds (vaplayer.ru and most VidSrc-family mirrors) expose no JS control
+  // API at all — postMessage into them is a no-op for everything except YouTube. Rather than
+  // pretend a real pause happened, PLAYBACK MANAGER simulates one: the iframe is unloaded
+  // entirely and a paused cover is shown, then a fresh iframe (seeked back via ?t=) replaces it
+  // on Resume. See the PLAYBACK MANAGER section for fakePausePlayer()/fakeResumePlayer().
+  const p = state.player;
+  if(!p || p.isLive) return; // live channels have nothing meaningful to "resume" into
+  if(p.fakePaused) fakeResumePlayer(); else fakePausePlayer();
 }
 function togglePlayerMute(){
   const btn = document.getElementById('playerMuteBtn');
@@ -4807,12 +4888,52 @@ function cancelUpNext(){
   const el = document.getElementById('upNextBanner');
   if(el) el.innerHTML = '';
 }
+// ---------- Optional Supabase progress sync ----------
+// Purely additive and best-effort: localStorage (saveLib, above) is always the real source of
+// truth and this never blocks or throws into the UI. Only mirrors data when both fields are
+// filled in under Settings > Cloud Progress Sync — otherwise supabaseConfigured() short-circuits
+// every call before any network request is attempted.
+function supabaseConfigured(){
+  return !!(state.settings.supabaseUrl && state.settings.supabaseKey);
+}
+async function syncProgressToCloud(item, key){
+  if(!supabaseConfigured()) return;
+  const entry = (item.progress || {})[key];
+  if(!entry) return;
+  const m = /^s(\d+)e(\d+)$/.exec(key); // season/episode info for TV shows; null for movies
+  try{
+    await fetch(`${state.settings.supabaseUrl}/rest/v1/watch_progress`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': state.settings.supabaseKey,
+        'Authorization': `Bearer ${state.settings.supabaseKey}`,
+        'Prefer': 'resolution=merge-duplicates' // upsert on (item_id, episode_key)
+      },
+      body: JSON.stringify({
+        item_id: item.id,
+        episode_key: key,               // 'movie' or 's<season>e<episode>'
+        title: item.title,
+        type: item.type,                // 'movie' | 'series'
+        season: m ? parseInt(m[1], 10) : null,
+        episode: m ? parseInt(m[2], 10) : null,
+        timestamp: entry.timestamp,     // seconds — same value used in the t= resume param
+        duration: entry.duration,
+        watched: entry.watched,
+        updated_at: new Date().toISOString()
+      })
+    });
+  }catch(e){ /* offline, misconfigured, or blocked by RLS — fail silently, localStorage stands */ }
+}
 function saveProgress(item, key, timestamp, duration, watched){
   item.progress = item.progress || {};
   const prevWatched = !!(item.progress[key] && item.progress[key].watched);
   item.progress[key] = {timestamp: Math.round(timestamp||0), duration: Math.round(duration||0), watched: !!watched};
   item.lastWatched = new Date().toISOString();
   saveLib();
+  // localStorage (above) is always the source of truth and never blocks on this — best-effort,
+  // fire-and-forget mirror to Supabase if the user configured it in Settings > Cloud Progress Sync.
+  syncProgressToCloud(item, key);
   // Only check on the moment an episode newly becomes watched — not on every 5-10s progress tick —
   // so this can't fire repeatedly while the same episode keeps playing.
   if(watched && !prevWatched) maybeAutoAddNextSeason(item, key);
@@ -4906,11 +5027,272 @@ document.addEventListener('touchstart', e=>{
   if(overlay && overlay.classList.contains('open')) scheduleHideControls();
 });
 function closePlayer(){
+  // Last-chance save: the watch timer only ticks every 10s, so up to ~10s of progress could
+  // otherwise be lost if the user closes mid-tick. p._elapsedSeconds is always current (or the
+  // last saved position if fake-paused), so this makes closing behave exactly like a real pause.
+  const p = state.player;
+  if(p && !p.isLive){
+    const item = getItem(p.itemId);
+    if(item) saveProgress(item, p.key, p._elapsedSeconds || 0, p._totalSeconds || 0, false);
+  }
   cleanupPlayerTimers();
   document.getElementById('playerOverlay').classList.remove('open','controls-hidden');
   setTimeout(()=>{ document.getElementById('playerOverlay').innerHTML=''; }, 260);
   state.player = null;
   router();
+}
+
+/* =========================================================
+   PLAYBACK MANAGER
+   ---------------------------------------------------------
+   vaplayer.ru (and virtually every VidSrc-family mirror) exposes no JS control API — there is no
+   way to actually pause it from the parent page. This module fakes the experience instead:
+
+     Pause  → save position, fully unload the iframe (kills network/audio/ads dead), show a
+              Netflix-style cover (backdrop + "Resume at mm:ss" + a big Resume button).
+     Resume → rebuild the exact same embed URL with ?t=<seconds> appended (the same resume-seek
+              mechanism already used the first time the player opens, see buildResumeEmbedUrl)
+              and mount a fresh iframe.
+
+   Nothing here touches iframe internals — the iframe is only ever created or destroyed, never
+   reached into. All state lives on state.player, so it survives sequential pause/resume cycles.
+========================================================= */
+
+// Remove any previously-appended ?t=/&t= resume param from an embed URL, so repeated pause/resume
+// cycles rebuild cleanly from the original link instead of stacking params on top of each other.
+function stripResumeParam(url){
+  try{
+    const u = new URL(url);
+    u.searchParams.delete('t');
+    return u.toString();
+  }catch(e){
+    // Fallback for a malformed/relative URL the URL() constructor can't parse.
+    return url.replace(/([?&])t=\d+&?/i, (m, sep) => sep==='?' ? '?' : '').replace(/[?&]$/, '');
+  }
+}
+// Build (or rebuild) an embed src with a resume timestamp baked in via the t= param that
+// VidSrc-family players honour on load. Shared by the initial player open (renderPlayer) and
+// every subsequent fake-resume, so a title always resumes the same way no matter which triggered it.
+function buildResumeEmbedUrl(baseUrl, seconds){
+  const clean = stripResumeParam(baseUrl);
+  const secs = Math.floor(seconds || 0);
+  if(secs <= 5) return clean; // not worth seeking for — start from the beginning
+  try{
+    const u = new URL(clean);
+    u.searchParams.set('t', String(secs));
+    return u.toString();
+  }catch(e){
+    const sep = clean.includes('?') ? '&' : '?';
+    return `${clean}${sep}t=${secs}`;
+  }
+}
+// mm:ss, or h:mm:ss past the first hour — matches the "Resume at 30:42" style from the spec.
+function formatResumeTime(seconds){
+  seconds = Math.max(0, Math.floor(seconds || 0));
+  const h = Math.floor(seconds/3600), m = Math.floor((seconds%3600)/60), s = seconds%60;
+  const mm = h ? String(m).padStart(2,'0') : String(m);
+  const ss = String(s).padStart(2,'0');
+  return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+// (Re)starts the elapsed-time tracker for an iframe embed. Factored out of renderPlayer so
+// fakeResumePlayer() can restart it with identical behavior after rebuilding the iframe — a
+// pause/resume cycle looks, to this timer, exactly like the player having just opened.
+function startIframeWatchTimer(item, p, next){
+  clearInterval(p._watchTimer);
+  const totalSeconds = p._totalSeconds || getPlaybackDurationSeconds(item, p.seasonNum, p.epNum);
+  p._totalSeconds = totalSeconds;
+  next = next !== undefined ? next : getNextEpisode(item, p.seasonNum, p.epNum);
+  let lastTick = Date.now();
+  p._watchTimer = setInterval(()=>{
+    if(p.fakePaused) return; // belt-and-braces — should already be cleared while paused
+    const now = Date.now();
+    const delta = (now - lastTick) / 1000;
+    lastTick = now;
+    if(!document.hidden) p._elapsedSeconds = Math.min((p._elapsedSeconds||0) + delta, totalSeconds);
+    const watched = totalSeconds>0 && p._elapsedSeconds >= totalSeconds*getWatchedThreshold(p.seasonNum);
+    saveProgress(item, p.key, p._elapsedSeconds, totalSeconds, watched);
+    if(watched){ clearInterval(p._watchTimer); if(next) showUpNextBanner(next); }
+  }, 10000);
+}
+// Toggles the disabled/dimmed look on Play-Pause + both skip buttons while a rebuild (pause,
+// resume, or seek) is in flight. Paired with p._playbackBusy — see the guard at the top of each
+// of the three functions below — this is what actually stops rapid clicks from starting a second
+// iframe rebuild on top of one that's already running.
+function setPlaybackControlsBusy(busy){
+  ['playerPlayBtn','playerSkipBackBtn','playerSkipForwardBtn'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.classList.toggle('is-busy', busy);
+  });
+}
+// PAUSE: save position, fade the iframe out, unload it, fade in the paused cover.
+function fakePausePlayer(){
+  const p = state.player;
+  if(!p || p.fakePaused || p.isLive || p._playbackBusy) return;
+  const iframe = document.getElementById('playerIframeEl');
+  if(!iframe) return; // nothing to fake-pause (video/hls sources use real pause, handled earlier)
+  const item = getItem(p.itemId);
+  if(!item) return;
+
+  p._playbackBusy = true;
+  setPlaybackControlsBusy(true);
+  clearInterval(p._watchTimer); // stop accruing "watched" time the instant Pause is pressed
+  p.fakePaused = true;
+  saveProgress(item, p.key, p._elapsedSeconds || 0, p._totalSeconds || 0, false); // save immediately —
+  // covers a refresh happening while paused, since nothing else will save again until Resume.
+
+  iframe.classList.add('player-fade-out');
+  setTimeout(()=>{
+    // isConnected guard: closePlayer()/tryNextSource() etc. may have already torn the whole
+    // overlay down during this 380ms fade — don't touch a detached node or resurrect a cover.
+    if(!iframe.isConnected || !state.player || !state.player.fakePaused){ p._playbackBusy = false; setPlaybackControlsBusy(false); return; }
+    iframe.remove(); // fully unload — stops network requests, audio, and any embed-page ads dead
+    renderPauseCover(item, p._elapsedSeconds || 0, p._totalSeconds || 0);
+    p._playbackBusy = false;
+    setPlaybackControlsBusy(false);
+  }, 380);
+  setPlayerPlayIcon(false);
+}
+// Builds and fades in the Netflix-style paused cover: blurred backdrop + Resume button + progress.
+function renderPauseCover(item, elapsedSeconds, totalSeconds){
+  const stage = document.getElementById('playerStage');
+  if(!stage) return;
+  const pct = totalSeconds > 0 ? Math.min(100, Math.round((elapsedSeconds/totalSeconds)*100)) : 0;
+  const bg = item.backdrop || item.poster || '';
+  const p = state.player;
+  const sub = p && p.subtitle ? `<div class="player-pause-sub">${esc(p.subtitle)}</div>` : ''; // season/episode line
+  const cover = document.createElement('div');
+  cover.id = 'playerPauseCover';
+  cover.className = 'player-pause-cover';
+  cover.title = 'Resume';
+  cover.innerHTML = `
+    ${bg ? `<div class="player-pause-cover-bg" style="background-image:url('${esc(bg)}')"></div>` : ''}
+    <div class="player-pause-cover-content">
+      <button class="player-pause-resume-btn" type="button" aria-label="Resume">${ICON.play}</button>
+      <div class="player-pause-title">${esc(item.title)}</div>
+      ${sub}
+      <div class="player-pause-resume-label">Resume at ${formatResumeTime(elapsedSeconds)}</div>
+      <div class="player-pause-progress"><div style="width:${pct}%"></div></div>
+    </div>`;
+  cover.addEventListener('click', fakeResumePlayer); // click anywhere on the cover, not just the button
+  stage.appendChild(cover);
+  // Double rAF ensures the initial opacity:0 has actually painted before adding .visible,
+  // so the browser always animates the transition instead of occasionally skipping straight to it.
+  requestAnimationFrame(()=> requestAnimationFrame(()=> cover.classList.add('visible')));
+}
+// RESUME: fade the cover out, remove it, mount a freshly-seeked iframe in its place.
+function fakeResumePlayer(){
+  const p = state.player;
+  if(!p || !p.fakePaused || p._playbackBusy) return;
+  const item = getItem(p.itemId);
+  if(!item) return;
+  p._playbackBusy = true;
+  setPlaybackControlsBusy(true);
+  p.fakePaused = false;
+  const finish = ()=>{ p._playbackBusy = false; setPlaybackControlsBusy(false); };
+  const cover = document.getElementById('playerPauseCover');
+  if(cover){
+    cover.classList.remove('visible');
+    setTimeout(()=>{
+      if(cover.isConnected) cover.remove();
+      if(state.player) mountResumedIframe(item, state.player, finish);
+      else finish();
+    }, 380);
+  } else {
+    mountResumedIframe(item, p, finish);
+  }
+  setPlayerPlayIcon(true);
+}
+// SEEK (±20s, or any delta): the seek-relative sibling of Pause/Resume above — same fade-out /
+// unload / rebuild-with-t= mechanics, just computing a new timestamp instead of reusing the saved
+// one, and always leaving playback in the "playing" state afterward regardless of where it started.
+// Works whether the player is currently playing (fades an iframe out) or fake-paused (fades the
+// paused cover out instead) — either way it ends in the same place: a fresh iframe seeked to the
+// new time. Guarded by the same p._playbackBusy lock as fakePausePlayer/fakeResumePlayer, so a
+// seek can never overlap a pause/resume/another seek that's already mid-rebuild.
+function seekPlayer(deltaSeconds){
+  const p = state.player;
+  if(!p || p.isLive || p._playbackBusy) return; // live channels have no meaningful "position" to seek
+  const item = getItem(p.itemId);
+  if(!item || !p._embedBaseUrl) return; // not a trackable iframe embed — video/hls seek natively instead
+
+  const iframe = document.getElementById('playerIframeEl');
+  const cover = document.getElementById('playerPauseCover');
+  if(!iframe && !cover) return; // stage not in a state we can seek from (e.g. mid-teardown)
+
+  p._playbackBusy = true;
+  setPlaybackControlsBusy(true);
+
+  // Clamp into [0, duration] when duration is known; otherwise just floor at 0. This is the same
+  // clamp shape as -20 (Math.max(0, currentTime-20)) with the symmetric upper bound for +20 added.
+  const totalSeconds = p._totalSeconds || 0;
+  const current = p._elapsedSeconds || 0;
+  const newTime = totalSeconds > 0
+    ? Math.min(Math.max(0, current + deltaSeconds), totalSeconds)
+    : Math.max(0, current + deltaSeconds);
+
+  clearInterval(p._watchTimer);
+  p._elapsedSeconds = newTime;
+  p.fakePaused = false; // a seek always resumes playback, even if the title was paused when pressed
+  // Persist the new position immediately — Resume Playback and Watch Progress (continue-watching
+  // rows, "watched" checkmarks, etc.) all read straight from item.progress, so this keeps them in
+  // sync the instant the button is pressed rather than waiting for the next 10s timer tick.
+  const watched = totalSeconds > 0 && newTime >= totalSeconds * getWatchedThreshold(p.seasonNum);
+  saveProgress(item, p.key, newTime, totalSeconds, watched);
+
+  const finish = ()=>{ p._playbackBusy = false; setPlaybackControlsBusy(false); };
+  const rebuild = ()=>{
+    if(!state.player){ finish(); return; }
+    mountResumedIframe(item, state.player, finish);
+  };
+
+  if(iframe){
+    iframe.classList.add('player-fade-out');
+    setTimeout(()=>{
+      if(iframe.isConnected) iframe.remove();
+      rebuild();
+    }, 380);
+  } else {
+    cover.classList.remove('visible');
+    setTimeout(()=>{
+      if(cover.isConnected) cover.remove();
+      rebuild();
+    }, 380);
+  }
+  setPlayerPlayIcon(true);
+}
+// Creates a brand-new iframe from the saved base embed URL + current elapsed time, fades it in,
+// and restarts the watch timer — the resumed/seeked session then behaves identically to a fresh
+// open. onMounted (optional) fires once the iframe has been created and inserted — used to clear
+// the busy-lock in fakeResumePlayer/seekPlayer without waiting on the cross-origin 'load' event,
+// which is unreliable in timing (and sometimes never fires at all) for third-party embeds.
+function mountResumedIframe(item, p, onMounted){
+  const stage = document.getElementById('playerStage');
+  if(!stage || !p._embedBaseUrl){ if(onMounted) onMounted(); return; }
+  const src = buildResumeEmbedUrl(p._embedBaseUrl, p._elapsedSeconds);
+  const sandbox = state.settings.blockPopupAds ? 'allow-scripts allow-same-origin allow-forms allow-presentation' : '';
+
+  const iframe = document.createElement('iframe');
+  iframe.id = 'playerIframeEl';
+  iframe.className = 'player-fade-out'; // start invisible; fade to visible once inserted
+  iframe.src = src;
+  iframe.setAttribute('allow', 'autoplay; fullscreen; encrypted-media; picture-in-picture');
+  iframe.allowFullscreen = true;
+  iframe.loading = 'eager';
+  if(sandbox) iframe.setAttribute('sandbox', sandbox);
+
+  // Reuse the existing loading spinner (solid #000 background) so there's no white flash while
+  // the third-party page behind the iframe boots up — same treatment as the very first open.
+  const loadingEl = document.getElementById('playerLoading');
+  if(loadingEl) loadingEl.classList.remove('done');
+  stage.insertBefore(iframe, loadingEl || null);
+
+  requestAnimationFrame(()=> iframe.classList.remove('player-fade-out'));
+  const clearLoading = ()=>{ if(loadingEl) loadingEl.classList.add('done'); };
+  iframe.addEventListener('load', clearLoading, {once:true});
+  setTimeout(clearLoading, 4000); // fallback in case the embed never fires 'load' cross-origin
+
+  startIframeWatchTimer(item, p);
+  if(onMounted) onMounted();
 }
 
 /* =========================================================
