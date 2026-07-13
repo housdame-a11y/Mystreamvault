@@ -625,7 +625,7 @@ a{color:inherit; text-decoration:none;}
 .player-hide-icon{width:56px; height:56px; border-radius:50%; background:var(--highlight-dim); display:flex; align-items:center; justify-content:center; color:var(--highlight);}
 .player-hide-icon svg{width:26px; height:26px;}
 .player-hide-overlay span{font-size:13px; font-weight:700; color:var(--muted);}
-.player-bottom{position:absolute; bottom:0; left:0; right:0; padding:18px 24px; display:flex; justify-content:center; gap:10px; background:linear-gradient(0deg, rgba(0,0,0,.8), transparent); transition:opacity .4s ease;}
+.player-bottom{position:absolute; bottom:0; left:0; right:0; z-index:6; padding:18px 24px; display:flex; justify-content:center; gap:10px; background:linear-gradient(0deg, rgba(0,0,0,.8), transparent); transition:opacity .4s ease;}
 .player-next-side{
   position:absolute; top:50%; right:24px; transform:translateY(-50%); z-index:6;
   width:52px; height:52px; border-radius:50%; overflow:hidden; cursor:pointer;
@@ -648,7 +648,7 @@ a{color:inherit; text-decoration:none;}
    not the iframe underneath — the ad script inside the embed's page never receives the click event
    at all, which is what stops popup/redirect ads without needing the `sandbox` attribute (which some
    ad-supported mirrors detect and refuse to play against). Fully transparent, purely functional. */
-.player-click-shield{position:absolute; inset:0; z-index:5; background:transparent; cursor:default;}
+.player-click-shield{position:absolute; inset:0; z-index:1; background:transparent; cursor:default;}
 .player-click-shield-hint{
   position:absolute; bottom:70px; left:50%; transform:translateX(-50%); z-index:5;
   display:flex; align-items:center; gap:7px; padding:8px 14px; border-radius:20px;
@@ -4535,6 +4535,13 @@ function renderPlayer(){
       if(!vid.duration || !isFinite(vid.duration)) return;
       saveProgress(item, p.key, vid.currentTime, vid.duration, vid.currentTime >= vid.duration*getWatchedThreshold(p.seasonNum));
     }, 5000);
+    // Flush the exact currentTime right away on close/leave — otherwise you lose up to 5s (the tick
+    // interval) of position every time you step away, and a "watch a little then leave" session
+    // shorter than 5s wouldn't save anything at all.
+    p._flushProgress = ()=>{
+      if(!vid.duration || !isFinite(vid.duration)) return;
+      saveProgress(item, p.key, vid.currentTime, vid.duration, vid.currentTime >= vid.duration*getWatchedThreshold(p.seasonNum));
+    };
     vid.addEventListener('ended', ()=>{
       if(isFinite(vid.duration)) saveProgress(item, p.key, vid.duration, vid.duration, true);
       if(next) showUpNextBanner(next);
@@ -4558,7 +4565,7 @@ function renderPlayer(){
     const savedIf = (item.progress||{})[p.key];
     let elapsed = (savedIf && savedIf.timestamp) || 0;
     let lastTick = Date.now();
-    p._watchTimer = setInterval(()=>{
+    const tick = ()=>{
       const now = Date.now();
       const delta = (now - lastTick) / 1000;
       lastTick = now;
@@ -4567,7 +4574,11 @@ function renderPlayer(){
       const watched = totalSeconds>0 && elapsed >= totalSeconds*getWatchedThreshold(p.seasonNum);
       saveProgress(item, p.key, elapsed, totalSeconds, watched);
       if(watched){ clearInterval(p._watchTimer); if(next) showUpNextBanner(next); }
-    }, 10000);
+    };
+    p._watchTimer = setInterval(tick, 10000);
+    // Same flush idea as the video branch — call the exact same tick logic immediately on
+    // close/leave instead of waiting up to 10s for the next scheduled save.
+    p._flushProgress = tick;
   }
 }
 let hlsJsLoadPromise = null;
@@ -4655,6 +4666,10 @@ function applyPlayerClickShield(show, showHint){
     const shield = document.createElement('div');
     shield.id = 'playerClickShield';
     shield.className = 'player-click-shield';
+    // Double-click the transparent shield itself = Hide Screen. Single clicks stay inert (that's
+    // the whole point of the shield — swallow the click, don't act on it), but a deliberate double
+    // click is an unambiguous "I meant to interact with the layer" signal, so it's safe to bind here.
+    shield.addEventListener('dblclick', (e)=>{ e.preventDefault(); e.stopPropagation(); togglePlayerHide(); });
     stage.appendChild(shield);
     if(showHint){
       const hint = document.createElement('div');
@@ -4876,12 +4891,23 @@ document.addEventListener('touchstart', e=>{
   if(overlay && overlay.classList.contains('open')) scheduleHideControls();
 });
 function closePlayer(){
+  flushPlayerProgress();
   cleanupPlayerTimers();
   document.getElementById('playerOverlay').classList.remove('open','controls-hidden');
   setTimeout(()=>{ document.getElementById('playerOverlay').innerHTML=''; }, 260);
   state.player = null;
   router();
 }
+// Saves the exact "where you are right now" progress immediately, rather than waiting for the next
+// scheduled 5s/10s tick. Called on explicit close, on tab-hide, and on the page actually unloading —
+// the three ways a "watch a little, leave, come back" session ends.
+function flushPlayerProgress(){
+  if(state.player && typeof state.player._flushProgress === 'function'){
+    try{ state.player._flushProgress(); }catch(e){}
+  }
+}
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden) flushPlayerProgress(); });
+window.addEventListener('pagehide', flushPlayerProgress);
 
 /* =========================================================
    GLOBAL KEYS
