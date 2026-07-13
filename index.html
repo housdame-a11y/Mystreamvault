@@ -625,7 +625,7 @@ a{color:inherit; text-decoration:none;}
 .player-hide-icon{width:56px; height:56px; border-radius:50%; background:var(--highlight-dim); display:flex; align-items:center; justify-content:center; color:var(--highlight);}
 .player-hide-icon svg{width:26px; height:26px;}
 .player-hide-overlay span{font-size:13px; font-weight:700; color:var(--muted);}
-.player-bottom{position:absolute; bottom:0; left:0; right:0; z-index:6; padding:18px 24px; display:flex; justify-content:center; gap:10px; background:linear-gradient(0deg, rgba(0,0,0,.8), transparent); transition:opacity .4s ease;}
+.player-bottom{position:absolute; bottom:0; left:0; right:0; padding:18px 24px; display:flex; justify-content:center; gap:10px; background:linear-gradient(0deg, rgba(0,0,0,.8), transparent); transition:opacity .4s ease;}
 .player-next-side{
   position:absolute; top:50%; right:24px; transform:translateY(-50%); z-index:6;
   width:52px; height:52px; border-radius:50%; overflow:hidden; cursor:pointer;
@@ -648,7 +648,7 @@ a{color:inherit; text-decoration:none;}
    not the iframe underneath — the ad script inside the embed's page never receives the click event
    at all, which is what stops popup/redirect ads without needing the `sandbox` attribute (which some
    ad-supported mirrors detect and refuse to play against). Fully transparent, purely functional. */
-.player-click-shield{position:absolute; inset:0; z-index:1; background:transparent; cursor:default;}
+.player-click-shield{position:absolute; inset:0; z-index:5; background:transparent; cursor:default;}
 .player-click-shield-hint{
   position:absolute; bottom:70px; left:50%; transform:translateX(-50%); z-index:5;
   display:flex; align-items:center; gap:7px; padding:8px 14px; border-radius:20px;
@@ -4362,24 +4362,31 @@ function detectEmbed(url){
 function normalizeVidsrc(url){
   const domain = VIDSRC_DOMAINS.includes(state.settings.vidsrcDomain) ? state.settings.vidsrcDomain : VIDSRC_DOMAINS[0];
   let m;
+  // Preserve existing query string (skin, color, title, autoplay, etc.) after rewriting path/host
+  const qIdx = url.indexOf('?');
+  const existingQuery = qIdx !== -1 ? url.slice(qIdx + 1) : '';
+  const urlNoQuery = qIdx !== -1 ? url.slice(0, qIdx) : url;
+  function appendQuery(base){
+    return existingQuery ? `${base}?${existingQuery}` : base;
+  }
   // imdb/tmdb query-style embed links: keep params, just swap the host
   if((m = url.match(/[?&](imdb|tmdb)=([\w]+)/i))){
-    const rest = url.split(/\/\/[^/]+/)[1] || '';
-    return `https://${domain}${rest}`;
+    const rest = urlNoQuery.split(/\/\/[^/]+/)[1] || '';
+    return appendQuery(`https://${domain}${rest}`);
   }
   // /embed/movie/{id} or /movie/{id}
-  if((m = url.match(/\/(?:embed\/)?movie\/([\w]+)/i))){
-    return `https://${domain}/embed/movie/${m[1]}`;
+  if((m = urlNoQuery.match(/\/(?:embed\/)?movie\/([\w]+)/i))){
+    return appendQuery(`https://${domain}/embed/movie/${m[1]}`);
   }
   // /embed/tv/{id}/{season}/{episode} or /tv/{id}/{season}/{episode}
-  if((m = url.match(/\/(?:embed\/)?tv\/([\w]+)\/(\d+)\/(\d+)/i))){
-    return `https://${domain}/embed/tv/${m[1]}/${m[2]}/${m[3]}`;
+  if((m = urlNoQuery.match(/\/(?:embed\/)?tv\/([\w]+)\/(\d+)\/(\d+)/i))){
+    return appendQuery(`https://${domain}/embed/tv/${m[1]}/${m[2]}/${m[3]}`);
   }
   // /embed/tv/{id} or /tv/{id}
-  if((m = url.match(/\/(?:embed\/)?tv\/([\w]+)/i))){
-    return `https://${domain}/embed/tv/${m[1]}`;
+  if((m = urlNoQuery.match(/\/(?:embed\/)?tv\/([\w]+)/i))){
+    return appendQuery(`https://${domain}/embed/tv/${m[1]}`);
   }
-  // Unrecognized path shape — just swap the host onto the preferred domain, keep the rest.
+  // Unrecognized path shape — just swap the host, keep everything (path + query)
   const rest = url.split(/\/\/[^/]+/)[1] || '';
   return `https://${domain}${rest}`;
 }
@@ -4449,6 +4456,20 @@ function renderPlayer(){
   const next = isLive ? null : getNextEpisode(item, p.seasonNum, p.epNum);
 
   let stageHtml = '';
+  // For iframe embeds, inject saved resume timestamp into the URL as ?t=SECONDS (or &t=SECONDS).
+  // VidSrc-family players (vaplayer.ru, vidsrc.me, etc.) all honour this parameter and seek to it
+  // on load — so when autoplay=1 is set and the player can't show its own "resume?" dialog, we do
+  // the seek ourselves by baking the timestamp directly into the src before the iframe is created.
+  let iframeSrc = embed.src;
+  if(embed.kind === 'iframe' && !isLive){
+    const savedForResume = (item && item.progress && item.progress[p.key]);
+    const resumeAt = savedForResume && !savedForResume.watched ? Math.floor(savedForResume.timestamp) : 0;
+    if(resumeAt > 5){
+      // Append t= without breaking existing query params
+      const sep = iframeSrc.includes('?') ? '&' : '?';
+      iframeSrc = `${iframeSrc}${sep}t=${resumeAt}`;
+    }
+  }
   if(embed.kind==='video'){
     stageHtml = `<video id="playerVideoEl" src="${esc(embed.src)}" controls autoplay></video>`;
   } else if(embed.kind==='hls'){
@@ -4459,7 +4480,7 @@ function renderPlayer(){
     // clones) detect a sandboxed/popup-blocked iframe and refuse to play ("Media Unavailable") as a
     // countermeasure — so it's off by default to match normal-browser playback behavior.
     const sandboxAttr = state.settings.blockPopupAds ? ' sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"' : '';
-    stageHtml = `<iframe id="playerIframeEl" src="${esc(embed.src)}" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowfullscreen loading="eager"${sandboxAttr}></iframe>`;
+    stageHtml = `<iframe id="playerIframeEl" src="${esc(iframeSrc)}" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowfullscreen loading="eager"${sandboxAttr}></iframe>`;
   }
 
   overlay.innerHTML = `
@@ -4530,18 +4551,18 @@ function renderPlayer(){
   if(isVideoLike){
     const vid = document.getElementById('playerVideoEl');
     const saved = (item.progress||{})[p.key];
-    if(saved && saved.timestamp) vid.currentTime = saved.timestamp;
+    // Set currentTime once the video has enough metadata to accept a seek.
+    // Setting it immediately on a freshly created <video> is unreliable — the element
+    // may not know its duration yet and silently ignore the assignment.
+    if(saved && saved.timestamp && !saved.watched){
+      const doSeek = ()=>{ if(saved.timestamp > 5) vid.currentTime = saved.timestamp; };
+      if(vid.readyState >= 1){ doSeek(); } // HAVE_METADATA or beyond — safe to seek now
+      else { vid.addEventListener('loadedmetadata', doSeek, {once:true}); }
+    }
     p._interval = setInterval(()=>{
       if(!vid.duration || !isFinite(vid.duration)) return;
       saveProgress(item, p.key, vid.currentTime, vid.duration, vid.currentTime >= vid.duration*getWatchedThreshold(p.seasonNum));
     }, 5000);
-    // Flush the exact currentTime right away on close/leave — otherwise you lose up to 5s (the tick
-    // interval) of position every time you step away, and a "watch a little then leave" session
-    // shorter than 5s wouldn't save anything at all.
-    p._flushProgress = ()=>{
-      if(!vid.duration || !isFinite(vid.duration)) return;
-      saveProgress(item, p.key, vid.currentTime, vid.duration, vid.currentTime >= vid.duration*getWatchedThreshold(p.seasonNum));
-    };
     vid.addEventListener('ended', ()=>{
       if(isFinite(vid.duration)) saveProgress(item, p.key, vid.duration, vid.duration, true);
       if(next) showUpNextBanner(next);
@@ -4565,7 +4586,7 @@ function renderPlayer(){
     const savedIf = (item.progress||{})[p.key];
     let elapsed = (savedIf && savedIf.timestamp) || 0;
     let lastTick = Date.now();
-    const tick = ()=>{
+    p._watchTimer = setInterval(()=>{
       const now = Date.now();
       const delta = (now - lastTick) / 1000;
       lastTick = now;
@@ -4574,11 +4595,7 @@ function renderPlayer(){
       const watched = totalSeconds>0 && elapsed >= totalSeconds*getWatchedThreshold(p.seasonNum);
       saveProgress(item, p.key, elapsed, totalSeconds, watched);
       if(watched){ clearInterval(p._watchTimer); if(next) showUpNextBanner(next); }
-    };
-    p._watchTimer = setInterval(tick, 10000);
-    // Same flush idea as the video branch — call the exact same tick logic immediately on
-    // close/leave instead of waiting up to 10s for the next scheduled save.
-    p._flushProgress = tick;
+    }, 10000);
   }
 }
 let hlsJsLoadPromise = null;
@@ -4666,10 +4683,6 @@ function applyPlayerClickShield(show, showHint){
     const shield = document.createElement('div');
     shield.id = 'playerClickShield';
     shield.className = 'player-click-shield';
-    // Double-click the transparent shield itself = Hide Screen. Single clicks stay inert (that's
-    // the whole point of the shield — swallow the click, don't act on it), but a deliberate double
-    // click is an unambiguous "I meant to interact with the layer" signal, so it's safe to bind here.
-    shield.addEventListener('dblclick', (e)=>{ e.preventDefault(); e.stopPropagation(); togglePlayerHide(); });
     stage.appendChild(shield);
     if(showHint){
       const hint = document.createElement('div');
@@ -4891,23 +4904,12 @@ document.addEventListener('touchstart', e=>{
   if(overlay && overlay.classList.contains('open')) scheduleHideControls();
 });
 function closePlayer(){
-  flushPlayerProgress();
   cleanupPlayerTimers();
   document.getElementById('playerOverlay').classList.remove('open','controls-hidden');
   setTimeout(()=>{ document.getElementById('playerOverlay').innerHTML=''; }, 260);
   state.player = null;
   router();
 }
-// Saves the exact "where you are right now" progress immediately, rather than waiting for the next
-// scheduled 5s/10s tick. Called on explicit close, on tab-hide, and on the page actually unloading —
-// the three ways a "watch a little, leave, come back" session ends.
-function flushPlayerProgress(){
-  if(state.player && typeof state.player._flushProgress === 'function'){
-    try{ state.player._flushProgress(); }catch(e){}
-  }
-}
-document.addEventListener('visibilitychange', ()=>{ if(document.hidden) flushPlayerProgress(); });
-window.addEventListener('pagehide', flushPlayerProgress);
 
 /* =========================================================
    GLOBAL KEYS
