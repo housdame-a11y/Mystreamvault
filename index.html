@@ -4536,10 +4536,10 @@ function renderPlayer(){
   const next = isLive ? null : getNextEpisode(item, p.seasonNum, p.epNum);
 
   let stageHtml = '';
-  // For iframe embeds, inject saved resume timestamp into the URL as ?t=SECONDS (or &t=SECONDS).
-  // VidSrc-family players (vaplayer.ru, vidsrc.me, etc.) all honour this parameter and seek to it
-  // on load — so when autoplay=1 is set and the player can't show its own "resume?" dialog, we do
-  // the seek ourselves by baking the timestamp directly into the src before the iframe is created.
+  // For iframe embeds, inject saved resume timestamp into the URL as ?resumeAt=SECONDS (or
+  // &resumeAt=SECONDS). vaplayer.ru honours this parameter and seeks to it on load — so when
+  // autoplay=1 is set and the player can't show its own "resume?" dialog, we do the seek ourselves
+  // by baking the timestamp directly into the src before the iframe is created.
   // buildResumeEmbedUrl() is the same helper the fake-pause/resume flow (PLAYBACK MANAGER, below)
   // uses to rebuild the iframe src when the user hits Resume — this is just its first use, on open.
   let iframeSrc = embed.src;
@@ -4592,7 +4592,7 @@ function renderPlayer(){
     </div>
     <div class="player-stage" id="playerStage">
       ${stageHtml}
-      <div class="player-loading" id="playerLoading"><div class="spinner"></div><span class="player-loading-label">Loading stream…</span></div>
+      <div class="player-loading" id="playerLoading"><div class="spinner"></div><span class="player-loading-label" id="playerLoadingLabel">Loading stream…</span></div>
       <div class="player-hover-zone" onmouseenter="scheduleHideControls()"></div>
     </div>
     <div id="upNextBanner"></div>
@@ -4810,8 +4810,8 @@ function togglePlayerPlayPause(){
   // Third-party iframe embeds (vaplayer.ru and most VidSrc-family mirrors) expose no JS control
   // API at all — postMessage into them is a no-op for everything except YouTube. Rather than
   // pretend a real pause happened, PLAYBACK MANAGER simulates one: the iframe is unloaded
-  // entirely and a paused cover is shown, then a fresh iframe (seeked back via ?t=) replaces it
-  // on Resume. See the PLAYBACK MANAGER section for fakePausePlayer()/fakeResumePlayer().
+  // entirely and a paused cover is shown, then a fresh iframe (seeked back via ?resumeAt=) replaces
+  // it on Resume. See the PLAYBACK MANAGER section for fakePausePlayer()/fakeResumePlayer().
   const p = state.player;
   if(!p || p.isLive) return; // live channels have nothing meaningful to "resume" into
   if(p.fakePaused) fakeResumePlayer(); else fakePausePlayer();
@@ -5050,40 +5050,49 @@ function closePlayer(){
 
      Pause  → save position, fully unload the iframe (kills network/audio/ads dead), show a
               Netflix-style cover (backdrop + "Resume at mm:ss" + a big Resume button).
-     Resume → rebuild the exact same embed URL with ?t=<seconds> appended (the same resume-seek
-              mechanism already used the first time the player opens, see buildResumeEmbedUrl)
-              and mount a fresh iframe.
+     Resume → rebuild the exact same embed URL with ?resumeAt=<seconds> appended (the same
+              resume-seek mechanism already used the first time the player opens, see
+              buildResumeEmbedUrl) and mount a fresh iframe.
 
    Nothing here touches iframe internals — the iframe is only ever created or destroyed, never
    reached into. All state lives on state.player, so it survives sequential pause/resume cycles.
 ========================================================= */
 
-// Remove any previously-appended ?t=/&t= resume param from an embed URL, so repeated pause/resume
+// Remove any previously-appended resume param from an embed URL, so repeated pause/resume/seek
 // cycles rebuild cleanly from the original link instead of stacking params on top of each other.
+// Strips both resumeAt= (current param) and the legacy t= (kept in case an older saved source URL
+// somehow already has one baked in) so neither can linger or double up.
 function stripResumeParam(url){
   try{
     const u = new URL(url);
+    u.searchParams.delete('resumeAt');
     u.searchParams.delete('t');
     return u.toString();
   }catch(e){
     // Fallback for a malformed/relative URL the URL() constructor can't parse.
-    return url.replace(/([?&])t=\d+&?/i, (m, sep) => sep==='?' ? '?' : '').replace(/[?&]$/, '');
+    return url
+      .replace(/([?&])resumeAt=\d+&?/i, (m, sep) => sep==='?' ? '?' : '')
+      .replace(/([?&])t=\d+&?/i, (m, sep) => sep==='?' ? '?' : '')
+      .replace(/[?&]$/, '');
   }
 }
-// Build (or rebuild) an embed src with a resume timestamp baked in via the t= param that
-// VidSrc-family players honour on load. Shared by the initial player open (renderPlayer) and
-// every subsequent fake-resume, so a title always resumes the same way no matter which triggered it.
+// Build (or rebuild) an embed src with a resume timestamp baked in via the resumeAt= param that
+// vaplayer.ru actually honours on every load — including a reload of a session that's already in
+// progress, which the t= param (used by some other VidSrc-family mirrors) does NOT reliably do on
+// this mirror; t= only takes effect on a genuinely first-ever load of a session. Shared by the
+// initial player open (renderPlayer), every fake-resume, and every seek, so a title always resumes
+// the same way no matter which triggered it.
 function buildResumeEmbedUrl(baseUrl, seconds){
   const clean = stripResumeParam(baseUrl);
   const secs = Math.floor(seconds || 0);
   if(secs <= 5) return clean; // not worth seeking for — start from the beginning
   try{
     const u = new URL(clean);
-    u.searchParams.set('t', String(secs));
+    u.searchParams.set('resumeAt', String(secs));
     return u.toString();
   }catch(e){
     const sep = clean.includes('?') ? '&' : '?';
-    return `${clean}${sep}t=${secs}`;
+    return `${clean}${sep}resumeAt=${secs}`;
   }
 }
 // mm:ss, or h:mm:ss past the first hour — matches the "Resume at 30:42" style from the spec.
@@ -5230,17 +5239,6 @@ function seekPlayer(deltaSeconds){
     ? Math.min(Math.max(0, current + deltaSeconds), totalSeconds)
     : Math.max(0, current + deltaSeconds);
 
-  // TEMP DEBUG — remove once the +20/-20 issue is confirmed & fixed. Open devtools console,
-  // click +20/-20 a few times in a row, and copy every [SEEK-DEBUG] line you see.
-  console.log('[SEEK-DEBUG]', {
-    delta: deltaSeconds,
-    current,
-    totalSeconds,
-    newTime,
-    clampedAtCeiling: totalSeconds > 0 && (current + deltaSeconds) > totalSeconds,
-    clampedAtFloor: (current + deltaSeconds) < 0,
-  });
-
   clearInterval(p._watchTimer);
   p._elapsedSeconds = newTime;
   p.fakePaused = false; // a seek always resumes playback, even if the title was paused when pressed
@@ -5250,10 +5248,17 @@ function seekPlayer(deltaSeconds){
   const watched = totalSeconds > 0 && newTime >= totalSeconds * getWatchedThreshold(p.seasonNum);
   saveProgress(item, p.key, newTime, totalSeconds, watched);
 
-  const finish = ()=>{ p._playbackBusy = false; setPlaybackControlsBusy(false); };
+  const seekingLabel = `Seeking to ${formatResumeTime(newTime)}…`;
   const rebuild = ()=>{
-    if(!state.player){ finish(); return; }
-    mountResumedIframe(item, state.player, finish);
+    if(!state.player) return;
+    // Root cause (confirmed): vaplayer.ru does not resume playback via t=, it uses resumeAt= —
+    // buildResumeEmbedUrl now generates that param, so any reload (fresh open, resume, or seek)
+    // lands at the right position. Seeks go through a full renderPlayer() re-render rather than
+    // the lighter mountResumedIframe swap simply because that's what was in place when the real
+    // fix landed; safe to leave as-is since it's already proven to work correctly end-to-end.
+    renderPlayer();
+    const labelEl = document.getElementById('playerLoadingLabel');
+    if(labelEl) labelEl.textContent = seekingLabel;
   };
 
   if(iframe){
@@ -5274,14 +5279,13 @@ function seekPlayer(deltaSeconds){
 // Creates a brand-new iframe from the saved base embed URL + current elapsed time, fades it in,
 // and restarts the watch timer — the resumed/seeked session then behaves identically to a fresh
 // open. onMounted (optional) fires once the iframe has been created and inserted — used to clear
-// the busy-lock in fakeResumePlayer/seekPlayer without waiting on the cross-origin 'load' event,
-// which is unreliable in timing (and sometimes never fires at all) for third-party embeds.
-function mountResumedIframe(item, p, onMounted){
+// the busy-lock in fakeResumePlayer without waiting on the cross-origin 'load' event, which is
+// unreliable in timing (and sometimes never fires at all) for third-party embeds.
+// Used by fakeResumePlayer; seekPlayer goes through renderPlayer() instead (see its comment).
+function mountResumedIframe(item, p, onMounted, loadingLabel){
   const stage = document.getElementById('playerStage');
   if(!stage || !p._embedBaseUrl){ if(onMounted) onMounted(); return; }
   const src = buildResumeEmbedUrl(p._embedBaseUrl, p._elapsedSeconds);
-  // TEMP DEBUG — remove once the +20/-20 issue is confirmed & fixed.
-  console.log('[SEEK-DEBUG] mounting iframe', { elapsedSeconds: p._elapsedSeconds, src });
   const sandbox = state.settings.blockPopupAds ? 'allow-scripts allow-same-origin allow-forms allow-presentation' : '';
 
   const iframe = document.createElement('iframe');
@@ -5296,11 +5300,16 @@ function mountResumedIframe(item, p, onMounted){
   // Reuse the existing loading spinner (solid #000 background) so there's no white flash while
   // the third-party page behind the iframe boots up — same treatment as the very first open.
   const loadingEl = document.getElementById('playerLoading');
+  const loadingLabelEl = document.getElementById('playerLoadingLabel');
+  if(loadingLabelEl) loadingLabelEl.textContent = loadingLabel || 'Loading stream…';
   if(loadingEl) loadingEl.classList.remove('done');
   stage.insertBefore(iframe, loadingEl || null);
 
   requestAnimationFrame(()=> iframe.classList.remove('player-fade-out'));
-  const clearLoading = ()=>{ if(loadingEl) loadingEl.classList.add('done'); };
+  const clearLoading = ()=>{
+    if(loadingEl) loadingEl.classList.add('done');
+    if(loadingLabelEl) loadingLabelEl.textContent = 'Loading stream…'; // reset for next time
+  };
   iframe.addEventListener('load', clearLoading, {once:true});
   setTimeout(clearLoading, 4000); // fallback in case the embed never fires 'load' cross-origin
 
