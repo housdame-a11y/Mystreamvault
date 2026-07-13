@@ -668,18 +668,52 @@ a{color:inherit; text-decoration:none;}
 .player-hide-icon svg{width:26px; height:26px;}
 .player-hide-overlay span{font-size:13px; font-weight:700; color:var(--muted);}
 .player-bottom{
-  position:absolute; bottom:0; left:0; right:0; z-index:5; padding:16px 24px;
-  display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:10px;
-  background:linear-gradient(0deg, rgba(0,0,0,.8), transparent); transition:opacity .4s ease;
+  position:absolute; bottom:0; left:0; right:0; z-index:5; padding:14px 24px 18px;
+  display:flex; align-items:center; gap:16px;
+  background:linear-gradient(0deg, rgba(0,0,0,.85), transparent); transition:opacity .4s ease;
 }
-.player-bottom-left{display:flex; justify-content:flex-start;}
-.player-bottom-center{display:flex; justify-content:center;}
-.player-bottom-right{display:flex; justify-content:flex-end;}
+.player-bottom-left{display:flex; align-items:center; justify-content:flex-start; gap:4px; flex-shrink:0;}
+/* Holds current-time / scrubber / total-time — grows to fill whatever room is left between the
+   left transport cluster and the right-side buttons, exactly like Netflix's bottom bar. */
+.player-bottom-progress{display:flex; align-items:center; gap:10px; flex:1 1 auto; min-width:0;}
+.player-bottom-right{display:flex; align-items:center; justify-content:flex-end; gap:10px; flex-shrink:0;}
 .player-bottom .btn-icon{background:rgba(22,25,35,.6); border-color:rgba(255,255,255,.12);}
 .player-bottom .btn-icon:hover{background:rgba(22,25,35,.9);}
-/* Applied to Play/Pause + the two skip buttons while an iframe rebuild (pause/resume/seek) is in
-   flight — blocks rapid repeat clicks from starting a second rebuild on top of one already running. */
+/* Applied to Play/Pause + the two skip buttons (and the progress track) while an iframe rebuild
+   (pause/resume/seek) is in flight — blocks rapid repeat clicks/drags from starting a second
+   rebuild on top of one already running. */
 .player-bottom .btn-icon.is-busy{opacity:.4; pointer-events:none;}
+.player-time{
+  font-size:12.5px; font-weight:700; color:#c7d5d3; font-variant-numeric:tabular-nums;
+  white-space:nowrap; flex-shrink:0; letter-spacing:.01em;
+}
+/* Larger invisible hit area (16px tall) around a slim 4px visual track — same "easy to grab,
+   subtle at rest" treatment Netflix uses, so it doesn't dominate the control bar visually. */
+.player-progress-track{
+  position:relative; flex:1 1 auto; min-width:60px; height:16px; display:flex; align-items:center;
+  cursor:pointer; touch-action:none;
+}
+.player-progress-track::before{
+  content:''; position:absolute; left:0; right:0; top:50%; height:4px; transform:translateY(-50%);
+  border-radius:3px; background:rgba(255,255,255,.22); transition:height .15s ease;
+}
+.player-progress-fill{
+  position:absolute; left:0; top:50%; height:4px; transform:translateY(-50%); width:0%;
+  border-radius:3px; background:linear-gradient(90deg,var(--highlight),#2bc4c1);
+  pointer-events:none; transition:height .15s ease;
+}
+.player-progress-handle{
+  position:absolute; top:50%; left:0%; width:13px; height:13px; border-radius:50%;
+  background:var(--highlight); transform:translate(-50%,-50%) scale(0);
+  box-shadow:0 0 0 4px rgba(61,219,217,.22), 0 2px 6px rgba(0,0,0,.4);
+  transition:transform .15s ease; pointer-events:none;
+}
+.player-progress-track:hover .player-progress-handle,
+.player-progress-track.dragging .player-progress-handle{transform:translate(-50%,-50%) scale(1);}
+.player-progress-track:hover::before, .player-progress-track.dragging::before,
+.player-progress-track:hover .player-progress-fill, .player-progress-track.dragging .player-progress-fill{height:6px;}
+.player-progress-track.dragging{cursor:grabbing;}
+.player-progress-track:focus-visible::before{outline:2px solid var(--highlight); outline-offset:4px;}
 .player-next-side{
   position:absolute; top:50%; right:24px; transform:translateY(-50%); z-index:6;
   width:52px; height:52px; border-radius:50%; overflow:hidden; cursor:pointer;
@@ -698,6 +732,29 @@ a{color:inherit; text-decoration:none;}
 .pns-play-icon svg{width:18px; height:18px; color:#fff; filter:drop-shadow(0 2px 4px rgba(0,0,0,.5));}
 .pns-meta{display:none;}
 .player-hover-zone{position:absolute; top:0; left:0; right:0; height:90px; z-index:4;}
+/* Centered ±20s buttons — sit above the click shield (z-index 3 > 2) so they're always clickable
+   themselves, but stay invisible/inert until the screen is tapped (see revealCenterSkipButtons). */
+.player-center-skip-group{
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:3;
+  display:flex; align-items:center; gap:72px; pointer-events:none;
+}
+.player-center-skip-btn{
+  width:64px; height:64px; border-radius:50%; flex-shrink:0;
+  background:rgba(8,10,14,.55); backdrop-filter:blur(6px); border:1.5px solid rgba(255,255,255,.28);
+  color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer;
+  opacity:0; transform:scale(.8); pointer-events:none;
+  transition:opacity .25s ease, transform .25s ease, background var(--transition), border-color var(--transition), color var(--transition);
+}
+.player-center-skip-btn svg{width:28px; height:28px;}
+.player-overlay.center-skip-visible .player-center-skip-btn{opacity:1; transform:scale(1); pointer-events:auto;}
+.player-center-skip-btn:hover{background:var(--highlight-dim); border-color:var(--highlight); color:var(--highlight);}
+.player-center-skip-btn:active{transform:scale(.9);}
+.player-center-skip-btn.is-busy{opacity:.4 !important; pointer-events:none !important;}
+@media (max-width:860px){
+  .player-center-skip-group{gap:44px;}
+  .player-center-skip-btn{width:50px; height:50px;}
+  .player-center-skip-btn svg{width:22px; height:22px;}
+}
 /* Sits directly in front of a third-party iframe embed so a click is hit-tested against this div,
    not the iframe underneath — the ad script inside the embed's page never receives the click event
    at all, which is what stops popup/redirect ads without needing the `sandbox` attribute (which some
@@ -705,14 +762,6 @@ a{color:inherit; text-decoration:none;}
 /* z-index kept below player-top/player-bottom/player-next-side (5/6) so the shield never covers
    the control buttons — it only needs to beat the iframe itself, which sits at the default z:auto. */
 .player-click-shield{position:absolute; inset:0; z-index:2; background:transparent; cursor:default;}
-.player-click-shield-hint{
-  position:absolute; bottom:70px; left:50%; transform:translateX(-50%); z-index:2;
-  display:flex; align-items:center; gap:7px; padding:8px 14px; border-radius:20px;
-  background:rgba(8,10,14,.82); backdrop-filter:blur(8px); border:1px solid rgba(61,219,217,.25);
-  color:var(--highlight); font-size:12px; font-weight:700; white-space:nowrap;
-  animation:cardTrailerFadeIn .3s ease; pointer-events:none;
-}
-.player-click-shield-hint svg{width:14px; height:14px;}
 .player-overlay.controls-hidden .player-top-info,
 .player-overlay.controls-hidden .player-top-fade,
 .player-overlay.controls-hidden .player-bottom,
@@ -738,6 +787,14 @@ a{color:inherit; text-decoration:none;}
   .player-next-side{right:14px; width:44px; height:44px;}
   .pns-play-icon svg{width:15px; height:15px;}
   .up-next{right:12px; left:12px; max-width:none; bottom:88px; flex-wrap:wrap;}
+  /* Progress bar takes priority on narrow screens — tighten the transport-button spacing and
+     drop the wide "Try Next Source" label so the scrubber keeps most of the row's width. */
+  .player-bottom{gap:8px; padding:10px 12px 14px;}
+  .player-bottom-left{gap:0;}
+  .player-bottom-left .btn-icon, .player-bottom-right .btn-icon{width:32px; height:32px;}
+  .player-bottom-progress{gap:7px;}
+  .player-time{font-size:10.5px;}
+  .player-bottom-right .btn-ghost{display:none;}
 }
 
 /* ---------- Collections ---------- */
@@ -1028,6 +1085,8 @@ body.tv-mode .player-top-actions .btn-icon svg { width: 22px; height: 22px; }
 body.tv-mode .player-bottom { padding: 24px 40px; }
 body.tv-mode .player-bottom .btn-icon { width: 52px; height: 52px; }
 body.tv-mode .player-bottom .btn-icon svg { width: 22px; height: 22px; }
+body.tv-mode .player-time { font-size: 16px; }
+body.tv-mode .player-progress-track { height: 22px; }
 
 /* TV settings */
 body.tv-mode .settings-section { max-width: 720px; padding: 28px; }
@@ -1395,6 +1454,69 @@ function getPlaybackDurationSeconds(item, seasonNum, epNum){
     return parseRuntimeMinutes(epRuntime, movieFallback || 45) * 60;
   }
   return parseRuntimeMinutes(item.runtime, 120) * 60;
+}
+// True once we have a *real* runtime for whatever's playing (fetched metadata), as opposed to
+// getPlaybackDurationSeconds silently falling back to a flat 120min/45min guess.
+function hasKnownRuntime(item, seasonNum, epNum){
+  if(seasonNum!=null){
+    const season = (item.seasons||[]).find(s=>s.number===seasonNum);
+    const ep = season && (season.episodes||[]).find(e=>e.number===epNum);
+    return !!(ep && ep.runtime) || !!item.runtime;
+  }
+  return !!item.runtime;
+}
+// Looks up the real runtime from TMDB for a movie, or one specific episode, resolving item.tmdbId
+// by title search first if we don't already have it cached (same lookup fetchTmdbTrailer already
+// does for hover previews). Returns whole minutes, or null if it couldn't be found — callers should
+// just keep using whatever fallback they already had in that case.
+async function fetchTmdbRuntimeMinutes(item, seasonNum, epNum){
+  if(!state.settings.tmdb) return null;
+  try{
+    let tmdbId = item.tmdbId;
+    const type = item.type==='series' ? 'tv' : 'movie';
+    if(!tmdbId){
+      const yearParam = item.year ? (type==='movie' ? `&year=${encodeURIComponent(item.year)}` : `&first_air_date_year=${encodeURIComponent(item.year)}`) : '';
+      const searchRes = await fetch(`https://api.themoviedb.org/3/search/${type}?api_key=${encodeURIComponent(state.settings.tmdb)}&query=${encodeURIComponent(item.title)}${yearParam}`);
+      const searchData = await searchRes.json();
+      const match = searchData.results && searchData.results[0];
+      if(!match) return null;
+      tmdbId = match.id;
+      item.tmdbId = tmdbId; // cache — benefits trailers/recommendations too, not just this lookup
+    }
+    if(seasonNum!=null){
+      const res = await fetch(`https://api.themoviedb.org/3/tv/${tmdbId}/season/${seasonNum}/episode/${epNum}?api_key=${encodeURIComponent(state.settings.tmdb)}`);
+      const data = await res.json();
+      return data.runtime || null;
+    } else {
+      const res = await fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${encodeURIComponent(state.settings.tmdb)}`);
+      const data = await res.json();
+      return data.runtime || null;
+    }
+  }catch(e){
+    return null; // silent fail, same spirit as fetchTmdbTrailer — a lookup miss shouldn't break playback
+  }
+}
+// Kicks off the TMDB lookup above only when getPlaybackDurationSeconds is currently relying on the
+// flat fallback (no real runtime cached yet). Once it resolves, caches the minutes on the item/episode
+// (so this never needs to re-fetch for the same title), then upgrades the *live* player's total
+// duration and bottom-bar progress bar from the guess to the real runtime.
+function maybeUpgradeRuntimeFromTmdb(item, p){
+  if(hasKnownRuntime(item, p.seasonNum, p.epNum)) return;
+  fetchTmdbRuntimeMinutes(item, p.seasonNum, p.epNum).then(minutes=>{
+    if(!minutes || state.player!==p) return; // no match, or the player moved on while we were fetching
+    if(p.seasonNum!=null){
+      const season = (item.seasons||[]).find(s=>s.number===p.seasonNum);
+      const ep = season && season.episodes.find(e=>e.number===p.epNum);
+      if(ep) ep.runtime = `${minutes} min`;
+    } else {
+      item.runtime = `${minutes} min`;
+    }
+    saveLib();
+    const newTotal = minutes*60;
+    p._totalSeconds = newTotal;
+    p._elapsedSeconds = Math.min(p._elapsedSeconds||0, newTotal); // re-clamp against the corrected total
+    updatePlayerProgressUI();
+  });
 }
 // TV episodes count as watched at 90% (credits tend to run longer relative to a shorter runtime);
 // movies at 95%, a bit stricter since their credits are a smaller share of the total length.
@@ -4560,6 +4682,9 @@ function renderPlayer(){
   p.fakePaused = false;
   p._playbackBusy = false;
   p._elapsedSeconds = resumeAtOpen;
+  // Needed up front (not just later, inside startIframeWatchTimer) so the bottom-bar progress
+  // track below has a real duration to size itself against on the very first paint.
+  if(embed.kind==='iframe' && !isLive) p._totalSeconds = getPlaybackDurationSeconds(item, p.seasonNum, p.epNum);
   if(embed.kind==='video'){
     stageHtml = `<video id="playerVideoEl" src="${esc(embed.src)}" controls autoplay></video>`;
   } else if(embed.kind==='hls'){
@@ -4583,7 +4708,6 @@ function renderPlayer(){
         <div class="player-top-pinned">
           <button class="btn-icon" title="Hide screen" onclick="togglePlayerHide()">${ICON.eyeOff}</button>
           <button class="btn-icon" id="playerMuteBtn" title="Mute" onclick="togglePlayerMute()">${ICON.volumeOn}</button>
-          ${embed.kind==='iframe' ? `<button class="btn-icon" id="playerShieldBtn" title="Block clicks (popup protection)" onclick="togglePlayerClickShield()">${ICON.shieldOff}</button>` : ''}
         </div>
         <div class="player-top-fade">
           <button class="btn-icon" onclick="closePlayer()">${ICON.close}</button>
@@ -4593,6 +4717,11 @@ function renderPlayer(){
     <div class="player-stage" id="playerStage">
       ${stageHtml}
       <div class="player-loading" id="playerLoading"><div class="spinner"></div><span class="player-loading-label" id="playerLoadingLabel">Loading stream…</span></div>
+      ${embed.kind==='iframe' && !isLive ? `
+      <div class="player-center-skip-group" id="playerCenterSkipGroup">
+        <button class="player-center-skip-btn" id="playerSkipBackBtn" title="Back 20 seconds" onclick="event.stopPropagation(); seekPlayer(-20);">${ICON.skipBack20}</button>
+        <button class="player-center-skip-btn" id="playerSkipForwardBtn" title="Forward 20 seconds" onclick="event.stopPropagation(); seekPlayer(20);">${ICON.skipForward20}</button>
+      </div>` : ''}
       <div class="player-hover-zone" onmouseenter="scheduleHideControls()"></div>
     </div>
     <div id="upNextBanner"></div>
@@ -4602,20 +4731,31 @@ function renderPlayer(){
     </div>` : ''}
     <div class="player-bottom">
       <div class="player-bottom-left">
-        ${embed.kind==='iframe' && !isLive ? `<button class="btn-icon" id="playerSkipBackBtn" title="Back 20 seconds" onclick="seekPlayer(-20)">${ICON.skipBack20}</button>` : ''}
         <button class="btn-icon" id="playerPlayBtn" title="Pause" onclick="togglePlayerPlayPause()">${ICON.pause}</button>
-        ${embed.kind==='iframe' && !isLive ? `<button class="btn-icon" id="playerSkipForwardBtn" title="Forward 20 seconds" onclick="seekPlayer(20)">${ICON.skipForward20}</button>` : ''}
       </div>
-      <div class="player-bottom-center">
-        ${p.sources.length>1 ? `<button class="btn btn-ghost" onclick="tryNextSource()">Try Next Source</button>` : ''}
-      </div>
+      ${embed.kind==='iframe' && !isLive ? `
+      <div class="player-bottom-progress">
+        <span class="player-time player-time-current" id="playerTimeCurrent">${esc(formatResumeTime(p._elapsedSeconds||0))}</span>
+        <div class="player-progress-track" id="playerProgressTrack" role="slider" tabindex="0"
+             aria-label="Seek" aria-valuemin="0" aria-valuemax="100"
+             aria-valuenow="${p._totalSeconds>0 ? Math.round(((p._elapsedSeconds||0)/p._totalSeconds)*100) : 0}">
+          <div class="player-progress-fill" id="playerProgressFill" style="width:${p._totalSeconds>0 ? Math.min(100,((p._elapsedSeconds||0)/p._totalSeconds)*100) : 0}%"></div>
+          <div class="player-progress-handle" id="playerProgressHandle" style="left:${p._totalSeconds>0 ? Math.min(100,((p._elapsedSeconds||0)/p._totalSeconds)*100) : 0}%"></div>
+        </div>
+        <span class="player-time player-time-total" id="playerTimeTotal">${esc(formatResumeTime(p._totalSeconds||0))}</span>
+      </div>` : `<div class="player-bottom-progress"></div>`}
       <div class="player-bottom-right">
+        ${p.sources.length>1 ? `<button class="btn btn-ghost" onclick="tryNextSource()">Try Next Source</button>` : ''}
         <button class="btn-icon" id="playerFullscreenBtn" title="Fullscreen" onclick="togglePlayerFullscreen()">${ICON.expand}</button>
       </div>
     </div>
   `;
   scheduleHideControls();
-  if(document.fullscreenElement) applyPlayerClickShield(true);
+  // Permanent click shield for every iframe embed — sits in front of the third-party page so
+  // ad-script clicks/popups never reach it. There is no button or setting to disable this.
+  // applyPlayerClickShield() itself no-ops when there's no #playerIframeEl (video/hls/live-without-
+  // iframe), so it's safe to call unconditionally on every render.
+  applyPlayerClickShield();
 
   const isVideoLike = embed.kind==='video' || embed.kind==='hls';
   const stageEl = document.getElementById(isVideoLike ? 'playerVideoEl' : 'playerIframeEl');
@@ -4686,6 +4826,8 @@ function renderPlayer(){
     // fakeResumePlayer() below, so pause/resume cycles behave identically to the initial open.
     p._totalSeconds = getPlaybackDurationSeconds(item, p.seasonNum, p.epNum);
     startIframeWatchTimer(item, p, next);
+    initPlayerProgressBar();
+    maybeUpgradeRuntimeFromTmdb(item, p);
   }
 }
 let hlsJsLoadPromise = null;
@@ -4746,49 +4888,45 @@ function togglePlayerFullscreen(){
   if(!document.fullscreenElement) el.requestFullscreen?.().catch(()=>{});
   else document.exitFullscreen?.().catch(()=>{});
 }
-// Auto-engage the click shield the moment fullscreen actually kicks in (not on the button press —
-// requestFullscreen is async and can be denied), and drop it again on exit so windowed-mode clicks
-// into the embed (choosing a mirror/quality inside its own UI, etc.) still work normally.
+// The click shield is permanently on now (see renderPlayer) — fullscreen entry/exit just
+// re-asserts it stays up across the transition, in case anything about going fullscreen ever
+// disturbs the overlay's child elements.
 document.addEventListener('fullscreenchange', ()=>{
   if(!state.player) return;
-  const inFullscreen = !!document.fullscreenElement;
-  applyPlayerClickShield(inFullscreen);
+  applyPlayerClickShield();
 });
-// force: true = show, false = hide, undefined = toggle current state
-function togglePlayerClickShield(force){
-  const shown = !!document.getElementById('playerClickShield');
-  applyPlayerClickShield(force!==undefined ? force : !shown, true);
-}
-function applyPlayerClickShield(show, showHint){
+// Always-on click shield: an invisible div in front of any iframe embed so a click is hit-tested
+// against this div instead of the third-party page underneath — the ad script inside the embed's
+// page never receives the click at all. There is intentionally no button or setting to turn this
+// off; it's simply always present for the lifetime of an iframe-based player.
+function applyPlayerClickShield(){
   const stage = document.getElementById('playerStage');
-  const btn = document.getElementById('playerShieldBtn');
-  if(!stage) return;
-  const existing = document.getElementById('playerClickShield');
-  if(existing) existing.remove();
-  const oldHint = document.getElementById('playerClickShieldHint');
-  if(oldHint) oldHint.remove();
+  if(!stage || document.getElementById('playerClickShield')) return; // no stage, or already up
   // Only iframe embeds can spawn popups — a direct <video>/HLS source has no third-party page
-  // behind it to click into, so the shield is meaningless (and would just block native controls).
-  if(show && document.getElementById('playerIframeEl')){
-    const shield = document.createElement('div');
-    shield.id = 'playerClickShield';
-    shield.className = 'player-click-shield';
-    stage.appendChild(shield);
-    if(showHint){
-      const hint = document.createElement('div');
-      hint.id = 'playerClickShieldHint';
-      hint.className = 'player-click-shield-hint';
-      hint.innerHTML = `${ICON.shield} Blocking clicks to stop popups`;
-      stage.appendChild(hint);
-      setTimeout(()=>{ if(hint.isConnected) hint.remove(); }, 2500);
-    }
-  }
-  if(btn){
-    const active = show && !!document.getElementById('playerClickShield');
-    btn.classList.toggle('is-active', active);
-    btn.title = active ? 'Allow clicks (turn off popup protection)' : 'Block clicks (popup protection)';
-    btn.innerHTML = active ? ICON.shield : ICON.shieldOff;
-  }
+  // behind it to click into, so the shield is meaningless there (and would just block native controls).
+  if(!document.getElementById('playerIframeEl')) return;
+  const shield = document.createElement('div');
+  shield.id = 'playerClickShield';
+  shield.className = 'player-click-shield';
+  // The shield is what actually receives clicks over the iframe, so it's the right place to detect
+  // "tapped the screen" and reveal the centered ±20s buttons — see revealCenterSkipButtons().
+  shield.addEventListener('click', revealCenterSkipButtons);
+  stage.appendChild(shield);
+}
+let centerSkipHideTimer = null;
+// Shows the centered ±20s buttons (see player-center-skip-group) and schedules them to fade back
+// out shortly after, same "tap to reveal, then disappear" pattern most video players use for their
+// transport controls. No-ops if this source doesn't have the buttons at all (video/hls/live).
+function revealCenterSkipButtons(){
+  if(!document.getElementById('playerCenterSkipGroup')) return;
+  const overlay = document.getElementById('playerOverlay');
+  if(!overlay) return;
+  overlay.classList.add('center-skip-visible');
+  clearTimeout(centerSkipHideTimer);
+  centerSkipHideTimer = setTimeout(()=>{
+    const ov = document.getElementById('playerOverlay');
+    if(ov) ov.classList.remove('center-skip-visible');
+  }, 1800);
 }
 function setPlayerPlayIcon(isPlaying){
   const btn = document.getElementById('playerPlayBtn');
@@ -5007,6 +5145,7 @@ function cleanupPlayerTimers(){
     if(state.player._hls){ try{ state.player._hls.destroy(); }catch(e){} state.player._hls = null; }
   }
   clearTimeout(controlsHideTimer);
+  clearTimeout(centerSkipHideTimer);
 }
 let controlsHideTimer = null;
 function scheduleHideControls(){
@@ -5036,7 +5175,7 @@ function closePlayer(){
     if(item) saveProgress(item, p.key, p._elapsedSeconds || 0, p._totalSeconds || 0, false);
   }
   cleanupPlayerTimers();
-  document.getElementById('playerOverlay').classList.remove('open','controls-hidden');
+  document.getElementById('playerOverlay').classList.remove('open','controls-hidden','center-skip-visible');
   setTimeout(()=>{ document.getElementById('playerOverlay').innerHTML=''; }, 260);
   state.player = null;
   router();
@@ -5112,23 +5251,112 @@ function startIframeWatchTimer(item, p, next){
   p._totalSeconds = totalSeconds;
   next = next !== undefined ? next : getNextEpisode(item, p.seasonNum, p.epNum);
   let lastTick = Date.now();
+  let sinceSave = 0;
+  updatePlayerProgressUI(); // paint the bottom-bar progress track immediately, don't wait for the first tick
+  // Ticks every 1s (was 10s) so the new progress bar advances smoothly like a real scrubber, but
+  // still only writes to localStorage roughly every ~10s via sinceSave — the faster tick is purely
+  // a UI-refresh change, save/watched-detection cadence is unchanged from before.
   p._watchTimer = setInterval(()=>{
     if(p.fakePaused) return; // belt-and-braces — should already be cleared while paused
     const now = Date.now();
     const delta = (now - lastTick) / 1000;
     lastTick = now;
     if(!document.hidden) p._elapsedSeconds = Math.min((p._elapsedSeconds||0) + delta, totalSeconds);
+    updatePlayerProgressUI();
+    sinceSave += delta;
+    if(sinceSave < 10) return;
+    sinceSave = 0;
     const watched = totalSeconds>0 && p._elapsedSeconds >= totalSeconds*getWatchedThreshold(p.seasonNum);
     saveProgress(item, p.key, p._elapsedSeconds, totalSeconds, watched);
     if(watched){ clearInterval(p._watchTimer); if(next) showUpNextBanner(next); }
-  }, 10000);
+  }, 1000);
+}
+// Syncs the bottom-bar progress fill/handle/time-labels to p._elapsedSeconds / p._totalSeconds.
+// Called every watch-timer tick, right after mount/resume, and immediately on a seek so the bar
+// never visibly lags behind whatever state.player actually holds.
+function updatePlayerProgressUI(){
+  const p = state.player;
+  if(!p) return;
+  const total = p._totalSeconds || 0;
+  const elapsed = Math.max(p._elapsedSeconds || 0, 0);
+  const pct = total > 0 ? Math.min(100, (elapsed/total)*100) : 0;
+  const fill = document.getElementById('playerProgressFill');
+  const handle = document.getElementById('playerProgressHandle');
+  const curEl = document.getElementById('playerTimeCurrent');
+  const totEl = document.getElementById('playerTimeTotal');
+  const track = document.getElementById('playerProgressTrack');
+  if(fill) fill.style.width = pct+'%';
+  if(handle) handle.style.left = pct+'%';
+  if(curEl) curEl.textContent = formatResumeTime(elapsed);
+  if(totEl) totEl.textContent = formatResumeTime(total);
+  if(track) track.setAttribute('aria-valuenow', String(Math.round(pct)));
+}
+// Wires up click-to-seek and drag-to-scrub on the bottom-bar progress track. Dragging only updates
+// the visual fill/handle/current-time label (a preview) — the actual seek (fade out → destroy
+// iframe → recreate with resumeAt= → fade in) only fires once, on release, via performPlayerSeek.
+function initPlayerProgressBar(){
+  const track = document.getElementById('playerProgressTrack');
+  if(!track || track._seekBound) return; // avoid double-binding if this ever runs twice on the same node
+  track._seekBound = true;
+
+  const pctFromEvent = (e)=>{
+    const rect = track.getBoundingClientRect();
+    const clientX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+    if(rect.width <= 0) return 0;
+    return Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1);
+  };
+  const previewAt = (pct)=>{
+    const p = state.player;
+    if(!p) return;
+    const total = p._totalSeconds || 0;
+    const fill = document.getElementById('playerProgressFill');
+    const handle = document.getElementById('playerProgressHandle');
+    const curEl = document.getElementById('playerTimeCurrent');
+    if(fill) fill.style.width = (pct*100)+'%';
+    if(handle) handle.style.left = (pct*100)+'%';
+    if(curEl) curEl.textContent = formatResumeTime(total*pct);
+  };
+  let dragPct = null;
+  const onMove = (e)=>{
+    if(dragPct===null) return;
+    dragPct = pctFromEvent(e);
+    previewAt(dragPct);
+  };
+  const onUp = (e)=>{
+    window.removeEventListener('pointermove', onMove);
+    if(dragPct===null) return;
+    const pct = pctFromEvent(e);
+    dragPct = null;
+    track.classList.remove('dragging');
+    seekPlayerToPercent(pct);
+  };
+  track.addEventListener('pointerdown', e=>{
+    const p = state.player;
+    // Never start a drag on top of a rebuild that's already in flight — matches the same
+    // p._playbackBusy guard that Pause/Resume/±20 already respect.
+    if(!p || p.isLive || p._playbackBusy) return;
+    e.preventDefault();
+    dragPct = pctFromEvent(e);
+    track.classList.add('dragging');
+    previewAt(dragPct);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp, {once:true});
+  });
+  track.addEventListener('keydown', e=>{
+    const p = state.player;
+    if(!p || p.isLive || p._playbackBusy) return;
+    if(e.key==='ArrowLeft'){ e.preventDefault(); seekPlayer(-5); }
+    else if(e.key==='ArrowRight'){ e.preventDefault(); seekPlayer(5); }
+    else if(e.key==='Home'){ e.preventDefault(); performPlayerSeek(0); }
+    else if(e.key==='End'){ e.preventDefault(); performPlayerSeek(p._totalSeconds||0); }
+  });
 }
 // Toggles the disabled/dimmed look on Play-Pause + both skip buttons while a rebuild (pause,
 // resume, or seek) is in flight. Paired with p._playbackBusy — see the guard at the top of each
 // of the three functions below — this is what actually stops rapid clicks from starting a second
 // iframe rebuild on top of one that's already running.
 function setPlaybackControlsBusy(busy){
-  ['playerPlayBtn','playerSkipBackBtn','playerSkipForwardBtn'].forEach(id=>{
+  ['playerPlayBtn','playerSkipBackBtn','playerSkipForwardBtn','playerProgressTrack'].forEach(id=>{
     const el = document.getElementById(id);
     if(el) el.classList.toggle('is-busy', busy);
   });
@@ -5218,7 +5446,11 @@ function fakeResumePlayer(){
 // paused cover out instead) — either way it ends in the same place: a fresh iframe seeked to the
 // new time. Guarded by the same p._playbackBusy lock as fakePausePlayer/fakeResumePlayer, so a
 // seek can never overlap a pause/resume/another seek that's already mid-rebuild.
-function seekPlayer(deltaSeconds){
+// SEEK core: fade out whatever's currently showing (iframe or paused cover), destroy it, and
+// rebuild at an absolute target time via renderPlayer() (which bakes resumeAt=<seconds> into the
+// fresh iframe src). Shared by seekPlayer(±20s / arrow keys) and seekPlayerToPercent (progress-bar
+// click/drag) — everything after "what's the target time" is identical either way.
+function performPlayerSeek(newTime){
   const p = state.player;
   if(!p || p.isLive || p._playbackBusy) return; // live channels have no meaningful "position" to seek
   const item = getItem(p.itemId);
@@ -5231,24 +5463,23 @@ function seekPlayer(deltaSeconds){
   p._playbackBusy = true;
   setPlaybackControlsBusy(true);
 
-  // Clamp into [0, duration] when duration is known; otherwise just floor at 0. This is the same
-  // clamp shape as -20 (Math.max(0, currentTime-20)) with the symmetric upper bound for +20 added.
+  // Clamp into [0, duration] when duration is known; otherwise just floor at 0.
   const totalSeconds = p._totalSeconds || 0;
-  const current = p._elapsedSeconds || 0;
-  const newTime = totalSeconds > 0
-    ? Math.min(Math.max(0, current + deltaSeconds), totalSeconds)
-    : Math.max(0, current + deltaSeconds);
+  const target = totalSeconds > 0
+    ? Math.min(Math.max(0, newTime), totalSeconds)
+    : Math.max(0, newTime);
 
   clearInterval(p._watchTimer);
-  p._elapsedSeconds = newTime;
+  p._elapsedSeconds = target;
   p.fakePaused = false; // a seek always resumes playback, even if the title was paused when pressed
   // Persist the new position immediately — Resume Playback and Watch Progress (continue-watching
   // rows, "watched" checkmarks, etc.) all read straight from item.progress, so this keeps them in
-  // sync the instant the button is pressed rather than waiting for the next 10s timer tick.
-  const watched = totalSeconds > 0 && newTime >= totalSeconds * getWatchedThreshold(p.seasonNum);
-  saveProgress(item, p.key, newTime, totalSeconds, watched);
+  // sync the instant the seek happens rather than waiting for the next timer tick.
+  const watched = totalSeconds > 0 && target >= totalSeconds * getWatchedThreshold(p.seasonNum);
+  saveProgress(item, p.key, target, totalSeconds, watched);
+  updatePlayerProgressUI(); // snap the bar to the landed position right away, don't wait for the reload
 
-  const seekingLabel = `Seeking to ${formatResumeTime(newTime)}…`;
+  const seekingLabel = `Seeking to ${formatResumeTime(target)}…`;
   const rebuild = ()=>{
     if(!state.player) return;
     // Root cause (confirmed): vaplayer.ru does not resume playback via t=, it uses resumeAt= —
@@ -5275,6 +5506,19 @@ function seekPlayer(deltaSeconds){
     }, 380);
   }
   setPlayerPlayIcon(true);
+}
+// ±20s (or any relative delta) — used by the skip buttons and the progress track's arrow-key handler.
+function seekPlayer(deltaSeconds){
+  const p = state.player;
+  if(!p) return;
+  performPlayerSeek((p._elapsedSeconds||0) + deltaSeconds);
+}
+// Absolute seek from a 0–1 fraction of total duration — used by the progress-bar click/drag handler.
+function seekPlayerToPercent(pct){
+  const p = state.player;
+  if(!p) return;
+  const total = p._totalSeconds || 0;
+  performPlayerSeek(total * Math.min(Math.max(pct, 0), 1));
 }
 // Creates a brand-new iframe from the saved base embed URL + current elapsed time, fades it in,
 // and restarts the watch timer — the resumed/seeked session then behaves identically to a fresh
@@ -5314,6 +5558,7 @@ function mountResumedIframe(item, p, onMounted, loadingLabel){
   setTimeout(clearLoading, 4000); // fallback in case the embed never fires 'load' cross-origin
 
   startIframeWatchTimer(item, p);
+  applyPlayerClickShield(); // permanent shield — re-assert it in front of the freshly mounted iframe
   if(onMounted) onMounted();
 }
 
