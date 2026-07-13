@@ -5230,6 +5230,17 @@ function seekPlayer(deltaSeconds){
     ? Math.min(Math.max(0, current + deltaSeconds), totalSeconds)
     : Math.max(0, current + deltaSeconds);
 
+  // TEMP DEBUG — remove once the +20/-20 issue is confirmed & fixed. Open devtools console,
+  // click +20/-20 a few times in a row, and copy every [SEEK-DEBUG] line you see.
+  console.log('[SEEK-DEBUG]', {
+    delta: deltaSeconds,
+    current,
+    totalSeconds,
+    newTime,
+    clampedAtCeiling: totalSeconds > 0 && (current + deltaSeconds) > totalSeconds,
+    clampedAtFloor: (current + deltaSeconds) < 0,
+  });
+
   clearInterval(p._watchTimer);
   p._elapsedSeconds = newTime;
   p.fakePaused = false; // a seek always resumes playback, even if the title was paused when pressed
@@ -5269,6 +5280,8 @@ function mountResumedIframe(item, p, onMounted){
   const stage = document.getElementById('playerStage');
   if(!stage || !p._embedBaseUrl){ if(onMounted) onMounted(); return; }
   const src = buildResumeEmbedUrl(p._embedBaseUrl, p._elapsedSeconds);
+  // TEMP DEBUG — remove once the +20/-20 issue is confirmed & fixed.
+  console.log('[SEEK-DEBUG] mounting iframe', { elapsedSeconds: p._elapsedSeconds, src });
   const sandbox = state.settings.blockPopupAds ? 'allow-scripts allow-same-origin allow-forms allow-presentation' : '';
 
   const iframe = document.createElement('iframe');
