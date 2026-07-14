@@ -4694,10 +4694,17 @@ function openPlayer(item, seasonNum, epNum, sources){
     item.watchlist = true;
     toast('Added to Watchlist — tracking your progress');
   }
+  // cleanupPlayerTimers() reads the *current* state.player (about to be replaced below) — safe to
+  // call even if none is active yet (it no-ops). playNextEpisode/tryNextSource/closePlayer already
+  // call this before swapping state.player; doing it here too means it's guaranteed for every path
+  // that opens a player (e.g. clicking a different episode card directly), so a previous title's
+  // watch timer can never keep running against an object nothing on screen points to anymore.
+  cleanupPlayerTimers();
   state.player = {
     itemId: item.id, seasonNum, epNum, sources, sourceIdx:0,
     key: seasonNum!=null ? 's'+seasonNum+'e'+epNum : 'movie',
     subtitle: seasonNum!=null ? `Season ${seasonNum} · Episode ${epNum}` : (item.year||''),
+    playbackState: 'loading',
   };
   item.lastWatched = new Date().toISOString();
   saveLib();
@@ -4742,6 +4749,7 @@ function renderPlayer(){
     const savedForResume = (item && item.progress && item.progress[p.key]);
     resumeAtOpen = savedForResume && !savedForResume.watched ? Math.floor(savedForResume.timestamp) : 0;
     iframeSrc = buildResumeEmbedUrl(embed.src, resumeAtOpen);
+    console.debug('[StreamVault] iframe src ->', iframeSrc); // verify in DevTools: no resumeAt param should ever appear here for a seek-to-0
   }
   // Fresh mount (open / next episode / retry source) always starts in the real "playing" state —
   // any previous fake-pause cover or in-flight rebuild lock no longer applies to whatever is being
@@ -4824,7 +4832,7 @@ function renderPlayer(){
         </div>
         <button class="btn btn-ghost" style="width:100%; justify-content:center; margin-top:10px;" onclick="turnOffSubtitles()">Turn Off Subtitles</button>
         <div class="field-hint" id="subtitlePanelSyncHint" style="display:none; margin-top:10px; color:var(--highlight);">
-          This source plays in an embedded player, so timing follows this app's own playback clock (the same one behind the progress bar) rather than the embed's real position — it can drift a little after seeking or buffering.
+          This source plays in an embedded player, so timing follows this app's own playback clock (the same one behind the progress bar) rather than the embed's real position — it can drift a little after seeking or buffering. Press <b>[</b> / <b>]</b> anytime while watching to nudge sync by ⅙s (hold Shift for a full 1s) without opening this panel — whatever offset you land on is remembered for this title + source next time.
         </div>
         <div class="field-hint" style="margin-top:10px;">
           Powered by <a href="https://subdl.com" target="_blank" rel="noopener">SubDL</a> — needs a free API key in Settings.
@@ -4867,7 +4875,15 @@ function renderPlayer(){
 
   const isVideoLike = embed.kind==='video' || embed.kind==='hls';
   const stageEl = document.getElementById(isVideoLike ? 'playerVideoEl' : 'playerIframeEl');
-  const hideSpinner = ()=>{ const l = document.getElementById('playerLoading'); if(l) l.classList.add('done'); };
+  // pendingIframeTimerStart lets the iframe branch below (loaded further down, after we know
+  // this isn't a live channel) hand hideSpinner a callback to fire once, the moment loading
+  // actually clears — so the progress bar starts moving at the exact same instant the spinner
+  // disappears, instead of the instant the iframe is merely inserted into the page.
+  let pendingIframeTimerStart = null;
+  const hideSpinner = ()=>{
+    const l = document.getElementById('playerLoading'); if(l) l.classList.add('done');
+    if(pendingIframeTimerStart){ const fn = pendingIframeTimerStart; pendingIframeTimerStart = null; fn(); }
+  };
   if(stageEl){
     stageEl.addEventListener('load', hideSpinner);
     stageEl.addEventListener('loadeddata', hideSpinner);
@@ -4933,7 +4949,8 @@ function renderPlayer(){
     // created — startIframeWatchTimer both starts the ticking AND is reused verbatim by
     // fakeResumePlayer() below, so pause/resume cycles behave identically to the initial open.
     p._totalSeconds = getPlaybackDurationSeconds(item, p.seasonNum, p.epNum);
-    startIframeWatchTimer(item, p, next);
+    p.playbackState = 'loading';
+    pendingIframeTimerStart = ()=> startIframeWatchTimer(item, p, next);
     initPlayerProgressBar();
     maybeUpgradeRuntimeFromTmdb(item, p);
   }
@@ -5250,6 +5267,7 @@ function cleanupPlayerTimers(){
     clearInterval(state.player._watchTimer);
     clearInterval(state.player._upNextInterval);
     clearInterval(state.player._blurInterval);
+    state.player.playbackState = 'stopped';
     if(state.player._hls){ try{ state.player._hls.destroy(); }catch(e){} state.player._hls = null; }
   }
   clearTimeout(controlsHideTimer);
@@ -5312,6 +5330,36 @@ const SUBTITLE_LANGS = [
 ];
 let subtitleResults = [];
 let subtitleTrackUrl = null; // current blob: URL backing the active <track> (video/hls path), revoked on replace/close
+
+/* ---- Per-source sync memory ----
+   The overlay path (iframe embeds) has no real play-head to read, so all of its drift comes from
+   one systematic thing: how long the embed actually takes to start playing (buffering, an ad,
+   sometimes a click-to-play screen) after we mount/seek it and start our own clock. That startup
+   lag is a property of the *source* (this vidsrc mirror, this direct link, etc.) more than of any
+   one episode, so once a user dials in an offset for a given item+source, we remember it and
+   auto-apply it next time — next episode, next session, after a resume — instead of making them
+   re-nudge from zero every single time. Keyed by item + embed host so different sources for the
+   same title (which can have very different startup behavior) keep their own calibration. */
+const SUBTITLE_SYNC_MEMORY_KEY = 'sv_subtitle_sync_v1';
+function loadSubtitleSyncMemory(){
+  try{ return JSON.parse(localStorage.getItem(SUBTITLE_SYNC_MEMORY_KEY)) || {}; }catch(e){ return {}; }
+}
+function subtitleSyncMemoryKey(itemId, p){
+  let host = 'direct';
+  try{ host = new URL(p._embedBaseUrl || (p.sources && p.sources[p.sourceIdx] && p.sources[p.sourceIdx].url) || '').hostname || 'direct'; }catch(e){}
+  return `${itemId||'x'}::${host}`;
+}
+function getPersistedSubtitleOffset(itemId, p){
+  const mem = loadSubtitleSyncMemory();
+  const key = subtitleSyncMemoryKey(itemId, p);
+  return typeof mem[key]==='number' ? mem[key] : 0;
+}
+function persistSubtitleOffset(itemId, p, offset){
+  const mem = loadSubtitleSyncMemory();
+  const key = subtitleSyncMemoryKey(itemId, p);
+  if(offset){ mem[key] = offset; } else { delete mem[key]; } // 0 = back to file's own timing, nothing worth remembering
+  try{ localStorage.setItem(SUBTITLE_SYNC_MEMORY_KEY, JSON.stringify(mem)); }catch(e){}
+}
 
 function toggleSubtitlePanel(){
   const p = state.player;
@@ -5434,12 +5482,13 @@ async function useSubtitleResult(i){
     // them on the fly, on either path — regenerate the VTT track for video/hls, or just re-check
     // the offset against p._elapsedSeconds for the iframe overlay.
     p.subtitleCues = parseSrtCues(srtText);
-    p.subtitleOffset = 0;
+    const remembered = getPersistedSubtitleOffset(p.itemId, p);
+    p.subtitleOffset = remembered;
     p.subtitleLabel = r.label;
     p.subtitleLangCode = r.lang;
     applyCurrentSubtitleOffset();
     updateSubtitleSyncUI();
-    toast('Subtitles loaded');
+    toast(remembered ? `Subtitles loaded — applied your saved ${formatSubtitleOffset(remembered)} sync for this source` : 'Subtitles loaded');
     closeSubtitlePanel();
   }catch(e){
     toast('Subtitle error: '+(e.message||'could not load file'));
@@ -5489,6 +5538,7 @@ function adjustSubtitleOffset(delta){
   p.subtitleOffset = Math.round(((p.subtitleOffset||0) + delta) * 100) / 100;
   applyCurrentSubtitleOffset();
   updateSubtitleSyncUI();
+  persistSubtitleOffset(p.itemId, p, p.subtitleOffset);
 }
 function resetSubtitleOffset(){
   const p = state.player;
@@ -5496,6 +5546,7 @@ function resetSubtitleOffset(){
   p.subtitleOffset = 0;
   applyCurrentSubtitleOffset();
   updateSubtitleSyncUI();
+  persistSubtitleOffset(p.itemId, p, 0);
   toast('Sync reset');
 }
 function applyCurrentSubtitleOffset(){
@@ -5625,10 +5676,19 @@ function stripResumeParam(url){
 // this mirror; t= only takes effect on a genuinely first-ever load of a session. Shared by the
 // initial player open (renderPlayer), every fake-resume, and every seek, so a title always resumes
 // the same way no matter which triggered it.
+//
+// Restarting from the beginning is a hard, explicit case — deliberately NOT "send resumeAt=0" —
+// because 0 is a falsy value, and mirrors in this family appear to treat an explicit resumeAt=0
+// the same as receiving no instruction at all, which can fall back to the mirror's OWN idea of
+// where you left off rather than actually restarting. The only reliable way to force a true
+// restart is to omit the parameter entirely so there's nothing for the mirror to (mis)interpret.
+const SEEK_TO_START_THRESHOLD_SECONDS = 5; // also absorbs drag imprecision landing at e.g. 0.3s
 function buildResumeEmbedUrl(baseUrl, seconds){
   const clean = stripResumeParam(baseUrl);
   const secs = Math.floor(seconds || 0);
-  if(secs <= 5) return clean; // not worth seeking for — start from the beginning
+  if(secs <= SEEK_TO_START_THRESHOLD_SECONDS){
+    return clean; // no resumeAt param at all — base URL only, a genuine restart from frame 0
+  }
   try{
     const u = new URL(clean);
     u.searchParams.set('resumeAt', String(secs));
@@ -5649,6 +5709,13 @@ function formatResumeTime(seconds){
 // (Re)starts the elapsed-time tracker for an iframe embed. Factored out of renderPlayer so
 // fakeResumePlayer() can restart it with identical behavior after rebuilding the iframe — a
 // pause/resume cycle looks, to this timer, exactly like the player having just opened.
+// This is the ONLY place p._watchTimer is ever created — every caller (initial mount, resume,
+// each tick's own reschedule) routes through here, and it always clears any prior interval on
+// the same player object first, so there is never more than one of these running at once.
+// playbackState is the explicit state machine the rest of the Playback Manager checks against:
+// 'loading' (set by every destroy/rebuild site below) freezes the clock, 'playing' is set here
+// the instant the timer actually starts, 'paused'/'stopped' are set by fakePausePlayer and the
+// watched-completion branch below respectively.
 function startIframeWatchTimer(item, p, next){
   clearInterval(p._watchTimer);
   const totalSeconds = p._totalSeconds || getPlaybackDurationSeconds(item, p.seasonNum, p.epNum);
@@ -5656,12 +5723,16 @@ function startIframeWatchTimer(item, p, next){
   next = next !== undefined ? next : getNextEpisode(item, p.seasonNum, p.epNum);
   let lastTick = Date.now();
   let sinceSave = 0;
+  p.playbackState = 'playing';
   updatePlayerProgressUI(); // paint the bottom-bar progress track immediately, don't wait for the first tick
   // Ticks every 1s (was 10s) so the new progress bar advances smoothly like a real scrubber, but
   // still only writes to localStorage roughly every ~10s via sinceSave — the faster tick is purely
   // a UI-refresh change, save/watched-detection cadence is unchanged from before.
   p._watchTimer = setInterval(()=>{
-    if(p.fakePaused) return; // belt-and-braces — should already be cleared while paused
+    // Only ever accrue time (and therefore move the bar / save progress) while the state machine
+    // says we're actually playing. fakePaused is kept as a second, redundant check on purpose —
+    // belt-and-braces in case some future path flips one flag but not the other.
+    if(p.fakePaused || p.playbackState !== 'playing') return;
     const now = Date.now();
     const delta = (now - lastTick) / 1000;
     lastTick = now;
@@ -5672,7 +5743,7 @@ function startIframeWatchTimer(item, p, next){
     sinceSave = 0;
     const watched = totalSeconds>0 && p._elapsedSeconds >= totalSeconds*getWatchedThreshold(p.seasonNum);
     saveProgress(item, p.key, p._elapsedSeconds, totalSeconds, watched);
-    if(watched){ clearInterval(p._watchTimer); if(next) showUpNextBanner(next); }
+    if(watched){ p.playbackState = 'stopped'; clearInterval(p._watchTimer); if(next) showUpNextBanner(next); }
   }, 1000);
 }
 // Syncs the bottom-bar progress fill/handle/time-labels to p._elapsedSeconds / p._totalSeconds.
@@ -5779,6 +5850,7 @@ function fakePausePlayer(){
   setPlaybackControlsBusy(true);
   clearInterval(p._watchTimer); // stop accruing "watched" time the instant Pause is pressed
   p.fakePaused = true;
+  p.playbackState = 'paused';
   saveProgress(item, p.key, p._elapsedSeconds || 0, p._totalSeconds || 0, false); // save immediately —
   // covers a refresh happening while paused, since nothing else will save again until Resume.
 
@@ -5830,6 +5902,8 @@ function fakeResumePlayer(){
   p._playbackBusy = true;
   setPlaybackControlsBusy(true);
   p.fakePaused = false;
+  p.playbackState = 'loading'; // clock stays frozen through the fade + iframe rebuild; startIframeWatchTimer
+  // (called from mountResumedIframe's clearLoading, once the fresh iframe actually loads) flips it back
   const finish = ()=>{ p._playbackBusy = false; setPlaybackControlsBusy(false); };
   const cover = document.getElementById('playerPauseCover');
   if(cover){
@@ -5875,6 +5949,8 @@ function performPlayerSeek(newTime){
     : Math.max(0, newTime);
 
   clearInterval(p._watchTimer);
+  p.playbackState = 'loading'; // freeze the instant we commit to tearing the iframe down — nothing
+  // restarts the clock (see startIframeWatchTimer) until the rebuilt iframe actually finishes loading
   p._elapsedSeconds = target;
   p.fakePaused = false; // a seek always resumes playback, even if the title was paused when pressed
   // Persist the new position immediately — Resume Playback and Watch Progress (continue-watching
@@ -5935,6 +6011,7 @@ function mountResumedIframe(item, p, onMounted, loadingLabel){
   const stage = document.getElementById('playerStage');
   if(!stage || !p._embedBaseUrl){ if(onMounted) onMounted(); return; }
   const src = buildResumeEmbedUrl(p._embedBaseUrl, p._elapsedSeconds);
+  console.debug('[StreamVault] iframe src ->', src); // same verification hook as the initial-mount path
   const sandbox = state.settings.blockPopupAds ? 'allow-scripts allow-same-origin allow-forms allow-presentation' : '';
 
   const iframe = document.createElement('iframe');
@@ -5955,14 +6032,15 @@ function mountResumedIframe(item, p, onMounted, loadingLabel){
   stage.insertBefore(iframe, loadingEl || null);
 
   requestAnimationFrame(()=> iframe.classList.remove('player-fade-out'));
+  let timerStarted = false;
   const clearLoading = ()=>{
     if(loadingEl) loadingEl.classList.add('done');
     if(loadingLabelEl) loadingLabelEl.textContent = 'Loading stream…'; // reset for next time
+    if(!timerStarted){ timerStarted = true; startIframeWatchTimer(item, p); }
   };
   iframe.addEventListener('load', clearLoading, {once:true});
   setTimeout(clearLoading, 4000); // fallback in case the embed never fires 'load' cross-origin
 
-  startIframeWatchTimer(item, p);
   applyPlayerClickShield(); // permanent shield — re-assert it in front of the freshly mounted iframe
   if(onMounted) onMounted();
 }
@@ -5984,6 +6062,15 @@ document.addEventListener('keydown', e=>{
   scheduleHideControls();
   if(e.key==='f' || e.key==='F'){ e.preventDefault(); togglePlayerFullscreen(); return; }
   if(e.key==='h' || e.key==='H'){ e.preventDefault(); togglePlayerHide(); return; }
+  // Quick subtitle nudge — deliberately available for iframe embeds too (that's the path that
+  // actually drifts), so a user can correct sync mid-scene without pausing to hunt through the
+  // subtitle panel. '[' / ']' = 1/6s (a natural single "tap" adjustment), Shift+ = a full 1s jump.
+  if((e.key==='[' || e.key===']') && state.player && state.player.subtitleCues){
+    e.preventDefault();
+    const step = e.shiftKey ? 1 : (1/6);
+    adjustSubtitleOffset(e.key===']' ? step : -step);
+    return;
+  }
   if(!vid) return; // remaining shortcuts only apply to direct video sources, not third-party iframes
   if(e.key===' ' || e.code==='Space'){ e.preventDefault(); vid.paused ? vid.play() : vid.pause(); }
   else if(e.key==='ArrowRight'){ e.preventDefault(); vid.currentTime = Math.min(vid.duration||Infinity, vid.currentTime+10); }
