@@ -1628,9 +1628,12 @@ function parseRuntimeMinutes(runtimeStr, fallback){
   const m = s.match(/(\d+)/);
   return m ? parseInt(m[1],10) : fallback;
 }
-// Total known runtime (in seconds) for whatever's currently playing — a movie, or one specific
-// episode. Used to convert "time the player has been open" into a real percentage instead of the
-// old flat "5 minutes = fully watched" placeholder.
+// Total known runtime (in seconds) for a movie or one specific episode, estimated from OMDb/TMDB
+// runtime metadata. NOTE: no longer used anywhere in the player — Vaplayer/VidSrc-family iframe
+// embeds now get real duration from PLAYER_EVENT's player_duration (see PLAYBACK MANAGER), and
+// direct <video>/HLS sources already read the browser's own vid.duration natively. Left in place
+// (along with hasKnownRuntime/fetchTmdbRuntimeMinutes/maybeUpgradeRuntimeFromTmdb below) in case
+// runtime metadata is needed elsewhere later — currently dead code as far as playback is concerned.
 function getPlaybackDurationSeconds(item, seasonNum, epNum){
   if(seasonNum!=null){
     const season = (item.seasons||[]).find(s=>s.number===seasonNum);
@@ -3658,6 +3661,13 @@ function renderSettings(){
         </div>
       </div>
       <div class="settings-section">
+        <h3>Help</h3>
+        <p class="field-hint" style="margin-bottom:14px;">
+          See every keyboard shortcut available while a title is playing (play/pause, seek, subtitles, fullscreen, and more).
+        </p>
+        <button class="btn btn-ghost" onclick="toggleShortcutsOverlay()">${ICON.help} Keyboard Shortcuts</button>
+      </div>
+      <div class="settings-section">
         <h3>Danger Zone</h3>
         <button class="btn btn-danger" onclick="clearAllData()">${ICON.trash} Clear All Data</button>
       </div>
@@ -4999,9 +5009,11 @@ function renderPlayer(){
   p._playbackBusy = false;
   p._elapsedSeconds = resumeAtOpen;
   p._embedKind = embed.kind;
-  // Needed up front (not just later, inside startIframeWatchTimer) so the bottom-bar progress
-  // track below has a real duration to size itself against on the very first paint.
-  if(embed.kind==='iframe' && !isLive) p._totalSeconds = getPlaybackDurationSeconds(item, p.seasonNum, p.epNum);
+  // Duration/progress for iframe embeds now come EXCLUSIVELY from Vaplayer's own PLAYER_EVENT
+  // postMessage (see the global listener in PLAYBACK MANAGER, below) — never from OMDb/TMDB
+  // runtime and never from a local timer. Until the first such event arrives, total is simply
+  // unknown (0), and the progress bar/time-total render as unset rather than a runtime guess.
+  if(embed.kind==='iframe' && !isLive) p._totalSeconds = 0;
   if(embed.kind==='video'){
     stageHtml = `<video id="playerVideoEl" src="${esc(embed.src)}" controls autoplay></video>`;
   } else if(embed.kind==='hls'){
@@ -5027,7 +5039,6 @@ function renderPlayer(){
           <button class="btn-icon" id="playerBrightnessBtn" title="Brightness" onclick="event.stopPropagation(); toggleBrightnessPanel();">${ICON.brightness}</button>
           <button class="btn-icon" title="Hide screen" onclick="togglePlayerHide()">${ICON.eyeOff}</button>
           <button class="btn-icon" id="playerLockBtn" title="Lock controls" onclick="event.stopPropagation(); togglePlayerLock();">${ICON.lock}</button>
-          <button class="btn-icon" title="Keyboard shortcuts (?)" onclick="event.stopPropagation(); toggleShortcutsOverlay();">${ICON.help}</button>
         </div>
         <div class="player-top-fade">
           <button class="btn-icon" onclick="closePlayer()">${ICON.close}</button>
@@ -5131,14 +5142,13 @@ function renderPlayer(){
 
   const isVideoLike = embed.kind==='video' || embed.kind==='hls';
   const stageEl = document.getElementById(isVideoLike ? 'playerVideoEl' : 'playerIframeEl');
-  // pendingIframeTimerStart lets the iframe branch below (loaded further down, after we know
-  // this isn't a live channel) hand hideSpinner a callback to fire once, the moment loading
-  // actually clears — so the progress bar starts moving at the exact same instant the spinner
-  // disappears, instead of the instant the iframe is merely inserted into the page.
-  let pendingIframeTimerStart = null;
+  // hideSpinner is a pure UI action — it only ever hides OUR loading overlay. It must never be the
+  // thing that starts the progress timer (that used to happen here, via a pendingIframeTimerStart
+  // callback, and was the root cause of the progress bar starting before playback actually had).
+  // The timer is now driven independently by real Vaplayer PLAYER_EVENT messages (see the global
+  // listener in PLAYBACK MANAGER, below) — never by this spinner.
   const hideSpinner = ()=>{
     const l = document.getElementById('playerLoading'); if(l) l.classList.add('done');
-    if(pendingIframeTimerStart){ const fn = pendingIframeTimerStart; pendingIframeTimerStart = null; fn(); }
   };
   if(isVideoLike && stageEl){
     // Native <video> readiness signals — canplay/loadeddata are a real "can actually show a frame
@@ -5155,12 +5165,16 @@ function renderPlayer(){
     // double-click during fullscreen appear to randomly trigger "Hide screen": suppress it here so
     // double-clicks do nothing, and fullscreen only ever happens through our own button/shortcut.
     stageEl.addEventListener('dblclick', e=>{ e.preventDefault(); e.stopPropagation(); });
-  } else if(stageEl){
-    // Third-party iframe embed (vaplayer.ru / VidSrc-family). See waitForPlayerReady (PLAYBACK
-    // MANAGER, below) for why 'load' alone is exactly what used to let the embed's own spinner
-    // flash through before ours had faded out.
+  } else if(stageEl && isLive){
+    // Live channels aren't Vaplayer/VidSrc-family on-demand embeds and never send PLAYER_EVENT,
+    // so they keep the old best-effort heuristic (iframe 'load' + grace, or an opportunistic
+    // postMessage, or a safety timeout) purely to hide our spinner — see waitForPlayerReady.
     waitForPlayerReady(stageEl, hideSpinner);
   }
+  // Non-live iframe embeds (Vaplayer/VidSrc-family) do NOT hide the spinner here at all — that
+  // now happens exclusively inside the PLAYER_EVENT listener (PLAYBACK MANAGER, below) once a
+  // real player_status === "playing" message is received, with armIframeEventFallback (called
+  // further down, once we know this isn't a live channel) as the last-resort safety net.
 
   if(embed.kind==='hls') initHlsPlayer(embed.src, hideSpinner);
   if(isVideoLike){
@@ -5200,22 +5214,18 @@ function renderPlayer(){
       else toast('This source failed to play');
     });
   } else {
-    // We have zero visibility inside a third-party iframe (VidSrc, etc.) — no currentTime, no
-    // play/pause events, nothing. The only signal available at all is how long our own player
-    // has been open. So progress here is real elapsed wall-clock time against the title's known
-    // runtime (from OMDb/TMDB), not verified playback — it resumes from wherever a previous
-    // session left off (supports watching across multiple sittings), and pauses counting while
-    // the browser tab itself is hidden/unfocused (the one case we CAN detect reliably). It does
-    // NOT know if you paused *inside* the iframe's own player while keeping our tab focused —
-    // that's a real gap with no fix available short of the source's own cooperation.
+    // Real playback progress/duration/status for this iframe now come EXCLUSIVELY from Vaplayer's
+    // own PLAYER_EVENT postMessage — see the global `window.addEventListener('message', ...)`
+    // listener in PLAYBACK MANAGER, below, which is the one and only place p._elapsedSeconds,
+    // p._totalSeconds, and p.playbackState get updated for an iframe embed from here on. No local
+    // timer, no OMDb/TMDB runtime, no "time since iframe was created" approximation.
     // p._elapsedSeconds was already seeded above (from saved progress) before this iframe was
-    // created — startIframeWatchTimer both starts the ticking AND is reused verbatim by
-    // fakeResumePlayer() below, so pause/resume cycles behave identically to the initial open.
-    p._totalSeconds = getPlaybackDurationSeconds(item, p.seasonNum, p.epNum);
-    p.playbackState = 'loading';
-    pendingIframeTimerStart = ()=> startIframeWatchTimer(item, p, next);
+    // created, so the bar shows the correct resume position even before the first real event
+    // arrives — it just won't move or save anything until player_status === "playing" is received.
+    p.playbackState = 'loading'; // frozen — no ticking, no progress-bar movement, no saves — until
+    // a genuine PLAYER_EVENT with player_status === "playing" comes in from this exact iframe.
+    if(stageEl) armIframeEventFallback(stageEl);
     initPlayerProgressBar();
-    maybeUpgradeRuntimeFromTmdb(item, p);
   }
 }
 let hlsJsLoadPromise = null;
@@ -5619,10 +5629,11 @@ function closePlayer(){
      - Iframe embeds (VidSrc, YouTube, etc.): we don't control that player, so there's no track to
        attach it to. Instead the SRT is parsed into cues and drawn as a floating overlay (see
        .player-subtitle-overlay, z-index 4 — above the transparent click shield at z-index 2, so it's
-       always visible over the embed) that's kept in sync with p._elapsedSeconds, the same real-time
-       clock startIframeWatchTimer() already drives the progress bar with. It's an approximation —
-       we have no way to read the iframe's actual play head — but it tracks the same clock the
-       resume/seek/progress-bar system already relies on, so it drifts no more than that does.
+       always visible over the embed) that's kept in sync with p._elapsedSeconds — for Vaplayer/
+       VidSrc-family sources that's the real playback position from the embed's own PLAYER_EVENT
+       postMessage (see PLAYBACK MANAGER), not an approximation. Non-Vaplayer iframes (YouTube,
+       Dailymotion) don't send that event, so p._elapsedSeconds there just stays at whatever it was
+       last set to and sync can drift — a real gap, with no fix short of that source's cooperation.
 ========================================================= */
 const SUBTITLE_LANGS = [
   {code:'EN',label:'English'},{code:'ES',label:'Spanish'},{code:'FR',label:'French'},
@@ -6044,6 +6055,12 @@ function turnOffSubtitles(){
 // not a race against 'load', so it never hides the overlay ahead of a normal load.
 //
 // onReady fires exactly once, however readiness ends up being determined.
+//
+// IMPORTANT: this only governs the Stream Vault loading overlay (a UI/cosmetic concern — hiding
+// our spinner before the embed's own spinner can flash through underneath it). It is NOT a signal
+// that playback has actually started, and must never be wired directly to starting the progress
+// timer / watch-time accrual — that's now driven entirely by real Vaplayer PLAYER_EVENT
+// postMessages (see the global `window.addEventListener('message', ...)` listener below).
 function waitForPlayerReady(iframe, onReady){
   let done = false;
   let graceTimer = null;
@@ -6061,6 +6078,102 @@ function waitForPlayerReady(iframe, onReady){
   window.addEventListener('message', onMessage);
   iframe.addEventListener('load', onLoad, {once:true});
   const safetyTimer = setTimeout(finish, 8000);
+}
+// ---------------------------------------------------------------------------------------------
+// Hides the Stream Vault loading overlay and resets its label back to the default for next time.
+// The ONLY two callers are the real PLAYER_EVENT "playing" handler and its fallback timeout below
+// — nothing else hides this overlay for a non-live iframe anymore.
+function hidePlayerLoadingOverlay(){
+  const l = document.getElementById('playerLoading');
+  const lbl = document.getElementById('playerLoadingLabel');
+  if(l) l.classList.add('done');
+  if(lbl) lbl.textContent = 'Loading stream…';
+}
+// Vaplayer PLAYER_EVENT listener — the one and only source of truth for iframe playback
+// progress/duration/status, replacing the old local elapsed-time timer entirely.
+//
+// Vaplayer (and the VidSrc-family mirrors built on it) posts messages shaped like:
+//   { type: "PLAYER_EVENT", data: { player_progress, player_duration, player_status } }
+//
+// This listener is bound once for the app's whole lifetime. Every incoming message is matched
+// against the CURRENTLY mounted #playerIframeEl by event.source, so a message from a previous/
+// torn-down iframe (a stale pause/resume/seek/restart cycle) can never touch the live player's
+// state. No local timer, no OMDb/TMDB runtime lookup, no "time since iframe was created"
+// approximation — p._elapsedSeconds and p._totalSeconds are written ONLY from player_progress and
+// player_duration, and the progress bar/current-time are just a direct read of those two fields
+// (see updatePlayerProgressUI). The loading overlay is hidden, UI updates begin, and progress
+// saving is enabled ONLY once player_status === "playing" is actually received — never earlier.
+window.addEventListener('message', (event)=>{
+  const msg = event.data;
+  if(!msg || msg.type !== 'PLAYER_EVENT') return;
+  const p = state.player;
+  if(!p || p.isLive) return; // no progress tracking for live channels
+  const iframe = document.getElementById('playerIframeEl');
+  if(!iframe || event.source !== iframe.contentWindow) return; // ignore a stale/foreign iframe
+  const item = getItem(p.itemId);
+  if(!item) return;
+
+  const d = msg.data || {};
+  const progress = Number(d.player_progress);
+  const duration = Number(d.player_duration);
+  const status = d.player_status;
+
+  // Real position/duration, straight from the embed — applied regardless of status, so the bar
+  // is always accurate the moment playback does resume, even while we're not actively ticking.
+  if(Number.isFinite(duration) && duration > 0) p._totalSeconds = duration;
+  if(Number.isFinite(progress)) p._elapsedSeconds = Math.max(0, progress);
+
+  if(status === 'playing'){
+    const justStarted = p.playbackState !== 'playing';
+    p.playbackState = 'playing';
+    if(justStarted){
+      clearTimeout(p._eventFallbackTimer); // real confirmation arrived — the fallback is no longer needed
+      hidePlayerLoadingOverlay();
+    }
+    updatePlayerProgressUI();
+    saveIframeProgressThrottled(item, p);
+  } else if(status === 'ended'){
+    p.playbackState = 'stopped';
+    updatePlayerProgressUI();
+    saveProgress(item, p.key, p._totalSeconds || p._elapsedSeconds || 0, p._totalSeconds || 0, true);
+    showPlaybackEndCard(item, getNextEpisode(item, p.seasonNum, p.epNum));
+  } else {
+    // buffering / paused / idle / anything else short of a confirmed "playing" — the latest known
+    // position/duration were already applied above, so the bar stays accurate, but we don't tick
+    // or save while playback isn't actually confirmed running.
+    if(!p.fakePaused) p.playbackState = status === 'paused' ? 'paused' : 'loading';
+    updatePlayerProgressUI();
+  }
+});
+// Saves iframe watch progress at most once every ~5s of real time, using the true position from
+// the most recent PLAYER_EVENT — keeps localStorage writes sane even if the embed posts events
+// rapidly (e.g. every animation frame), without ever delaying the on-screen progress bar itself
+// (that's updated on every single event via updatePlayerProgressUI, above).
+function saveIframeProgressThrottled(item, p){
+  const now = Date.now();
+  if(p._lastProgressSaveAt && (now - p._lastProgressSaveAt) < 5000) return;
+  p._lastProgressSaveAt = now;
+  const total = p._totalSeconds || 0;
+  const watched = total > 0 && p._elapsedSeconds >= total * getWatchedThreshold(p.seasonNum);
+  saveProgress(item, p.key, p._elapsedSeconds || 0, total, watched);
+  if(watched && p.playbackState !== 'stopped'){
+    p.playbackState = 'stopped';
+    showPlaybackEndCard(item, getNextEpisode(item, p.seasonNum, p.epNum));
+  }
+}
+// Last-resort fallback for an embed that never sends a single PLAYER_EVENT (an unsupported mirror,
+// or a genuinely broken source) — without this, the loading overlay would hang forever, since
+// hiding it is now driven entirely by a real player_status === "playing" message. This ONLY hides
+// the spinner after a generous timeout; it never fabricates progress/duration, and progress saving
+// stays off, because without a real event there is nothing true to show or save.
+function armIframeEventFallback(iframe){
+  const p = state.player;
+  if(!p) return;
+  clearTimeout(p._eventFallbackTimer);
+  p._eventFallbackTimer = setTimeout(()=>{
+    if(!state.player || state.player.playbackState === 'playing') return;
+    hidePlayerLoadingOverlay();
+  }, 12000);
 }
 // Remove any previously-appended resume param from an embed URL, so repeated pause/resume/seek
 // cycles rebuild cleanly from the original link instead of stacking params on top of each other.
@@ -6141,48 +6254,14 @@ function formatResumeTime(seconds){
   const ss = String(s).padStart(2,'0');
   return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
-// (Re)starts the elapsed-time tracker for an iframe embed. Factored out of renderPlayer so
-// fakeResumePlayer() can restart it with identical behavior after rebuilding the iframe — a
-// pause/resume cycle looks, to this timer, exactly like the player having just opened.
-// This is the ONLY place p._watchTimer is ever created — every caller (initial mount, resume,
-// each tick's own reschedule) routes through here, and it always clears any prior interval on
-// the same player object first, so there is never more than one of these running at once.
-// playbackState is the explicit state machine the rest of the Playback Manager checks against:
-// 'loading' (set by every destroy/rebuild site below) freezes the clock, 'playing' is set here
-// the instant the timer actually starts, 'paused'/'stopped' are set by fakePausePlayer and the
-// watched-completion branch below respectively.
-function startIframeWatchTimer(item, p, next){
-  clearInterval(p._watchTimer);
-  const totalSeconds = p._totalSeconds || getPlaybackDurationSeconds(item, p.seasonNum, p.epNum);
-  p._totalSeconds = totalSeconds;
-  next = next !== undefined ? next : getNextEpisode(item, p.seasonNum, p.epNum);
-  let lastTick = Date.now();
-  let sinceSave = 0;
-  p.playbackState = 'playing';
-  updatePlayerProgressUI(); // paint the bottom-bar progress track immediately, don't wait for the first tick
-  // Ticks every 1s (was 10s) so the new progress bar advances smoothly like a real scrubber, but
-  // still only writes to localStorage roughly every ~10s via sinceSave — the faster tick is purely
-  // a UI-refresh change, save/watched-detection cadence is unchanged from before.
-  p._watchTimer = setInterval(()=>{
-    // Only ever accrue time (and therefore move the bar / save progress) while the state machine
-    // says we're actually playing. fakePaused is kept as a second, redundant check on purpose —
-    // belt-and-braces in case some future path flips one flag but not the other.
-    if(p.fakePaused || p.playbackState !== 'playing') return;
-    const now = Date.now();
-    const delta = (now - lastTick) / 1000;
-    lastTick = now;
-    if(!document.hidden) p._elapsedSeconds = Math.min((p._elapsedSeconds||0) + delta, totalSeconds);
-    updatePlayerProgressUI();
-    sinceSave += delta;
-    if(sinceSave < 10) return;
-    sinceSave = 0;
-    const watched = totalSeconds>0 && p._elapsedSeconds >= totalSeconds*getWatchedThreshold(p.seasonNum);
-    saveProgress(item, p.key, p._elapsedSeconds, totalSeconds, watched);
-    if(watched){ p.playbackState = 'stopped'; clearInterval(p._watchTimer); showPlaybackEndCard(item, next); }
-  }, 1000);
-}
+// NOTE: the old startIframeWatchTimer() (a setInterval-based elapsed-time approximation) has been
+// removed. Progress/duration/status for iframe embeds are now driven entirely by real Vaplayer
+// PLAYER_EVENT postMessages — see the `window.addEventListener('message', ...)` listener above,
+// which is the only place that ever sets p.playbackState = 'playing' for an iframe embed from
+// here on. p._watchTimer / clearInterval(p._watchTimer) calls elsewhere are harmless no-ops now
+// that nothing ever creates that interval, and are left in place purely as defensive cleanup.
 // Syncs the bottom-bar progress fill/handle/time-labels to p._elapsedSeconds / p._totalSeconds.
-// Called every watch-timer tick, right after mount/resume, and immediately on a seek so the bar
+// Called on every PLAYER_EVENT, right after mount/resume, and immediately on a seek so the bar
 // never visibly lags behind whatever state.player actually holds.
 function updatePlayerProgressUI(){
   const p = state.player;
@@ -6337,8 +6416,8 @@ function fakeResumePlayer(){
   p._playbackBusy = true;
   setPlaybackControlsBusy(true);
   p.fakePaused = false;
-  p.playbackState = 'loading'; // clock stays frozen through the fade + iframe rebuild; startIframeWatchTimer
-  // (called from mountResumedIframe's clearLoading, once the fresh iframe actually loads) flips it back
+  p.playbackState = 'loading'; // frozen through the fade + iframe rebuild; the global PLAYER_EVENT
+  // listener flips this back to 'playing' once the fresh iframe reports player_status === "playing"
   const finish = ()=>{ p._playbackBusy = false; setPlaybackControlsBusy(false); };
   // Bring the loading overlay back up now, before the pause cover is even destroyed — see the
   // matching comment in restartPlayer().
@@ -6397,7 +6476,8 @@ function performPlayerSeek(newTime){
 
   clearInterval(p._watchTimer);
   p.playbackState = 'loading'; // freeze the instant we commit to tearing the iframe down — nothing
-  // restarts the clock (see startIframeWatchTimer) until the rebuilt iframe actually finishes loading
+  // moves the bar again until the global PLAYER_EVENT listener sees player_status === "playing"
+  // from the rebuilt iframe
   p._elapsedSeconds = target;
   p.fakePaused = false; // a seek always resumes playback, even if the title was paused when pressed
   // Persist the new position immediately — Resume Playback and Watch Progress (continue-watching
@@ -6555,15 +6635,12 @@ function mountRestartedIframe(item, p, onMounted){
   mediaWrap.appendChild(iframe);
 
   requestAnimationFrame(()=> iframe.classList.remove('player-fade-out'));
-  let timerStarted = false;
-  const clearLoading = ()=>{
-    if(loadingEl) loadingEl.classList.add('done');
-    if(loadingLabelEl) loadingLabelEl.textContent = 'Loading stream…'; // reset for next time
-    // Iframe has finished loading — restart the playback timer from 0:00 (p._elapsedSeconds is
-    // already 0, set by restartPlayer before this ever mounted).
-    if(!timerStarted){ timerStarted = true; startIframeWatchTimer(item, p); }
-  };
-  waitForPlayerReady(iframe, clearLoading);
+  // The loading overlay is no longer hidden here via a generic "iframe looks ready" heuristic —
+  // it's hidden exclusively by the global PLAYER_EVENT listener (PLAYBACK MANAGER, above) once a
+  // real player_status === "playing" message arrives from THIS iframe, via hidePlayerLoadingOverlay().
+  // p.playbackState stays 'loading' (frozen at 0:00) until that happens. armIframeEventFallback is
+  // the only safety net, for a mirror that never sends events at all.
+  armIframeEventFallback(iframe);
 
   applyPlayerClickShield(); // permanent shield — re-assert it in front of the freshly mounted iframe
   if(onMounted) onMounted();
@@ -6602,13 +6679,12 @@ function mountResumedIframe(item, p, onMounted, loadingLabel){
   mediaWrap.appendChild(iframe);
 
   requestAnimationFrame(()=> iframe.classList.remove('player-fade-out'));
-  let timerStarted = false;
-  const clearLoading = ()=>{
-    if(loadingEl) loadingEl.classList.add('done');
-    if(loadingLabelEl) loadingLabelEl.textContent = 'Loading stream…'; // reset for next time
-    if(!timerStarted){ timerStarted = true; startIframeWatchTimer(item, p); }
-  };
-  waitForPlayerReady(iframe, clearLoading);
+  // The loading overlay is no longer hidden here via a generic "iframe looks ready" heuristic —
+  // it's hidden exclusively by the global PLAYER_EVENT listener (PLAYBACK MANAGER, above) once a
+  // real player_status === "playing" message arrives from THIS iframe, via hidePlayerLoadingOverlay().
+  // p.playbackState stays 'loading' (frozen at the resume point) until that happens.
+  // armIframeEventFallback is the only safety net, for a mirror that never sends events at all.
+  armIframeEventFallback(iframe);
 
   applyPlayerClickShield(); // permanent shield — re-assert it in front of the freshly mounted iframe
   if(onMounted) onMounted();
