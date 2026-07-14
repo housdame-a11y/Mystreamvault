@@ -601,6 +601,13 @@ a{color:inherit; text-decoration:none;}
 .player-top-pinned{display:flex; align-items:center; gap:8px;}
 .player-top-fade{display:flex; align-items:center; gap:8px; transition:opacity .4s ease;}
 .player-stage{flex:1; position:relative; background:#000;}
+/* Wraps ONLY the iframe/video — never the loading overlay, subtitle overlay/panel, skip buttons,
+   or click shield — so the Brightness control (PLAYER BRIGHTNESS, below) can filter just the video
+   surface without dimming or brightening the app's own UI on top of it. The iframe/video itself is
+   still swapped in and out of this wrapper on every restart/resume/seek — the wrapper element (and
+   therefore its filter) persists across all of that untouched, so brightness never has to fight a
+   rebuild and never triggers one either. */
+.player-media-wrap{width:100%; height:100%; display:block; transition:filter .25s ease;}
 .player-stage iframe, .player-stage video{width:100%; height:100%; border:0; display:block;}
 /* Fake-pause fade: the stage background is always solid #000 behind these, so opacity-only
    transitions never show a white flash while the iframe is being unloaded/recreated. */
@@ -791,6 +798,41 @@ a{color:inherit; text-decoration:none;}
 .subtitle-sync-reset svg{width:16px; height:16px;}
 @media (max-width:860px){
   .player-subtitle-panel{top:64px; right:12px; left:12px; width:auto;}
+}
+/* Brightness popover — a compact vertical slider, floats under its trigger button. Uses the classic
+   rotated-horizontal-range trick (broadest cross-browser support for a vertical slider) rather than
+   relying on writing-mode, which some engines still render inconsistently for range inputs. */
+.player-brightness-panel{
+  position:absolute; top:74px; right:100px; z-index:7; width:64px;
+  display:flex; flex-direction:column; align-items:center; gap:10px; padding:16px 0 14px;
+  background:rgba(12,14,20,.92); backdrop-filter:blur(14px); border:1px solid rgba(255,255,255,.14);
+  border-radius:14px; box-shadow:0 20px 50px rgba(0,0,0,.5);
+  opacity:0; transform:translateY(-8px) scale(.97); pointer-events:none; transition:opacity .2s ease, transform .2s ease;
+}
+.player-brightness-panel.open{opacity:1; transform:translateY(0) scale(1); pointer-events:auto;}
+.player-brightness-value{font-size:13px; font-weight:800; color:var(--highlight); font-variant-numeric:tabular-nums;}
+.brightness-slider-track{position:relative; width:36px; height:140px; display:flex; align-items:center; justify-content:center;}
+.brightness-slider-track input[type=range]{
+  width:140px; height:28px; margin:0; transform:rotate(-90deg); transform-origin:center;
+  -webkit-appearance:none; appearance:none; background:transparent; cursor:pointer;
+}
+.brightness-slider-track input[type=range]::-webkit-slider-runnable-track{
+  height:4px; border-radius:3px; background:linear-gradient(90deg, var(--highlight), rgba(255,255,255,.15));
+}
+.brightness-slider-track input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none; margin-top:-6px; width:16px; height:16px; border-radius:50%;
+  background:#fff; border:2px solid var(--highlight); box-shadow:0 2px 6px rgba(0,0,0,.4);
+}
+.brightness-slider-track input[type=range]::-moz-range-track{height:4px; border-radius:3px; background:rgba(255,255,255,.15);}
+.brightness-slider-track input[type=range]::-moz-range-progress{height:4px; border-radius:3px; background:var(--highlight);}
+.brightness-slider-track input[type=range]::-moz-range-thumb{
+  width:16px; height:16px; border-radius:50%; background:#fff; border:2px solid var(--highlight); box-shadow:0 2px 6px rgba(0,0,0,.4);
+}
+.player-brightness-icon-min{color:var(--muted); display:flex;}
+.player-brightness-icon-min svg{width:15px; height:15px;}
+#playerBrightnessBtn.is-active{color:var(--highlight);}
+@media (max-width:860px){
+  .player-brightness-panel{right:12px; top:64px;}
 }
 /* Sits directly in front of a third-party iframe embed so a click is hit-tested against this div,
    not the iframe underneath — the ad script inside the embed's page never receives the click event
@@ -1251,6 +1293,7 @@ const ICON = {
   restart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>',
   lock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
   unlock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.7-1.5"/></svg>',
+  brightness:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>',
 };
 function heartSvg(filled){
   return `<svg viewBox="0 0 24 24" fill="${filled?'currentColor':'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-10-9.1C.5 8.6 2 5 5.5 5c2 0 3.3 1 4.5 2.5C11.2 6 12.5 5 14.5 5 18 5 19.5 8.6 22 11.9 19.5 16.4 12 21 12 21z"/></svg>`;
@@ -1292,8 +1335,12 @@ function loadSettings(){
     // Left blank by default — everything works purely from localStorage until these are filled in.
     if(!s.supabaseUrl) s.supabaseUrl = '';
     if(!s.supabaseKey) s.supabaseKey = '';
+    // Player brightness (CSS filter on the stage, see PLAYER BRIGHTNESS section) — persisted so the
+    // user's preferred level carries over to the next title, not just the rest of this session.
+    if(typeof s.playerBrightness !== 'number' || isNaN(s.playerBrightness)) s.playerBrightness = 1;
+    s.playerBrightness = Math.min(1.5, Math.max(0.5, s.playerBrightness));
     return s;
-  }catch(e){ return {omdb:'',tmdb:'',subdl:'',vidsrcDomain:'vidsrc-embed.su', blockPopupAds:false, contentBlur:false, contentBlurLevel:'moderate', contentBlurModelUrl:'', scheduleCountry:'US', recentSearches:[], supabaseUrl:'', supabaseKey:''}; }
+  }catch(e){ return {omdb:'',tmdb:'',subdl:'',vidsrcDomain:'vidsrc-embed.su', blockPopupAds:false, contentBlur:false, contentBlurLevel:'moderate', contentBlurModelUrl:'', scheduleCountry:'US', recentSearches:[], supabaseUrl:'', supabaseKey:'', playerBrightness:1}; }
 }
 function saveSettings(){ localStorage.setItem(SET_KEY, JSON.stringify(state.settings)); }
 
@@ -4800,6 +4847,7 @@ function renderPlayer(){
       <div class="player-top-actions">
         <div class="player-top-pinned">
           <button class="btn-icon" id="playerSubtitleBtn" title="Subtitles" onclick="toggleSubtitlePanel()">${ICON.subtitles}</button>
+          <button class="btn-icon" id="playerBrightnessBtn" title="Brightness" onclick="event.stopPropagation(); toggleBrightnessPanel();">${ICON.brightness}</button>
           <button class="btn-icon" title="Hide screen" onclick="togglePlayerHide()">${ICON.eyeOff}</button>
           <button class="btn-icon" id="playerLockBtn" title="Lock controls" onclick="event.stopPropagation(); togglePlayerLock();">${ICON.lock}</button>
         </div>
@@ -4809,7 +4857,7 @@ function renderPlayer(){
       </div>
     </div>
     <div class="player-stage" id="playerStage">
-      ${stageHtml}
+      <div class="player-media-wrap" id="playerMediaWrap" style="filter:brightness(${state.settings.playerBrightness});">${stageHtml}</div>
       <div class="player-loading" id="playerLoading"><div class="spinner"></div><span class="player-loading-label" id="playerLoadingLabel">Loading stream…</span></div>
       <div class="player-subtitle-overlay" id="playerSubtitleOverlay"></div>
       ${embed.kind==='iframe' && !isLive ? `
@@ -4853,6 +4901,16 @@ function renderPlayer(){
         <div class="field-hint" style="margin-top:10px;">
           Powered by <a href="https://subdl.com" target="_blank" rel="noopener">SubDL</a> — needs a free API key in Settings.
         </div>
+      </div>
+      <div class="player-brightness-panel" id="brightnessPanel" onmouseenter="clearTimeout(brightnessHideTimer)" onmouseleave="scheduleBrightnessPanelHide()">
+        <span class="player-brightness-value" id="brightnessValueLabel">${Math.round(state.settings.playerBrightness*100)}%</span>
+        <div class="brightness-slider-track">
+          <input type="range" id="brightnessSlider" min="50" max="150" step="1"
+                 value="${Math.round(state.settings.playerBrightness*100)}"
+                 aria-label="Brightness"
+                 oninput="onBrightnessSliderInput(event)" onchange="onBrightnessSliderChange(event)">
+        </div>
+        <span class="player-brightness-icon-min">${ICON.brightness}</span>
       </div>
       <div class="player-hover-zone" onmouseenter="scheduleHideControls()"></div>
     </div>
@@ -4905,21 +4963,27 @@ function renderPlayer(){
     const l = document.getElementById('playerLoading'); if(l) l.classList.add('done');
     if(pendingIframeTimerStart){ const fn = pendingIframeTimerStart; pendingIframeTimerStart = null; fn(); }
   };
-  if(stageEl){
+  if(isVideoLike && stageEl){
+    // Native <video> readiness signals — canplay/loadeddata are a real "can actually show a frame
+    // now" check, so there's no third-party spinner to hide behind here; a plain safety-net timeout
+    // (not a race — 'load'/'loadeddata'/'canplay' should always win in practice) covers the rare
+    // case none of them ever fire.
     stageEl.addEventListener('load', hideSpinner);
     stageEl.addEventListener('loadeddata', hideSpinner);
     stageEl.addEventListener('canplay', hideSpinner);
-  }
-  if(isVideoLike && stageEl){
+    setTimeout(hideSpinner, 4000);
     // Chrome/Edge's native <video controls> element has its own built-in double-click-to-fullscreen
     // gesture, which fullscreens the raw <video> element directly — bypassing our togglePlayerFullscreen
     // and putting the browser and our app's fullscreen state out of sync. That mismatch is what made a
     // double-click during fullscreen appear to randomly trigger "Hide screen": suppress it here so
     // double-clicks do nothing, and fullscreen only ever happens through our own button/shortcut.
     stageEl.addEventListener('dblclick', e=>{ e.preventDefault(); e.stopPropagation(); });
+  } else if(stageEl){
+    // Third-party iframe embed (vaplayer.ru / VidSrc-family). See waitForPlayerReady (PLAYBACK
+    // MANAGER, below) for why 'load' alone is exactly what used to let the embed's own spinner
+    // flash through before ours had faded out.
+    waitForPlayerReady(stageEl, hideSpinner);
   }
-  // Safety net: some cross-origin iframes never fire load reliably — clear the spinner regardless.
-  setTimeout(hideSpinner, 4000);
 
   if(embed.kind==='hls') initHlsPlayer(embed.src, hideSpinner);
   if(isVideoLike){
@@ -5357,6 +5421,12 @@ function closePlayer(){
     if(item) saveProgress(item, p.key, p._elapsedSeconds || 0, p._totalSeconds || 0, false);
   }
   cleanupPlayerTimers();
+  // togglePlayerFullscreen() puts the whole #playerOverlay into fullscreen, not just the video —
+  // if Close is pressed while still fullscreen, the browser keeps that (now-empty) element in
+  // fullscreen unless we explicitly back out of it here, which is what made Close appear to do
+  // nothing: the overlay's own 'open' class/content were gone, but the screen stayed fullscreen
+  // and blank until the user hit Esc themselves.
+  if(document.fullscreenElement) document.exitFullscreen?.().catch(()=>{});
   document.getElementById('playerOverlay').classList.remove('open','controls-hidden','center-skip-visible','controls-locked');
   setTimeout(()=>{ document.getElementById('playerOverlay').innerHTML=''; }, 260);
   state.player = null;
@@ -5425,6 +5495,7 @@ function toggleSubtitlePanel(){
   const panel = document.getElementById('subtitlePanel');
   if(!panel) return;
   const opening = !panel.classList.contains('open');
+  if(opening) closeBrightnessPanel(); // only one popover open at a time
   panel.classList.toggle('open');
   if(opening && !panel.dataset.primed){
     panel.dataset.primed = '1';
@@ -5441,6 +5512,76 @@ function toggleSubtitlePanel(){
 function closeSubtitlePanel(){
   const panel = document.getElementById('subtitlePanel');
   if(panel) panel.classList.remove('open');
+}
+
+/* =========================================================
+   PLAYER BRIGHTNESS
+   ---------------------------------------------------------
+   A purely cosmetic CSS filter on #playerMediaWrap (never the iframe itself — see the CSS comment
+   on .player-media-wrap) — vaplayer.ru is cross-origin, so there is no way to touch the actual
+   video's brightness, only how it LOOKS from our side of the iframe boundary. Because the filter
+   lives on the wrapper rather than the iframe/video element, every restart/resume/seek — which
+   destroy and recreate the iframe/video, never the wrapper — leaves the current brightness in
+   place automatically; nothing here ever needs to know those rebuilds are happening, and nothing
+   about a brightness change ever triggers one.
+========================================================= */
+let brightnessHideTimer = null;
+function toggleBrightnessPanel(){
+  const panel = document.getElementById('brightnessPanel');
+  if(!panel) return;
+  const opening = !panel.classList.contains('open');
+  if(!opening){ closeBrightnessPanel(); return; }
+  closeSubtitlePanel(); // only one popover open at a time
+  panel.classList.add('open');
+  const btn = document.getElementById('playerBrightnessBtn');
+  if(btn) btn.classList.add('is-active');
+  syncBrightnessUI(state.settings.playerBrightness);
+  scheduleBrightnessPanelHide();
+}
+function closeBrightnessPanel(){
+  const panel = document.getElementById('brightnessPanel');
+  if(panel) panel.classList.remove('open');
+  const btn = document.getElementById('playerBrightnessBtn');
+  if(btn) btn.classList.remove('is-active');
+  clearTimeout(brightnessHideTimer);
+}
+// Resets the "hide a few seconds after the user stops interacting" timer — called on open and on
+// every slider interaction, so the panel only ever closes once input genuinely stops.
+function scheduleBrightnessPanelHide(){
+  clearTimeout(brightnessHideTimer);
+  brightnessHideTimer = setTimeout(closeBrightnessPanel, 2500);
+}
+// Pushes a brightness value (0.5–1.5) to the slider position + percentage label without touching
+// the wrap's filter — used when opening the panel to reflect whatever's already applied.
+function syncBrightnessUI(value){
+  const pct = Math.round(Math.min(150, Math.max(50, value*100)));
+  const slider = document.getElementById('brightnessSlider');
+  const label = document.getElementById('brightnessValueLabel');
+  if(slider) slider.value = pct;
+  if(label) label.textContent = pct+'%';
+}
+// Applies a brightness percentage (50–150) to the live filter + UI immediately — used on every
+// slider 'input' tick, i.e. potentially many times a second while dragging, so it deliberately does
+// NOT touch localStorage; onBrightnessSliderChange (below) is what persists the final value.
+function applyPlayerBrightnessLive(percentValue){
+  const pct = Math.min(150, Math.max(50, Math.round(Number(percentValue)||100)));
+  const value = pct/100;
+  const wrap = document.getElementById('playerMediaWrap');
+  if(wrap) wrap.style.filter = `brightness(${value})`;
+  const label = document.getElementById('brightnessValueLabel');
+  if(label) label.textContent = pct+'%';
+  return value;
+}
+function onBrightnessSliderInput(e){
+  applyPlayerBrightnessLive(e.target.value);
+  scheduleBrightnessPanelHide();
+}
+// Fires on release (or a keyboard nudge) — this is the only place a brightness change is actually
+// saved, so dragging doesn't hammer localStorage on every intermediate tick.
+function onBrightnessSliderChange(e){
+  state.settings.playerBrightness = applyPlayerBrightnessLive(e.target.value);
+  saveSettings();
+  scheduleBrightnessPanelHide();
 }
 
 async function searchSubtitles(){
@@ -5706,6 +5847,42 @@ function turnOffSubtitles(){
    reached into. All state lives on state.player, so it survives sequential pause/resume cycles.
 ========================================================= */
 
+// Waits for a freshly-mounted third-party iframe embed to actually be ready before the caller
+// hides the Stream Vault loading overlay — this is what stops the user from ever glimpsing the
+// embed's OWN loading spinner underneath ours (the bug this function exists to fix).
+//
+// vaplayer.ru (and the rest of the VidSrc-family mirrors) exposes no documented JS control API —
+// see the banner above — so there's no guaranteed "ready"/"playing" postMessage we can wait for.
+// This still listens for one: some mirrors chatter over postMessage anyway (analytics, ad events,
+// occasional player-state pings) even without a documented API, and a message genuinely sourced
+// from the iframe's own window is a strong sign it has finished booting past its own spinner, so
+// it resolves immediately. But because that signal is opportunistic rather than guaranteed, the
+// iframe's 'load' event is always the hard minimum required — and since 'load' alone is what
+// caused the original flash (it fires the instant the embed's outer document loads, well before
+// its player has actually cleared its own spinner), 'load' is followed by a short grace window to
+// give the embed's JS time to get video on screen before we clear ours. A generous last-resort
+// timer covers the rare case where 'load' never fires at all cross-origin — a true safety net,
+// not a race against 'load', so it never hides the overlay ahead of a normal load.
+//
+// onReady fires exactly once, however readiness ends up being determined.
+function waitForPlayerReady(iframe, onReady){
+  let done = false;
+  let graceTimer = null;
+  const finish = ()=>{
+    if(done) return;
+    done = true;
+    window.removeEventListener('message', onMessage);
+    iframe.removeEventListener('load', onLoad);
+    clearTimeout(graceTimer);
+    clearTimeout(safetyTimer);
+    onReady();
+  };
+  const onMessage = (e)=>{ if(e.source === iframe.contentWindow) finish(); };
+  const onLoad = ()=>{ clearTimeout(graceTimer); graceTimer = setTimeout(finish, 700); };
+  window.addEventListener('message', onMessage);
+  iframe.addEventListener('load', onLoad, {once:true});
+  const safetyTimer = setTimeout(finish, 8000);
+}
 // Remove any previously-appended resume param from an embed URL, so repeated pause/resume/seek
 // cycles rebuild cleanly from the original link instead of stacking params on top of each other.
 // Strips both resumeAt= (current param) and the legacy t= (kept in case an older saved source URL
@@ -5984,6 +6161,12 @@ function fakeResumePlayer(){
   p.playbackState = 'loading'; // clock stays frozen through the fade + iframe rebuild; startIframeWatchTimer
   // (called from mountResumedIframe's clearLoading, once the fresh iframe actually loads) flips it back
   const finish = ()=>{ p._playbackBusy = false; setPlaybackControlsBusy(false); };
+  // Bring the loading overlay back up now, before the pause cover is even destroyed — see the
+  // matching comment in restartPlayer().
+  const loadingElNow = document.getElementById('playerLoading');
+  const loadingLabelElNow = document.getElementById('playerLoadingLabel');
+  if(loadingLabelElNow) loadingLabelElNow.textContent = 'Loading stream…';
+  if(loadingElNow) loadingElNow.classList.remove('done');
   const cover = document.getElementById('playerPauseCover');
   if(cover){
     cover.classList.remove('visible');
@@ -6046,6 +6229,13 @@ function performPlayerSeek(newTime){
   updatePlayerProgressUI(); // snap the bar to the landed position right away, don't wait for the reload
 
   const seekingLabel = `Seeking to ${formatResumeTime(target)}…`;
+  // Bring the loading overlay back up now, before the old iframe/cover is even destroyed — see the
+  // matching comment in restartPlayer().
+  const loadingElNow = document.getElementById('playerLoading');
+  const loadingLabelElNow = document.getElementById('playerLoadingLabel');
+  if(loadingLabelElNow) loadingLabelElNow.textContent = seekingLabel;
+  if(loadingElNow) loadingElNow.classList.remove('done');
+
   const rebuild = ()=>{
     if(!state.player) return;
     // Root cause (confirmed): vaplayer.ru does not resume playback via t=, it uses resumeAt= —
@@ -6120,6 +6310,14 @@ function restartPlayer(){
   deleteProgress(item, p.key);
   updatePlayerProgressUI(); // snap the bar back to 0 immediately, don't wait for the reload
 
+  // Bring the loading overlay back up now, before the old iframe is even destroyed — the stage
+  // background is solid #000 either way, but this guarantees the overlay (and not a bare black
+  // stage) is what's on top for the whole teardown+rebuild, matching every other player action.
+  const loadingElNow = document.getElementById('playerLoading');
+  const loadingLabelElNow = document.getElementById('playerLoadingLabel');
+  if(loadingLabelElNow) loadingLabelElNow.textContent = 'Restarting…';
+  if(loadingElNow) loadingElNow.classList.remove('done');
+
   const rebuild = ()=>{
     if(!state.player) return;
     mountRestartedIframe(item, state.player, ()=>{ p._playbackBusy = false; setPlaybackControlsBusy(false); });
@@ -6151,6 +6349,10 @@ function restartPlayer(){
 // unreliable in timing (and sometimes never fires at all) for third-party embeds.
 function mountRestartedIframe(item, p, onMounted){
   const stage = document.getElementById('playerStage');
+  // Mount inside the persistent brightness wrapper (see .player-media-wrap / PLAYER BRIGHTNESS),
+  // not the bare stage — that's what lets the current brightness filter just keep applying to
+  // whatever iframe happens to be inside it, with no extra wiring needed here at all.
+  const mediaWrap = document.getElementById('playerMediaWrap') || stage;
   if(!stage || !p._embedBaseUrl){ if(onMounted) onMounted(); return; }
   const src = buildRestartEmbedUrl(p._embedBaseUrl);
   console.debug('[StreamVault] iframe src ->', src); // verify: autoplay=1 present, no resumeAt/startAt, cb= present
@@ -6171,7 +6373,7 @@ function mountRestartedIframe(item, p, onMounted){
   const loadingLabelEl = document.getElementById('playerLoadingLabel');
   if(loadingLabelEl) loadingLabelEl.textContent = 'Restarting…';
   if(loadingEl) loadingEl.classList.remove('done');
-  stage.insertBefore(iframe, loadingEl || null);
+  mediaWrap.appendChild(iframe);
 
   requestAnimationFrame(()=> iframe.classList.remove('player-fade-out'));
   let timerStarted = false;
@@ -6182,8 +6384,7 @@ function mountRestartedIframe(item, p, onMounted){
     // already 0, set by restartPlayer before this ever mounted).
     if(!timerStarted){ timerStarted = true; startIframeWatchTimer(item, p); }
   };
-  iframe.addEventListener('load', clearLoading, {once:true});
-  setTimeout(clearLoading, 4000); // fallback in case the embed never fires 'load' cross-origin
+  waitForPlayerReady(iframe, clearLoading);
 
   applyPlayerClickShield(); // permanent shield — re-assert it in front of the freshly mounted iframe
   if(onMounted) onMounted();
@@ -6196,6 +6397,9 @@ function mountRestartedIframe(item, p, onMounted){
 // Used by fakeResumePlayer; seekPlayer goes through renderPlayer() instead (see its comment).
 function mountResumedIframe(item, p, onMounted, loadingLabel){
   const stage = document.getElementById('playerStage');
+  // See the matching comment in mountRestartedIframe — mount inside the persistent brightness
+  // wrapper, not the bare stage.
+  const mediaWrap = document.getElementById('playerMediaWrap') || stage;
   if(!stage || !p._embedBaseUrl){ if(onMounted) onMounted(); return; }
   const src = buildResumeEmbedUrl(p._embedBaseUrl, p._elapsedSeconds);
   console.debug('[StreamVault] iframe src ->', src); // same verification hook as the initial-mount path
@@ -6216,7 +6420,7 @@ function mountResumedIframe(item, p, onMounted, loadingLabel){
   const loadingLabelEl = document.getElementById('playerLoadingLabel');
   if(loadingLabelEl) loadingLabelEl.textContent = loadingLabel || 'Loading stream…';
   if(loadingEl) loadingEl.classList.remove('done');
-  stage.insertBefore(iframe, loadingEl || null);
+  mediaWrap.appendChild(iframe);
 
   requestAnimationFrame(()=> iframe.classList.remove('player-fade-out'));
   let timerStarted = false;
@@ -6225,8 +6429,7 @@ function mountResumedIframe(item, p, onMounted, loadingLabel){
     if(loadingLabelEl) loadingLabelEl.textContent = 'Loading stream…'; // reset for next time
     if(!timerStarted){ timerStarted = true; startIframeWatchTimer(item, p); }
   };
-  iframe.addEventListener('load', clearLoading, {once:true});
-  setTimeout(clearLoading, 4000); // fallback in case the embed never fires 'load' cross-origin
+  waitForPlayerReady(iframe, clearLoading);
 
   applyPlayerClickShield(); // permanent shield — re-assert it in front of the freshly mounted iframe
   if(onMounted) onMounted();
