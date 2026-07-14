@@ -651,6 +651,74 @@ a{color:inherit; text-decoration:none;}
 .player-pause-resume-label{font-size:14.5px; font-weight:700; color:var(--highlight); letter-spacing:.01em;}
 .player-pause-progress{width:260px; height:4px; border-radius:3px; background:rgba(255,255,255,.15); overflow:hidden; margin-top:2px;}
 .player-pause-progress > div{height:100%; background:linear-gradient(90deg, var(--highlight), #2bc4c1);}
+
+/* ---------- Playback end card (Netflix-style "you finished watching" screen) ----------
+   Shown on top of the stage once a title actually finishes — a real 'ended' event for direct
+   video/HLS, or the existing watched-threshold proxy for third-party iframes (there is no real
+   'ended' signal available across a cross-origin iframe). Unlike the pause cover, nothing needs
+   to be destroyed first: the title is over either way, so this just fades in on top of whatever
+   was showing; z-index:9 puts it above the top/bottom control bars (z:5) and next-episode nub,
+   just under the manual Hide Screen overlay (z:10). */
+.player-end-card{
+  position:absolute; inset:0; z-index:9; background:#000;
+  display:flex; align-items:center; justify-content:center;
+  opacity:0; transition:opacity .45s ease;
+}
+.player-end-card.visible{opacity:1;}
+.player-end-card-bg{
+  position:absolute; inset:0; background-size:cover; background-position:center center;
+  filter:blur(4px) brightness(.35) saturate(1.1); transform:scale(1.06);
+}
+.player-end-card::after{
+  content:''; position:absolute; inset:0;
+  background:radial-gradient(ellipse at center, rgba(5,6,9,.4) 0%, rgba(5,6,9,.92) 100%);
+}
+.player-end-card-content{
+  position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; gap:14px;
+  text-align:center; padding:32px; max-width:420px; width:100%;
+}
+.player-end-card-eyebrow{font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--highlight);}
+.player-end-card-title{font-size:24px; font-weight:800; font-family:var(--display-font); color:#fff; line-height:1.25;}
+.player-end-card-sub{font-size:13.5px; color:var(--muted); font-weight:600; margin-top:-8px;}
+.player-end-card-stars{display:flex; gap:8px; margin:8px 0 2px;}
+.player-end-card-stars .my-rating-star{width:34px; height:34px;}
+.player-end-card-stars .my-rating-star svg{width:26px; height:26px;}
+.player-end-card-actions{display:flex; flex-direction:column; gap:10px; width:100%; margin-top:10px;}
+.player-end-card-actions .btn{width:100%; justify-content:center; padding:13px; font-size:14.5px;}
+
+/* ---------- Keyboard shortcuts cheat-sheet ('?') ----------
+   A dedicated overlay (not the generic modal system) so it can sit ABOVE the player: modalOverlay
+   is z:100 but player-overlay is z:200, so reusing openModal() here would render the cheat sheet
+   invisibly behind an open player. z:260 guarantees it's always on top of everything, in or out
+   of playback. */
+.shortcuts-overlay{
+  position:fixed; inset:0; background:rgba(4,5,8,.78); backdrop-filter:blur(10px); z-index:260;
+  display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none;
+  transition:opacity var(--transition); padding:20px;
+}
+.shortcuts-overlay.open{opacity:1; pointer-events:auto;}
+.shortcuts-modal{
+  background:var(--surface); border:1px solid #1e2330; border-radius:16px; width:100%; max-width:480px;
+  max-height:88vh; overflow-y:auto; padding:28px; transform:translateY(16px) scale(.98); transition:transform var(--transition);
+  box-shadow:0 30px 80px rgba(0,0,0,.55);
+}
+.shortcuts-overlay.open .shortcuts-modal{transform:translateY(0) scale(1);}
+.shortcuts-modal-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid #1a1d26;}
+.shortcuts-modal-head h2{font-size:18px; font-weight:800; font-family:var(--display-font);}
+.shortcuts-group{margin-bottom:22px;}
+.shortcuts-group:last-child{margin-bottom:0;}
+.shortcuts-group-label{font-size:11px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:8px;}
+.shortcuts-group-note{font-size:11.5px; color:var(--muted); margin-bottom:10px;}
+.shortcut-row{display:flex; align-items:center; justify-content:space-between; gap:14px; padding:7px 0;}
+.shortcut-row-desc{font-size:13.5px; color:var(--text); font-weight:600;}
+.shortcut-row-hint{font-size:11px; color:var(--muted); margin-top:2px;}
+.shortcut-keys{display:flex; align-items:center; gap:4px; flex-shrink:0;}
+kbd.key{
+  display:inline-flex; align-items:center; justify-content:center; min-width:26px; height:26px; padding:0 7px;
+  background:#161923; border:1px solid #2a3040; border-bottom-width:2px; border-radius:6px;
+  font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11.5px; font-weight:700; color:var(--text);
+}
+.shortcut-keys .plus{color:var(--muted); font-size:11px;}
 .content-blurred{filter:blur(32px) saturate(70%); transition:filter .3s ease; cursor:pointer;}
 .content-blurred:hover{filter:blur(18px) saturate(70%);}
 .content-blur-revealed{filter:none;}
@@ -1242,6 +1310,7 @@ body.tv-mode .main { padding-bottom: 52px; } /* room for D-pad hint bar */
 </div>
 
 <div class="overlay" id="modalOverlay"><div class="modal" id="modalBody"></div></div>
+<div class="shortcuts-overlay" id="shortcutsOverlay"><div class="shortcuts-modal" id="shortcutsModal"></div></div>
 <div class="player-overlay" id="playerOverlay"></div>
 <div id="toast"></div>
 
@@ -1292,6 +1361,7 @@ const ICON = {
   subtitles:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><text x="12" y="15.5" font-size="8.5" font-weight="800" fill="currentColor" stroke="none" text-anchor="middle" font-family="Arial, sans-serif">CC</text></svg>',
   restart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>',
   lock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
+  help:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 4.8 1c0 1.5-2.3 1.8-2.3 3.3"/><circle cx="12" cy="17" r=".6" fill="currentColor" stroke="none"/></svg>',
   unlock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.7-1.5"/></svg>',
   brightness:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>',
 };
@@ -3381,6 +3451,49 @@ function setEpisodeRating(itemId, seasonNum, epNum, rating){
   document.getElementById('pageRoot').innerHTML = renderDetail(itemId);
   toast(ep.myRating ? `Episode rated ${ep.myRating} star${ep.myRating>1?'s':''}` : 'Episode rating cleared');
 }
+// Small lookup shared by the player's end-card — finds the exact episode object currently loaded
+// (by season/episode number) so its rating can be read/written directly.
+function findPlayerEpisode(item, seasonNum, epNum){
+  const season = (item.seasons||[]).find(s=>s.number===seasonNum);
+  return season && (season.episodes||[]).find(e=>e.number===epNum);
+}
+// Star row for the PLAYBACK END CARD specifically — deliberately separate from ratingWidgetHtml()/
+// episodeMiniStarsHtml() above, whose onclick handlers re-render the whole detail page. That's fine
+// on the detail page itself, but the player overlay sits on top of (and hides) pageRoot, so doing
+// that here would silently update a page the user can't see instead of the stars they're looking
+// at. setPlayerRating() below repaints just this row in place instead.
+function playerEndCardStarsHtml(item){
+  const p = state.player;
+  const rating = item.type==='movie' ? (item.myRating||0) : ((findPlayerEpisode(item, p.seasonNum, p.epNum)||{}).myRating||0);
+  let stars = '';
+  for(let i=1;i<=5;i++){
+    stars += `<button type="button" class="my-rating-star ${i<=rating?'is-filled':''}" title="Rate ${i} star${i>1?'s':''}" onclick="event.stopPropagation(); setPlayerRating(${i})">${starSvg(i<=rating)}</button>`;
+  }
+  return stars;
+}
+// Rates whatever the player currently has loaded (movie, or the specific episode) and repaints
+// just the end-card's star row — saveLib() persists it exactly like every other rating write, so
+// the detail page picks up the change next time it renders normally.
+function setPlayerRating(rating){
+  const p = state.player;
+  if(!p) return;
+  const item = getItem(p.itemId);
+  if(!item) return;
+  let newRating;
+  if(item.type === 'movie'){
+    item.myRating = (item.myRating===rating) ? 0 : rating;
+    newRating = item.myRating;
+  } else {
+    const ep = findPlayerEpisode(item, p.seasonNum, p.epNum);
+    if(!ep) return;
+    ep.myRating = (ep.myRating===rating) ? 0 : rating;
+    newRating = ep.myRating;
+  }
+  saveLib();
+  const starsEl = document.getElementById('playerEndCardStars');
+  if(starsEl) starsEl.innerHTML = playerEndCardStarsHtml(item);
+  toast(newRating ? `Rated ${newRating} star${newRating>1?'s':''}` : 'Rating cleared');
+}
 function deleteItem(id){
   if(!confirm('Delete this title permanently?')) return;
   state.lib.items = state.lib.items.filter(i=>i.id!==id);
@@ -4089,6 +4202,70 @@ function closeModal(){
 document.getElementById('modalOverlay').addEventListener('click', e=>{
   if(e.target.id==='modalOverlay') closeModal();
 });
+
+/* =========================================================
+   KEYBOARD SHORTCUTS CHEAT SHEET ('?')
+   ---------------------------------------------------------
+   A static reference of every keybinding actually wired up in GLOBAL KEYS below — kept as one
+   small function so the list can never silently drift out of sync with reality: whenever a
+   shortcut is added/changed there, update shortcutsOverlayHtml() in the same breath.
+========================================================= */
+function toggleShortcutsOverlay(){
+  const el = document.getElementById('shortcutsOverlay');
+  if(!el) return;
+  el.classList.contains('open') ? closeShortcutsOverlay() : openShortcutsOverlay();
+}
+function openShortcutsOverlay(){
+  const modal = document.getElementById('shortcutsModal');
+  const overlay = document.getElementById('shortcutsOverlay');
+  if(!modal || !overlay) return;
+  modal.innerHTML = shortcutsOverlayHtml();
+  overlay.classList.add('open');
+}
+function closeShortcutsOverlay(){
+  const overlay = document.getElementById('shortcutsOverlay');
+  if(overlay) overlay.classList.remove('open');
+}
+document.getElementById('shortcutsOverlay').addEventListener('click', e=>{
+  if(e.target.id==='shortcutsOverlay') closeShortcutsOverlay();
+});
+function shortcutsOverlayHtml(){
+  const row = (keys, desc, hint)=>`
+    <div class="shortcut-row">
+      <div><div class="shortcut-row-desc">${desc}</div>${hint?`<div class="shortcut-row-hint">${hint}</div>`:''}</div>
+      <div class="shortcut-keys">${keys}</div>
+    </div>`;
+  const k = label=>`<kbd class="key">${label}</kbd>`;
+  return `
+    <div class="shortcuts-modal-head">
+      <h2>Keyboard Shortcuts</h2>
+      <button class="btn-icon" onclick="closeShortcutsOverlay()">${ICON.close}</button>
+    </div>
+    <div class="shortcuts-group">
+      <div class="shortcuts-group-label">General</div>
+      ${row(k('?'), 'Show this help')}
+      ${row(k('Esc'), 'Close player / dialog')}
+    </div>
+    <div class="shortcuts-group">
+      <div class="shortcuts-group-label">Playback</div>
+      ${row(k('Space'), 'Play / Pause')}
+      ${row(k('←')+k('→'), 'Seek back / forward 10s')}
+      ${row(k('[')+k(']'), 'Nudge subtitle sync −⅙s / +⅙s', 'Hold Shift for a full 1s jump')}
+    </div>
+    <div class="shortcuts-group">
+      <div class="shortcuts-group-label">Player</div>
+      ${row(k('F'), 'Toggle fullscreen')}
+      ${row(k('H'), 'Hide screen (privacy)')}
+      ${row(k('M'), 'Mute', 'Direct video sources only — a page can\u2019t mute audio inside a third-party iframe')}
+    </div>
+    <div class="shortcuts-group">
+      <div class="shortcuts-group-label">Seek Bar</div>
+      <div class="shortcuts-group-note">When the progress bar is focused (Tab to it, or click it):</div>
+      ${row(k('←')+k('→'), 'Fine seek ±5s')}
+      ${row(k('Home')+k('End'), 'Jump to start / end')}
+    </div>
+  `;
+}
 
 function openEditModal(id){
   state.editingId = id || null;
@@ -4850,6 +5027,7 @@ function renderPlayer(){
           <button class="btn-icon" id="playerBrightnessBtn" title="Brightness" onclick="event.stopPropagation(); toggleBrightnessPanel();">${ICON.brightness}</button>
           <button class="btn-icon" title="Hide screen" onclick="togglePlayerHide()">${ICON.eyeOff}</button>
           <button class="btn-icon" id="playerLockBtn" title="Lock controls" onclick="event.stopPropagation(); togglePlayerLock();">${ICON.lock}</button>
+          <button class="btn-icon" title="Keyboard shortcuts (?)" onclick="event.stopPropagation(); toggleShortcutsOverlay();">${ICON.help}</button>
         </div>
         <div class="player-top-fade">
           <button class="btn-icon" onclick="closePlayer()">${ICON.close}</button>
@@ -4914,7 +5092,6 @@ function renderPlayer(){
       </div>
       <div class="player-hover-zone" onmouseenter="scheduleHideControls()"></div>
     </div>
-    <div id="upNextBanner"></div>
     ${next ? `
     <div class="player-next-side" title="Next: S${next.seasonNum}E${next.ep.number} — ${esc(next.ep.title||('Episode '+next.ep.number)).replace(/"/g,'&quot;')}" onclick="playNextEpisode()">
       <div class="pns-thumb">${next.ep.thumbnail?`<img src="${esc(next.ep.thumbnail)}" alt="">`:''}<span class="pns-play-icon">${ICON.play}</span></div>
@@ -5014,7 +5191,8 @@ function renderPlayer(){
     }, 5000);
     vid.addEventListener('ended', ()=>{
       if(isFinite(vid.duration)) saveProgress(item, p.key, vid.duration, vid.duration, true);
-      if(next) showUpNextBanner(next);
+      p.playbackState = 'stopped';
+      showPlaybackEndCard(item, next);
     });
     vid.addEventListener('error', ()=>{
       hideSpinner();
@@ -5228,39 +5406,41 @@ function togglePlayerHide(){
   // (or the Hide Screen button / 'h' key) below, so there's only ever one path in and one path out.
   stage.appendChild(overlay);
 }
-function showUpNextBanner(next){
-  const el = document.getElementById('upNextBanner');
-  if(!el) return;
-  const totalSeconds = 8;
-  let seconds = totalSeconds;
-  el.innerHTML = `
-    <div class="up-next">
-      <div class="up-next-thumb">${next.ep.thumbnail?`<img src="${esc(next.ep.thumbnail)}" alt="">`:''}</div>
-      <div class="up-next-info">
-        <span class="up-next-label">Up Next</span>
-        <span class="up-next-title">${esc(next.ep.title||('Episode '+next.ep.number))}</span>
-        <div class="up-next-progress"><div id="upNextProgressBar"></div></div>
-      </div>
-      <div class="up-next-actions">
-        <button class="btn btn-primary" onclick="playNextEpisode()">${ICON.play} Play Now</button>
-        <button class="btn btn-ghost" onclick="cancelUpNext()">Cancel</button>
+// Called when a title actually finishes playing — a real 'ended' event for direct video/HLS
+// sources, or the existing watched-threshold proxy for third-party iframes (there is no real
+// 'ended' signal available across a cross-origin iframe; crossing ~90/95% is the closest thing we
+// have, and it already served as the sole "are we done" signal for the iframe path before this
+// feature existed). Takes over the stage with a Netflix-style end card: star rating for whatever
+// just finished, a Next Episode button (TV shows only, when a next episode exists), and an Exit
+// button. Unlike the pause cover, nothing underneath needs to be destroyed first — the title is
+// over either way — so this just fades in on top; Next Episode / Exit each tear the player down
+// and rebuild fresh via their own existing functions (playNextEpisode / closePlayer).
+function showPlaybackEndCard(item, next){
+  const stage = document.getElementById('playerStage');
+  const p = state.player;
+  if(!stage || !p || document.getElementById('playerEndCard')) return; // never stack a 2nd one
+  const isMovie = item.type === 'movie';
+  const bg = item.backdrop || item.poster || '';
+
+  const card = document.createElement('div');
+  card.id = 'playerEndCard';
+  card.className = 'player-end-card';
+  card.innerHTML = `
+    ${bg ? `<div class="player-end-card-bg" style="background-image:url('${esc(bg)}')"></div>` : ''}
+    <div class="player-end-card-content">
+      <span class="player-end-card-eyebrow">${isMovie ? "You've finished watching" : (next ? 'Episode complete' : 'Season complete')}</span>
+      <div class="player-end-card-title">${esc(item.title)}</div>
+      ${!isMovie && p.subtitle ? `<div class="player-end-card-sub">${esc(p.subtitle)}</div>` : ''}
+      <div class="player-end-card-stars" id="playerEndCardStars">${playerEndCardStarsHtml(item)}</div>
+      <div class="player-end-card-actions">
+        ${!isMovie && next ? `<button class="btn btn-primary" onclick="playNextEpisode()">${ICON.play} Next Episode</button>` : ''}
+        <button class="btn btn-ghost" onclick="closePlayer()">Exit</button>
       </div>
     </div>`;
-  const bar = document.getElementById('upNextProgressBar');
-  if(bar) bar.style.transition = `width ${totalSeconds}s linear`;
-  requestAnimationFrame(()=>{ if(bar) bar.style.width = '100%'; }); // triggers the CSS transition
-  state.player._upNextInterval = setInterval(()=>{
-    seconds--;
-    if(seconds<=0){
-      clearInterval(state.player._upNextInterval);
-      playNextEpisode();
-    }
-  }, 1000);
-}
-function cancelUpNext(){
-  if(state.player && state.player._upNextInterval) clearInterval(state.player._upNextInterval);
-  const el = document.getElementById('upNextBanner');
-  if(el) el.innerHTML = '';
+  stage.appendChild(card);
+  // Double rAF ensures the initial opacity:0 has actually painted before adding .visible, so the
+  // browser always animates the fade-in instead of occasionally skipping straight to it.
+  requestAnimationFrame(()=> requestAnimationFrame(()=> card.classList.add('visible')));
 }
 // ---------- Optional Supabase progress sync ----------
 // Purely additive and best-effort: localStorage (saveLib, above) is always the real source of
@@ -5383,7 +5563,6 @@ function cleanupPlayerTimers(){
   if(state.player){
     clearInterval(state.player._interval);
     clearInterval(state.player._watchTimer);
-    clearInterval(state.player._upNextInterval);
     clearInterval(state.player._blurInterval);
     state.player.playbackState = 'stopped';
     if(state.player._hls){ try{ state.player._hls.destroy(); }catch(e){} state.player._hls = null; }
@@ -5999,7 +6178,7 @@ function startIframeWatchTimer(item, p, next){
     sinceSave = 0;
     const watched = totalSeconds>0 && p._elapsedSeconds >= totalSeconds*getWatchedThreshold(p.seasonNum);
     saveProgress(item, p.key, p._elapsedSeconds, totalSeconds, watched);
-    if(watched){ p.playbackState = 'stopped'; clearInterval(p._watchTimer); if(next) showUpNextBanner(next); }
+    if(watched){ p.playbackState = 'stopped'; clearInterval(p._watchTimer); showPlaybackEndCard(item, next); }
   }, 1000);
 }
 // Syncs the bottom-bar progress fill/handle/time-labels to p._elapsedSeconds / p._totalSeconds.
@@ -6440,8 +6619,18 @@ function mountResumedIframe(item, p, onMounted, loadingLabel){
 ========================================================= */
 document.addEventListener('keydown', e=>{
   if(e.key==='Escape'){
+    if(document.getElementById('shortcutsOverlay').classList.contains('open')){ closeShortcutsOverlay(); return; }
     if(document.getElementById('playerOverlay').classList.contains('open')) closePlayer();
     else if(document.getElementById('modalOverlay').classList.contains('open')) closeModal();
+    return;
+  }
+  // '?' — keyboard shortcuts cheat sheet. Works from anywhere (browsing or mid-playback), except
+  // while actually typing in a field, where a literal '?' character should just be typed normally.
+  if(e.key==='?'){
+    const focusedTag = (document.activeElement && document.activeElement.tagName) || '';
+    if(focusedTag==='INPUT' || focusedTag==='TEXTAREA' || focusedTag==='SELECT') return;
+    e.preventDefault();
+    toggleShortcutsOverlay();
     return;
   }
   const playerOpen = document.getElementById('playerOverlay').classList.contains('open');
@@ -6461,11 +6650,25 @@ document.addEventListener('keydown', e=>{
     adjustSubtitleOffset(e.key===']' ? step : -step);
     return;
   }
-  if(!vid) return; // remaining shortcuts only apply to direct video sources, not third-party iframes
-  if(e.key===' ' || e.code==='Space'){ e.preventDefault(); vid.paused ? vid.play() : vid.pause(); }
-  else if(e.key==='ArrowRight'){ e.preventDefault(); vid.currentTime = Math.min(vid.duration||Infinity, vid.currentTime+10); }
-  else if(e.key==='ArrowLeft'){ e.preventDefault(); vid.currentTime = Math.max(0, vid.currentTime-10); }
-  else if(e.key==='m' || e.key==='M'){ e.preventDefault(); vid.muted = !vid.muted; }
+  // Space / Left / Right work for BOTH direct <video> sources and third-party iframe embeds — the
+  // iframe branch routes through togglePlayerPlayPause()/seekPlayer(), the exact same fake-pause/
+  // seek machinery the on-screen buttons already use (see PLAYBACK MANAGER). 'M' (mute) stays
+  // direct-video-only below: there's no way for a parent page to mute audio inside a cross-origin
+  // iframe at all, so it's left off entirely for embeds rather than silently doing nothing.
+  if(e.key===' ' || e.code==='Space'){ e.preventDefault(); togglePlayerPlayPause(); return; }
+  if(e.key==='ArrowRight'){
+    e.preventDefault();
+    if(vid) vid.currentTime = Math.min(vid.duration||Infinity, vid.currentTime+10);
+    else if(state.player && state.player._embedBaseUrl && !state.player.isLive) seekPlayer(10);
+    return;
+  }
+  if(e.key==='ArrowLeft'){
+    e.preventDefault();
+    if(vid) vid.currentTime = Math.max(0, vid.currentTime-10);
+    else if(state.player && state.player._embedBaseUrl && !state.player.isLive) seekPlayer(-10);
+    return;
+  }
+  if(vid && (e.key==='m' || e.key==='M')){ e.preventDefault(); vid.muted = !vid.muted; }
 });
 
 /* =========================================================
