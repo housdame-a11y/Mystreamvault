@@ -595,8 +595,9 @@ a{color:inherit; text-decoration:none;}
 .player-top-actions{display:flex; align-items:center; gap:8px;}
 .player-top-actions .btn-icon{background:rgba(22,25,35,.6); border-color:rgba(255,255,255,.12);}
 .player-top-actions .btn-icon:hover{background:rgba(22,25,35,.9);}
-/* Hide screen + Mute stay put — always visible/clickable, in and out of fullscreen, regardless of
-   the auto-hide-on-inactivity timer that fades the rest of the controls. */
+/* Hide screen + Lock stay put — always visible/clickable, in and out of fullscreen, regardless of
+   the auto-hide-on-inactivity timer that fades the rest of the controls (and, for Lock, regardless
+   of the locked state itself — see .controls-locked below). */
 .player-top-pinned{display:flex; align-items:center; gap:8px;}
 .player-top-fade{display:flex; align-items:center; gap:8px; transition:opacity .4s ease;}
 .player-stage{flex:1; position:relative; background:#000;}
@@ -819,6 +820,18 @@ a{color:inherit; text-decoration:none;}
 .player-overlay.controls-hidden .player-next-side{
   opacity:0; pointer-events:none;
 }
+/* LOCK: hides every player control except the Hide Screen button and the Lock button itself
+   (top-pinned, so both stay reachable to unlock) — guards against accidental taps while the video
+   is, say, in a pocket or being handed to someone else. Uses !important so it wins regardless of
+   the double-tap-to-seek reveal (.center-skip-visible) or the auto-hide timer's own opacity rules. */
+.player-overlay.controls-locked .player-top-fade,
+.player-overlay.controls-locked #playerSubtitleBtn,
+.player-overlay.controls-locked .player-center-skip-group,
+.player-overlay.controls-locked .player-bottom,
+.player-overlay.controls-locked .player-next-side{
+  opacity:0 !important; pointer-events:none !important;
+}
+#playerLockBtn.is-active{background:var(--highlight-dim); border-color:var(--highlight); color:var(--highlight);}
 .up-next{
   position:absolute; bottom:100px; right:24px; z-index:6; display:flex; align-items:center; gap:14px;
   background:rgba(10,11,16,.94); border:1px solid #232837; border-radius:14px; padding:14px; max-width:400px;
@@ -1235,6 +1248,9 @@ const ICON = {
   skipBack20:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.51 11a9 9 0 1 1 .5 4.5"/><path d="M3 5v6h6"/><text x="12.3" y="15.7" font-size="7.2" font-weight="800" fill="currentColor" stroke="none" text-anchor="middle" font-family="Arial, sans-serif">20</text></svg>',
   skipForward20:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.49 11a9 9 0 1 0-.5 4.5"/><path d="M21 5v6h-6"/><text x="11.7" y="15.7" font-size="7.2" font-weight="800" fill="currentColor" stroke="none" text-anchor="middle" font-family="Arial, sans-serif">20</text></svg>',
   subtitles:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><text x="12" y="15.5" font-size="8.5" font-weight="800" fill="currentColor" stroke="none" text-anchor="middle" font-family="Arial, sans-serif">CC</text></svg>',
+  restart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>',
+  lock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
+  unlock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.7-1.5"/></svg>',
 };
 function heartSvg(filled){
   return `<svg viewBox="0 0 24 24" fill="${filled?'currentColor':'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-10-9.1C.5 8.6 2 5 5.5 5c2 0 3.3 1 4.5 2.5C11.2 6 12.5 5 14.5 5 18 5 19.5 8.6 22 11.9 19.5 16.4 12 21 12 21z"/></svg>`;
@@ -4785,7 +4801,7 @@ function renderPlayer(){
         <div class="player-top-pinned">
           <button class="btn-icon" id="playerSubtitleBtn" title="Subtitles" onclick="toggleSubtitlePanel()">${ICON.subtitles}</button>
           <button class="btn-icon" title="Hide screen" onclick="togglePlayerHide()">${ICON.eyeOff}</button>
-          <button class="btn-icon" id="playerMuteBtn" title="Mute" onclick="togglePlayerMute()">${ICON.volumeOn}</button>
+          <button class="btn-icon" id="playerLockBtn" title="Lock controls" onclick="event.stopPropagation(); togglePlayerLock();">${ICON.lock}</button>
         </div>
         <div class="player-top-fade">
           <button class="btn-icon" onclick="closePlayer()">${ICON.close}</button>
@@ -4862,6 +4878,7 @@ function renderPlayer(){
       </div>` : `<div class="player-bottom-progress"></div>`}
       <div class="player-bottom-right">
         ${p.sources.length>1 ? `<button class="btn btn-ghost" onclick="tryNextSource()">Try Next Source</button>` : ''}
+        ${embed.kind==='iframe' && !isLive ? `<button class="btn-icon" id="playerRestartBtn" title="Restart" onclick="event.stopPropagation(); restartPlayer();">${ICON.restart}</button>` : ''}
         <button class="btn-icon" id="playerFullscreenBtn" title="Fullscreen" onclick="togglePlayerFullscreen()">${ICON.expand}</button>
       </div>
     </div>
@@ -4872,6 +4889,10 @@ function renderPlayer(){
   // applyPlayerClickShield() itself no-ops when there's no #playerIframeEl (video/hls/live-without-
   // iframe), so it's safe to call unconditionally on every render.
   applyPlayerClickShield();
+  // Double-tap anywhere on the stage toggles Hide Screen — highest priority, works locked or
+  // unlocked, live or on-demand. See initPlayerHideGesture for why capture-phase binding is what
+  // makes that guarantee possible.
+  initPlayerHideGesture();
 
   const isVideoLike = embed.kind==='video' || embed.kind==='hls';
   const stageEl = document.getElementById(isVideoLike ? 'playerVideoEl' : 'playerIframeEl');
@@ -5039,6 +5060,37 @@ function applyPlayerClickShield(){
   stage.appendChild(shield);
 }
 let centerSkipHideTimer = null;
+// Double-tap-anywhere-on-the-video gesture for Hide Screen. Bound directly on #playerStage in the
+// CAPTURE phase, which is what gives it "highest priority": a capture-phase listener runs on the way
+// DOWN to the actual click target, before that target's own bubble-phase handlers (the click shield's
+// revealCenterSkipButtons, the hide overlay's own content, a native <video> element, etc.) ever see
+// the event — so on a genuine double-tap this stops the event right here and none of those other
+// handlers fire at all. It is bound once per stage element (stage._hideGestureBound guards against
+// rebinding on the fullscreen/shield-reassert paths, which don't recreate the stage) and, crucially,
+// is never touched by .controls-locked — that CSS only hides specific buttons/panels, it has no
+// effect on this listener, so the gesture keeps working identically whether the player is locked or
+// not. Calls the exact same togglePlayerHide() the button and the 'h' shortcut call — there is only
+// ever one Hide Screen implementation.
+const HIDE_GESTURE_MAX_GAP_MS = 350; // standard double-tap/double-click timing window
+let lastStageTapAt = 0;
+function initPlayerHideGesture(){
+  const stage = document.getElementById('playerStage');
+  if(!stage || stage._hideGestureBound) return;
+  stage._hideGestureBound = true;
+  stage.addEventListener('click', e=>{
+    // Leave the subtitle search panel's own controls (input/select/buttons) alone — this gesture is
+    // for "anywhere on the video", not for double-clicking inside a text field.
+    if(e.target.closest('#subtitlePanel')) return;
+    const now = Date.now();
+    const isDoubleTap = (now - lastStageTapAt) <= HIDE_GESTURE_MAX_GAP_MS;
+    lastStageTapAt = isDoubleTap ? 0 : now; // reset on a hit so a rapid triple-tap can't re-toggle
+    if(!isDoubleTap) return; // first tap of a pair — let it bubble normally (e.g. reveal skip buttons)
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    togglePlayerHide();
+  }, true); // capture phase: always runs first, locked or unlocked, hidden or not
+}
 // Shows the centered ±20s buttons (see player-center-skip-group) and schedules them to fade back
 // out shortly after, same "tap to reveal, then disappear" pattern most video players use for their
 // transport controls. No-ops if this source doesn't have the buttons at all (video/hls/live).
@@ -5079,32 +5131,26 @@ function togglePlayerPlayPause(){
   if(!p || p.isLive) return; // live channels have nothing meaningful to "resume" into
   if(p.fakePaused) fakeResumePlayer(); else fakePausePlayer();
 }
-function togglePlayerMute(){
-  const btn = document.getElementById('playerMuteBtn');
-  if(!btn) return;
-  const vid = document.getElementById('playerVideoEl');
-  if(vid){
-    vid.muted = !vid.muted;
-    btn.title = vid.muted ? 'Unmute' : 'Mute';
-    btn.innerHTML = vid.muted ? ICON.volumeOff : ICON.volumeOn;
-    return;
-  }
-  // Third-party iframe sources (YouTube, Dailymotion, VidSrc, live TV) are cross-origin, so there's
-  // no reliable audio control — this is a best-effort postMessage attempt (works for YouTube-style
-  // players that support the postMessage API; harmless no-op otherwise) with the button's own state
-  // still tracked so it reflects the user's last choice.
-  const iframe = document.getElementById('playerIframeEl');
-  if(!iframe) return;
-  const willMute = btn.dataset.muted !== 'true';
-  try{ iframe.contentWindow.postMessage(JSON.stringify({event:'command', func: willMute?'mute':'unMute', args:[]}), '*'); }catch(e){}
-  btn.dataset.muted = willMute ? 'true' : 'false';
-  btn.title = willMute ? 'Unmute' : 'Mute';
-  btn.innerHTML = willMute ? ICON.volumeOff : ICON.volumeOn;
+// LOCK: toggles .controls-locked on the player overlay, which the CSS above uses to hide every
+// control except Hide Screen and Lock itself (top-pinned, so both stay reachable to unlock).
+// Purely a visual/pointer-events toggle — playback itself is completely untouched, so whatever's
+// already playing just keeps playing behind the now-hidden controls.
+function togglePlayerLock(){
+  const overlay = document.getElementById('playerOverlay');
+  const btn = document.getElementById('playerLockBtn');
+  if(!overlay || !btn) return;
+  const locked = overlay.classList.toggle('controls-locked');
+  btn.title = locked ? 'Unlock controls' : 'Lock controls';
+  btn.innerHTML = locked ? ICON.unlock : ICON.lock;
+  btn.classList.toggle('is-active', locked);
 }
 // A manual, on-demand "cover the screen" toggle — a plain opaque/blurred overlay placed on top of
 // the video. Unlike the AI-based Content Blur feature, this needs no pixel analysis at all, so it
 // works identically on direct video AND third-party iframes (VidSrc, live TV) — the one thing this
 // app's smart detection can never reach, a manual cover always can, since it's just visually on top.
+// The ONLY implementation of Hide Screen — called by the button, the 'h'/'H' shortcut, AND the
+// double-tap-anywhere-on-stage gesture (see initPlayerHideGesture) — there is deliberately no
+// second copy of this toggle anywhere.
 function togglePlayerHide(){
   const stage = document.getElementById('playerStage');
   if(!stage) return;
@@ -5113,8 +5159,9 @@ function togglePlayerHide(){
   const overlay = document.createElement('div');
   overlay.id = 'playerHideOverlay';
   overlay.className = 'player-hide-overlay';
-  overlay.innerHTML = `<div class="player-hide-icon">${ICON.eyeOff}</div><span>Screen Hidden — tap to reveal</span>`;
-  overlay.onclick = ()=> overlay.remove();
+  overlay.innerHTML = `<div class="player-hide-icon">${ICON.eyeOff}</div><span>Screen Hidden — double-tap to reveal</span>`;
+  // No click-to-reveal here on purpose: reveal happens exclusively through the double-tap gesture
+  // (or the Hide Screen button / 'h' key) below, so there's only ever one path in and one path out.
   stage.appendChild(overlay);
 }
 function showUpNextBanner(next){
@@ -5200,6 +5247,13 @@ function saveProgress(item, key, timestamp, duration, watched){
   // Only check on the moment an episode newly becomes watched — not on every 5-10s progress tick —
   // so this can't fire repeatedly while the same episode keeps playing.
   if(watched && !prevWatched) maybeAutoAddNextSeason(item, key);
+}
+// Wipes the saved watch-progress entry for this exact playback session (movie, or one episode key)
+// entirely — not just reset to a zero timestamp. Used by restartPlayer() so a restart genuinely
+// forgets where you were, rather than leaving a stale {timestamp:0} entry behind.
+function deleteProgress(item, key){
+  if(item && item.progress) delete item.progress[key];
+  saveLib();
 }
 // If the episode that just got marked watched was the last untracked one in its season, and TMDB
 // metadata is available for this show, silently pull in the next season's episode list (titles,
@@ -5303,7 +5357,7 @@ function closePlayer(){
     if(item) saveProgress(item, p.key, p._elapsedSeconds || 0, p._totalSeconds || 0, false);
   }
   cleanupPlayerTimers();
-  document.getElementById('playerOverlay').classList.remove('open','controls-hidden','center-skip-visible');
+  document.getElementById('playerOverlay').classList.remove('open','controls-hidden','center-skip-visible','controls-locked');
   setTimeout(()=>{ document.getElementById('playerOverlay').innerHTML=''; }, 260);
   state.player = null;
   router();
@@ -5698,6 +5752,31 @@ function buildResumeEmbedUrl(baseUrl, seconds){
     return `${clean}${sep}resumeAt=${secs}`;
   }
 }
+// Builds a restart embed src from the ORIGINAL base embed URL (never from a resumeAt-bearing one) —
+// used by restartPlayer() for both the Restart button and a progress-bar seek to 0. Every other
+// param the source URL carries (controls, overlay, showTitle, primaryColor, etc.) is left untouched:
+// this only ever strips resumeAt/t/startAt, forces autoplay=1, and appends a fresh cb= cache-buster
+// so the mirror can't silently reuse/resume a session it has cached under the old URL.
+function buildRestartEmbedUrl(baseUrl){
+  const stripped = stripResumeParam(baseUrl); // drops resumeAt= and legacy t=
+  try{
+    const u = new URL(stripped);
+    u.searchParams.delete('startAt'); // never let a leftover startAt survive a restart
+    u.searchParams.set('autoplay', '1');
+    u.searchParams.set('cb', String(Date.now()));
+    return u.toString();
+  }catch(e){
+    // Fallback for a malformed/relative URL the URL() constructor can't parse.
+    let out = stripped
+      .replace(/([?&])startAt=[^&]*&?/i, (m, sep) => sep==='?' ? '?' : '')
+      .replace(/[?&]$/, '');
+    if(!/[?&]autoplay=1(&|$)/i.test(out)){
+      out += `${out.includes('?') ? '&' : '?'}autoplay=1`;
+    }
+    out += `${out.includes('?') ? '&' : '?'}cb=${Date.now()}`;
+    return out;
+  }
+}
 // mm:ss, or h:mm:ss past the first hour — matches the "Resume at 30:42" style from the spec.
 function formatResumeTime(seconds){
   seconds = Math.max(0, Math.floor(seconds || 0));
@@ -5832,7 +5911,7 @@ function initPlayerProgressBar(){
 // of the three functions below — this is what actually stops rapid clicks from starting a second
 // iframe rebuild on top of one that's already running.
 function setPlaybackControlsBusy(busy){
-  ['playerPlayBtn','playerSkipBackBtn','playerSkipForwardBtn','playerProgressTrack'].forEach(id=>{
+  ['playerPlayBtn','playerSkipBackBtn','playerSkipForwardBtn','playerProgressTrack','playerRestartBtn'].forEach(id=>{
     const el = document.getElementById(id);
     if(el) el.classList.toggle('is-busy', busy);
   });
@@ -5939,14 +6018,20 @@ function performPlayerSeek(newTime){
   const cover = document.getElementById('playerPauseCover');
   if(!iframe && !cover) return; // stage not in a state we can seek from (e.g. mid-teardown)
 
-  p._playbackBusy = true;
-  setPlaybackControlsBusy(true);
-
   // Clamp into [0, duration] when duration is known; otherwise just floor at 0.
   const totalSeconds = p._totalSeconds || 0;
   const target = totalSeconds > 0
     ? Math.min(Math.max(0, newTime), totalSeconds)
     : Math.max(0, newTime);
+
+  // Seeking all the way back to 0 IS a restart — whether it came from dragging/clicking the
+  // progress bar to 0%, the Home key, or a -20s skip near the very start. Route through the exact
+  // same restartPlayer() implementation the Restart button uses rather than duplicating any of its
+  // steps here, so "restart" behaves identically no matter which control triggered it.
+  if(target <= 0){ restartPlayer(); return; }
+
+  p._playbackBusy = true;
+  setPlaybackControlsBusy(true);
 
   clearInterval(p._watchTimer);
   p.playbackState = 'loading'; // freeze the instant we commit to tearing the iframe down — nothing
@@ -6000,6 +6085,108 @@ function seekPlayerToPercent(pct){
   if(!p) return;
   const total = p._totalSeconds || 0;
   performPlayerSeek(total * Math.min(Math.max(pct, 0), 1));
+}
+// RESTART: the one and only "start over from frame zero" implementation. Shared by the Restart
+// button AND by performPlayerSeek (whenever a seek — progress-bar drag/click, Home key, or a skip
+// that lands at/before 0 — resolves to target 0), so restarting behaves identically no matter which
+// control triggered it. Steps, in order:
+//   1. stop the playback timer
+//   2. reset the elapsed position to 0
+//   3. delete (not just zero out) the saved watch progress for this session
+//   4. fully remove the existing iframe from the DOM
+//   5. mount a brand-new iframe on the same base embed URL, forced to autoplay=1, with no
+//      resumeAt/startAt, every other param preserved, plus a fresh cb= cache-buster
+//   6. once that iframe loads, restart the watch timer from 0:00 and leave the progress bar at 0
+function restartPlayer(){
+  const p = state.player;
+  if(!p || p.isLive || p._playbackBusy) return; // live channels have no "position" to restart
+  const item = getItem(p.itemId);
+  if(!item || !p._embedBaseUrl) return; // not a trackable iframe embed — nothing to rebuild
+
+  const iframe = document.getElementById('playerIframeEl');
+  const cover = document.getElementById('playerPauseCover');
+  if(!iframe && !cover) return; // stage not in a state we can restart from (e.g. mid-teardown)
+
+  p._playbackBusy = true;
+  setPlaybackControlsBusy(true);
+
+  // 1. Stop the playback timer.
+  clearInterval(p._watchTimer);
+  p.playbackState = 'loading'; // frozen until the fresh iframe actually finishes loading, below
+  // 2. Reset the current playback position to 0.
+  p._elapsedSeconds = 0;
+  p.fakePaused = false;
+  // 3. Clear/delete the saved watch progress for the current playback session.
+  deleteProgress(item, p.key);
+  updatePlayerProgressUI(); // snap the bar back to 0 immediately, don't wait for the reload
+
+  const rebuild = ()=>{
+    if(!state.player) return;
+    mountRestartedIframe(item, state.player, ()=>{ p._playbackBusy = false; setPlaybackControlsBusy(false); });
+    const labelEl = document.getElementById('playerLoadingLabel');
+    if(labelEl) labelEl.textContent = 'Restarting…';
+  };
+
+  // 4. Completely remove the existing iframe (or paused cover) from the DOM.
+  if(iframe){
+    iframe.classList.add('player-fade-out');
+    setTimeout(()=>{
+      if(iframe.isConnected) iframe.remove();
+      rebuild();
+    }, 380);
+  } else {
+    cover.classList.remove('visible');
+    setTimeout(()=>{
+      if(cover.isConnected) cover.remove();
+      rebuild();
+    }, 380);
+  }
+  setPlayerPlayIcon(true);
+}
+// Creates a brand-new iframe at buildRestartEmbedUrl(p._embedBaseUrl) — autoplay=1 forced, no
+// resumeAt/startAt, every other param preserved, plus a fresh cb= cache-buster — fades it in, and
+// restarts the watch timer from 0:00 once it loads. The restarted session then behaves identically
+// to a fresh open. onMounted (optional) fires once the iframe has been created and inserted — used
+// to clear the busy-lock in restartPlayer without waiting on the cross-origin 'load' event, which is
+// unreliable in timing (and sometimes never fires at all) for third-party embeds.
+function mountRestartedIframe(item, p, onMounted){
+  const stage = document.getElementById('playerStage');
+  if(!stage || !p._embedBaseUrl){ if(onMounted) onMounted(); return; }
+  const src = buildRestartEmbedUrl(p._embedBaseUrl);
+  console.debug('[StreamVault] iframe src ->', src); // verify: autoplay=1 present, no resumeAt/startAt, cb= present
+  const sandbox = state.settings.blockPopupAds ? 'allow-scripts allow-same-origin allow-forms allow-presentation' : '';
+
+  const iframe = document.createElement('iframe');
+  iframe.id = 'playerIframeEl';
+  iframe.className = 'player-fade-out'; // start invisible; fade to visible once inserted
+  iframe.src = src;
+  iframe.setAttribute('allow', 'autoplay; fullscreen; encrypted-media; picture-in-picture');
+  iframe.allowFullscreen = true;
+  iframe.loading = 'eager';
+  if(sandbox) iframe.setAttribute('sandbox', sandbox);
+
+  // Reuse the existing loading spinner (solid #000 background) so there's no white flash while
+  // the third-party page behind the iframe boots back up — same treatment as the very first open.
+  const loadingEl = document.getElementById('playerLoading');
+  const loadingLabelEl = document.getElementById('playerLoadingLabel');
+  if(loadingLabelEl) loadingLabelEl.textContent = 'Restarting…';
+  if(loadingEl) loadingEl.classList.remove('done');
+  stage.insertBefore(iframe, loadingEl || null);
+
+  requestAnimationFrame(()=> iframe.classList.remove('player-fade-out'));
+  let timerStarted = false;
+  const clearLoading = ()=>{
+    if(loadingEl) loadingEl.classList.add('done');
+    if(loadingLabelEl) loadingLabelEl.textContent = 'Loading stream…'; // reset for next time
+    // Iframe has finished loading — restart the playback timer from 0:00 (p._elapsedSeconds is
+    // already 0, set by restartPlayer before this ever mounted).
+    if(!timerStarted){ timerStarted = true; startIframeWatchTimer(item, p); }
+  };
+  iframe.addEventListener('load', clearLoading, {once:true});
+  setTimeout(clearLoading, 4000); // fallback in case the embed never fires 'load' cross-origin
+
+  applyPlayerClickShield(); // permanent shield — re-assert it in front of the freshly mounted iframe
+  if(onMounted) onMounted();
 }
 // Creates a brand-new iframe from the saved base embed URL + current elapsed time, fades it in,
 // and restarts the watch timer — the resumed/seeked session then behaves identically to a fresh
