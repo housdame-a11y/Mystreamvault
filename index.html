@@ -591,7 +591,7 @@ a{color:inherit; text-decoration:none;}
   letter-spacing:.04em; padding:2px 6px; border-radius:4px; margin-left:6px; border:1px solid rgba(61,219,217,.3);
 }
 .player-sub{font-size:12px; color:#8fa5a3; margin-top:2px;}
-.player-top-info{transition:opacity .4s ease;}
+.player-top-info{transition:opacity .25s ease;}
 .player-top-actions{display:flex; align-items:center; gap:8px;}
 .player-top-actions .btn-icon{background:rgba(22,25,35,.6); border-color:rgba(255,255,255,.12);}
 .player-top-actions .btn-icon:hover{background:rgba(22,25,35,.9);}
@@ -599,7 +599,7 @@ a{color:inherit; text-decoration:none;}
    the auto-hide-on-inactivity timer that fades the rest of the controls (and, for Lock, regardless
    of the locked state itself — see .controls-locked below). */
 .player-top-pinned{display:flex; align-items:center; gap:8px;}
-.player-top-fade{display:flex; align-items:center; gap:8px; transition:opacity .4s ease;}
+.player-top-fade{display:flex; align-items:center; gap:8px; transition:opacity .25s ease;}
 .player-stage{flex:1; position:relative; background:#000;}
 /* Wraps ONLY the iframe/video — never the loading overlay, subtitle overlay/panel, skip buttons,
    or click shield — so the Brightness control (PLAYER BRIGHTNESS, below) can filter just the video
@@ -746,7 +746,7 @@ kbd.key{
 .player-bottom{
   position:absolute; bottom:0; left:0; right:0; z-index:5; padding:14px 24px 18px;
   display:flex; align-items:center; gap:16px;
-  background:linear-gradient(0deg, rgba(0,0,0,.85), transparent); transition:opacity .4s ease;
+  background:linear-gradient(0deg, rgba(0,0,0,.85), transparent); transition:opacity .25s ease;
 }
 .player-bottom-left{display:flex; align-items:center; justify-content:flex-start; gap:4px; flex-shrink:0;}
 /* Holds current-time / scrubber / total-time — grows to fill whatever room is left between the
@@ -794,7 +794,7 @@ kbd.key{
   position:absolute; top:50%; right:24px; transform:translateY(-50%); z-index:6;
   width:52px; height:52px; border-radius:50%; overflow:hidden; cursor:pointer;
   border:2px solid rgba(61,219,217,.5); box-shadow:0 8px 20px rgba(0,0,0,.4);
-  transition:opacity .4s ease, transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+  transition:opacity .25s ease, transform var(--transition), box-shadow var(--transition), border-color var(--transition);
   animation:pnsRise .5s cubic-bezier(.16,1,.3,1) both;
 }
 @keyframes pnsRise{from{opacity:0; transform:translateY(calc(-50% + 14px));} to{opacity:1; transform:translateY(-50%);}}
@@ -917,12 +917,26 @@ kbd.key{
 }
 .player-subtitle-overlay:empty{display:none;}
 .player-subtitle-overlay span{
-  display:inline-block; background:rgba(0,0,0,.72); color:#fff; font-size:19px; font-weight:600;
+  display:inline-block; background:var(--sub-bg, rgba(0,0,0,.72)); color:var(--sub-color, #fff);
+  font-size:var(--sub-font-size, 19px); font-weight:600;
   line-height:1.35; padding:5px 12px; border-radius:4px; text-shadow:0 1px 3px rgba(0,0,0,.8);
 }
 @media (max-width:860px){
   .player-subtitle-overlay{bottom:16%;}
-  .player-subtitle-overlay span{font-size:14px; padding:4px 9px;}
+  .player-subtitle-overlay span{font-size:calc(var(--sub-font-size, 19px) * 0.74); padding:4px 9px;}
+}
+/* Settings > Subtitle Display live preview — a small mock "screen" so the sample line reads the
+   way it will over actual video, not just floating on the settings page's own background. */
+.subtitle-preview-box{
+  position:relative; border-radius:10px; padding:34px 16px; display:flex; align-items:flex-end;
+  justify-content:center; min-height:120px;
+  background:linear-gradient(160deg,#1c2030,#0a0b10 70%);
+  border:1px solid #232837; overflow:hidden;
+}
+.subtitle-preview-box span{
+  display:inline-block; background:var(--sub-bg, rgba(0,0,0,.72)); color:var(--sub-color, #fff);
+  font-size:var(--sub-font-size, 19px); font-weight:600; line-height:1.35; padding:5px 12px;
+  border-radius:4px; text-shadow:0 1px 3px rgba(0,0,0,.8); max-width:100%; text-align:center;
 }
 .player-overlay.controls-hidden .player-top-info,
 .player-overlay.controls-hidden .player-top-fade,
@@ -1409,8 +1423,16 @@ function loadSettings(){
     // user's preferred level carries over to the next title, not just the rest of this session.
     if(typeof s.playerBrightness !== 'number' || isNaN(s.playerBrightness)) s.playerBrightness = 1;
     s.playerBrightness = Math.min(1.5, Math.max(0.5, s.playerBrightness));
+    // Subtitle display customization (see SETTINGS > Subtitle Display and the ::cue / overlay CSS
+    // vars it drives) — how big, what color, and how opaque the subtitle background is, for both
+    // the SubDL overlay (embedded sources) and native <track> cues (direct video/hls sources).
+    if(!SUBTITLE_SIZE_PX[s.subtitleSize]) s.subtitleSize = 'medium';
+    if(!/^#[0-9a-fA-F]{6}$/.test(s.subtitleColor||'')) s.subtitleColor = '#ffffff';
+    if(!/^#[0-9a-fA-F]{6}$/.test(s.subtitleBgColor||'')) s.subtitleBgColor = '#000000';
+    if(typeof s.subtitleBgOpacity !== 'number' || isNaN(s.subtitleBgOpacity)) s.subtitleBgOpacity = 72;
+    s.subtitleBgOpacity = Math.min(100, Math.max(0, s.subtitleBgOpacity));
     return s;
-  }catch(e){ return {omdb:'',tmdb:'',subdl:'',vidsrcDomain:'vidsrc-embed.su', blockPopupAds:false, contentBlur:false, contentBlurLevel:'moderate', contentBlurModelUrl:'', scheduleCountry:'US', recentSearches:[], supabaseUrl:'', supabaseKey:'', playerBrightness:1}; }
+  }catch(e){ return {omdb:'',tmdb:'',subdl:'',vidsrcDomain:'vidsrc-embed.su', blockPopupAds:false, contentBlur:false, contentBlurLevel:'moderate', contentBlurModelUrl:'', scheduleCountry:'US', recentSearches:[], supabaseUrl:'', supabaseKey:'', playerBrightness:1, subtitleSize:'medium', subtitleColor:'#ffffff', subtitleBgColor:'#000000', subtitleBgOpacity:72}; }
 }
 function saveSettings(){ localStorage.setItem(SET_KEY, JSON.stringify(state.settings)); }
 
@@ -3562,6 +3584,39 @@ function renderSettings(){
         <button class="btn btn-primary" onclick="saveSubdlKey()">Save Key</button>
       </div>
       <div class="settings-section">
+        <h3>Subtitle Display</h3>
+        <p class="field-hint" style="margin-bottom:14px;">
+          Size, color, and background of subtitle text — applies everywhere subtitles show up, both the SubDL overlay on embedded sources and native subtitle tracks on direct video sources. Preview updates live as you adjust.
+        </p>
+        <div class="subtitle-preview-box" id="subtitlePreviewBox">
+          <span id="subtitlePreviewSpan">This is how your subtitles will look</span>
+        </div>
+        <div class="field" style="margin-top:16px;">
+          <label>Text Size</label>
+          <select id="subtitleSizeSelect" class="select-input" style="width:100%; border-radius:8px;" onchange="updateSubtitleDisplaySetting('subtitleSize', this.value)">
+            <option value="small" ${s.subtitleSize==='small'?'selected':''}>Small</option>
+            <option value="medium" ${s.subtitleSize==='medium'?'selected':''}>Medium</option>
+            <option value="large" ${s.subtitleSize==='large'?'selected':''}>Large</option>
+            <option value="xlarge" ${s.subtitleSize==='xlarge'?'selected':''}>Extra Large</option>
+          </select>
+        </div>
+        <div class="settings-row" style="margin-top:14px; gap:20px;">
+          <div class="field" style="flex:1;">
+            <label>Text Color</label>
+            <input type="color" id="subtitleColorInput" value="${esc(s.subtitleColor)}" oninput="updateSubtitleDisplaySetting('subtitleColor', this.value)" style="width:100%; height:38px; padding:2px; border-radius:8px; cursor:pointer; border:1px solid #232837; background:#08090d;">
+          </div>
+          <div class="field" style="flex:1;">
+            <label>Background Color</label>
+            <input type="color" id="subtitleBgColorInput" value="${esc(s.subtitleBgColor)}" oninput="updateSubtitleDisplaySetting('subtitleBgColor', this.value)" style="width:100%; height:38px; padding:2px; border-radius:8px; cursor:pointer; border:1px solid #232837; background:#08090d;">
+          </div>
+        </div>
+        <div class="field" style="margin-top:14px;">
+          <label>Background Opacity <span id="subtitleBgOpacityValue" style="color:var(--highlight); font-weight:800;">${s.subtitleBgOpacity}%</span></label>
+          <input type="range" id="subtitleBgOpacityInput" min="0" max="100" value="${s.subtitleBgOpacity}" oninput="updateSubtitleDisplaySetting('subtitleBgOpacity', this.value)" style="width:100%;">
+        </div>
+        <button class="btn btn-ghost" style="margin-top:14px;" onclick="resetSubtitleDisplay()">Reset to Default</button>
+      </div>
+      <div class="settings-section">
         <h3>Content Blur <span style="font-weight:600; color:var(--muted); text-transform:none;">(Beta)</span></h3>
         <div class="field">
           <div class="toggle-row">
@@ -3697,6 +3752,30 @@ function saveApiKeys(){
 function saveSubdlKey(){
   state.settings.subdl = document.getElementById('subdlKey').value.trim();
   saveSettings(); toast('SubDL key saved');
+}
+// Live-applies a single Subtitle Display setting: writes it to state + localStorage, re-derives
+// the --sub-* CSS vars and the ::cue style block (see applySubtitleDisplayStyle), and — since the
+// settings-page preview box uses those same vars — that's all it takes for the preview to update
+// too, no separate preview-rendering code needed. Opacity also needs its own % label refreshed.
+function updateSubtitleDisplaySetting(key, value){
+  if(key==='subtitleBgOpacity') value = Math.min(100, Math.max(0, parseInt(value,10)||0));
+  state.settings[key] = value;
+  saveSettings();
+  applySubtitleDisplayStyle();
+  if(key==='subtitleBgOpacity'){
+    const label = document.getElementById('subtitleBgOpacityValue');
+    if(label) label.textContent = value+'%';
+  }
+}
+function resetSubtitleDisplay(){
+  state.settings.subtitleSize = 'medium';
+  state.settings.subtitleColor = '#ffffff';
+  state.settings.subtitleBgColor = '#000000';
+  state.settings.subtitleBgOpacity = 72;
+  saveSettings();
+  applySubtitleDisplayStyle();
+  router(); // re-render Settings so the size/color/slider inputs reflect the reset values
+  toast('Subtitle display reset to default');
 }
 function saveVidsrcDomain(){
   state.settings.vidsrcDomain = document.getElementById('vidsrcDomain').value;
@@ -5600,22 +5679,43 @@ function cleanupPlayerTimers(){
   subtitleResults = [];
 }
 let controlsHideTimer = null;
+// Netflix-style auto-hide: controls are visible whenever playback starts (renderPlayer calls this
+// once on mount) and after every user interaction, then fade after 3s of inactivity. Never actually
+// hides while something else needs the controls/stage on top — a loading spinner, the end-of-
+// playback card, or an open popover/modal — so those always stay reachable and nothing flickers
+// hidden-then-immediately-shown underneath them.
+function isPlayerAutoHideSuspended(){
+  const loading = document.getElementById('playerLoading');
+  if(loading && !loading.classList.contains('done')) return true; // still buffering — keep controls up
+  if(document.getElementById('playerEndCard')) return true; // end card owns the stage now
+  const subPanel = document.getElementById('subtitlePanel');
+  if(subPanel && subPanel.classList.contains('open')) return true;
+  const brightPanel = document.getElementById('brightnessPanel');
+  if(brightPanel && brightPanel.classList.contains('open')) return true;
+  if(document.getElementById('modalOverlay')?.classList.contains('open')) return true;
+  if(document.getElementById('shortcutsOverlay')?.classList.contains('open')) return true;
+  return false;
+}
 function scheduleHideControls(){
   clearTimeout(controlsHideTimer);
   const overlay = document.getElementById('playerOverlay');
   if(overlay) overlay.classList.remove('controls-hidden');
   controlsHideTimer = setTimeout(()=>{
     const ov = document.getElementById('playerOverlay');
-    if(ov && ov.classList.contains('open')) ov.classList.add('controls-hidden');
-  }, 3200);
+    if(!ov || !ov.classList.contains('open')) return;
+    if(isPlayerAutoHideSuspended()){ scheduleHideControls(); return; } // check again once whatever's blocking it clears
+    ov.classList.add('controls-hidden');
+  }, 3000);
 }
-document.addEventListener('mousemove', e=>{
-  const overlay = document.getElementById('playerOverlay');
-  if(overlay && overlay.classList.contains('open')) scheduleHideControls();
-});
-document.addEventListener('touchstart', e=>{
-  const overlay = document.getElementById('playerOverlay');
-  if(overlay && overlay.classList.contains('open')) scheduleHideControls();
+// Any interaction anywhere on the player — mouse movement, a tap/click, touch, or dragging a
+// slider (progress/brightness) — resets the timer and, if controls had already faded, brings them
+// straight back. Bound on document (not just the stage) so it also covers the top/bottom bars,
+// side "next episode" button, and any popovers, exactly like the existing mousemove/touchstart pair.
+['mousemove','touchstart','touchmove','click','input'].forEach(evt=>{
+  document.addEventListener(evt, e=>{
+    const overlay = document.getElementById('playerOverlay');
+    if(overlay && overlay.classList.contains('open')) scheduleHideControls();
+  }, evt==='touchstart' || evt==='touchmove' ? {passive:true} : false);
 });
 function closePlayer(){
   // Last-chance save: the watch timer only ticks every 10s, so up to ~10s of progress could
@@ -5661,6 +5761,34 @@ const SUBTITLE_LANGS = [
 ];
 let subtitleResults = [];
 let subtitleTrackUrl = null; // current blob: URL backing the active <track> (video/hls path), revoked on replace/close
+
+/* ---- Subtitle display customization (Settings -> Subtitle Display) ----
+   Drives both the SubDL overlay (.player-subtitle-overlay span, for embedded/iframe sources) and
+   native <track> cues (::cue, for direct video/hls sources) from the same three settings, so the
+   two rendering paths always look identical to the user regardless of which one a given title uses. */
+const SUBTITLE_SIZE_PX = {small:15, medium:19, large:24, xlarge:30};
+function hexToRgba(hex, alpha){
+  hex = (hex||'#000000').replace('#','');
+  if(hex.length===3) hex = hex.split('').map(c=>c+c).join('');
+  const r = parseInt(hex.substring(0,2),16)||0, g = parseInt(hex.substring(2,4),16)||0, b = parseInt(hex.substring(4,6),16)||0;
+  return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+}
+// Pushes the current subtitle-display settings out to (1) CSS custom properties on :root, which
+// the overlay span reads live via var(), and (2) a dynamically-written ::cue style block, since
+// native WebVTT cue styling can't be reached with a plain CSS class. Called on load and on every
+// change from the settings page.
+function applySubtitleDisplayStyle(){
+  const s = state.settings;
+  const px = SUBTITLE_SIZE_PX[s.subtitleSize] || SUBTITLE_SIZE_PX.medium;
+  const bg = hexToRgba(s.subtitleBgColor || '#000000', (typeof s.subtitleBgOpacity==='number'?s.subtitleBgOpacity:72)/100);
+  const color = s.subtitleColor || '#ffffff';
+  document.documentElement.style.setProperty('--sub-font-size', px+'px');
+  document.documentElement.style.setProperty('--sub-color', color);
+  document.documentElement.style.setProperty('--sub-bg', bg);
+  let styleTag = document.getElementById('subtitleCueStyle');
+  if(!styleTag){ styleTag = document.createElement('style'); styleTag.id = 'subtitleCueStyle'; document.head.appendChild(styleTag); }
+  styleTag.textContent = 'video::cue{ font-size:' + px + 'px; color:' + color + '; background:' + bg + '; }';
+}
 
 /* ---- Per-source sync memory ----
    The overlay path (iframe embeds) has no real play-head to read, so all of its drift comes from
@@ -6996,6 +7124,7 @@ if(isTvMode()){
 setTimeout(makeFocusable, 200);
 window.addEventListener('hashchange', ()=> setTimeout(makeFocusable, 200));
 
+applySubtitleDisplayStyle(); // apply saved subtitle size/color/opacity before first render
 router();
 </script>
 </body>
