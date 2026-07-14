@@ -5023,7 +5023,7 @@ function renderPlayer(){
   // finish rebuilding).
   p.fakePaused = false;
   p._playbackBusy = false;
-  p._elapsedSeconds = resumeAtOpen;
+  setPlayerSyncPoint(resumeAtOpen);
   p._embedKind = embed.kind;
   // Duration/progress for iframe embeds now come EXCLUSIVELY from Vaplayer's own PLAYER_EVENT
   // postMessage (see the global listener in PLAYBACK MANAGER, below) — never from OMDb/TMDB
@@ -5593,6 +5593,7 @@ function cleanupPlayerTimers(){
     state.player.playbackState = 'stopped';
     if(state.player._hls){ try{ state.player._hls.destroy(); }catch(e){} state.player._hls = null; }
   }
+  stopProgressInterpolation(); // no local ticking should ever survive a teardown/source-switch
   clearTimeout(controlsHideTimer);
   clearTimeout(centerSkipHideTimer);
   if(subtitleTrackUrl){ URL.revokeObjectURL(subtitleTrackUrl); subtitleTrackUrl = null; }
@@ -6143,8 +6144,10 @@ window.addEventListener('message', (event)=>{
 
   // Real position/duration, straight from the embed — applied regardless of status, so the bar
   // is always accurate the moment playback does resume, even while we're not actively ticking.
+  // Every real progress value becomes a fresh interpolation sync point (see setPlayerSyncPoint) —
+  // this is the resync step that keeps local interpolation from ever drifting far from the truth.
   if(Number.isFinite(duration) && duration > 0) p._totalSeconds = duration;
-  if(Number.isFinite(progress)) p._elapsedSeconds = Math.max(0, progress);
+  if(Number.isFinite(progress)) setPlayerSyncPoint(progress);
 
   if(status === 'playing'){
     const justStarted = p.playbackState !== 'playing';
@@ -6154,12 +6157,14 @@ window.addEventListener('message', (event)=>{
       hidePlayerLoadingOverlay();
     }
     updatePlayerProgressUI();
+    startProgressInterpolation(); // begin/continue smoothly ticking the bar between events
     if(p.subtitleCues) updateSubtitleOverlay(p._elapsedSeconds); // only synced while confirmed playing
     // End-of-playback check runs on EVERY playing event (not just the throttled save below) so the
     // end screen never lags behind the real remaining time — see isNearPlaybackEnd for why this is
     // remaining real seconds from Vaplayer, never TMDB runtime or a percentage of it.
     if(isNearPlaybackEnd(p._elapsedSeconds, p._totalSeconds) && p.playbackState !== 'stopped'){
       p.playbackState = 'stopped';
+      stopProgressInterpolation();
       saveProgress(item, p.key, p._elapsedSeconds, p._totalSeconds, true);
       showPlaybackEndCard(item, getNextEpisode(item, p.seasonNum, p.epNum));
     } else {
@@ -6167,6 +6172,7 @@ window.addEventListener('message', (event)=>{
     }
   } else if(status === 'ended'){
     p.playbackState = 'stopped';
+    stopProgressInterpolation();
     updatePlayerProgressUI();
     saveProgress(item, p.key, p._totalSeconds || p._elapsedSeconds || 0, p._totalSeconds || 0, true);
     showPlaybackEndCard(item, getNextEpisode(item, p.seasonNum, p.epNum));
@@ -6177,7 +6183,10 @@ window.addEventListener('message', (event)=>{
     // the "pause subtitle updates while loading/buffering/recreating" behavior — subtitles simply
     // hold whatever they last showed until a real "playing" status (or an explicit seek/restart/
     // resume recalculation, see performPlayerSeek/restartPlayer/fakeResumePlayer) says otherwise.
+    // Stopping interpolation here is what makes a stall/buffer freeze the bar instead of letting
+    // it keep coasting forward on a guess.
     p.playbackState = status === 'paused' ? 'paused' : 'loading';
+    stopProgressInterpolation();
     updatePlayerProgressUI();
   }
 });
@@ -6296,14 +6305,18 @@ function formatResumeTime(seconds){
 // which is the only place that ever sets p.playbackState = 'playing' for an iframe embed from
 // here on. p._watchTimer / clearInterval(p._watchTimer) calls elsewhere are harmless no-ops now
 // that nothing ever creates that interval, and are left in place purely as defensive cleanup.
-// Syncs the bottom-bar progress fill/handle/time-labels to p._elapsedSeconds / p._totalSeconds.
-// Called on every PLAYER_EVENT, right after mount/resume, and immediately on a seek so the bar
-// never visibly lags behind whatever state.player actually holds.
-function updatePlayerProgressUI(){
+// Syncs the bottom-bar progress fill/handle/time-labels to p._elapsedSeconds / p._totalSeconds
+// (or to `displayElapsed`, when given — see the interpolation loop below, which passes its own
+// smoothly-advancing local guess each frame WITHOUT ever touching p._elapsedSeconds itself, so
+// saving/end-of-playback/subtitle logic elsewhere keeps reading only the last real synced value).
+// Called on every PLAYER_EVENT, right after mount/resume, immediately on a seek so the bar never
+// visibly lags behind whatever state.player actually holds, and on every animation frame in between
+// while actively playing.
+function updatePlayerProgressUI(displayElapsed){
   const p = state.player;
   if(!p) return;
   const total = p._totalSeconds || 0;
-  const elapsed = Math.max(p._elapsedSeconds || 0, 0);
+  const elapsed = Math.max(displayElapsed != null ? displayElapsed : (p._elapsedSeconds || 0), 0);
   const pct = total > 0 ? Math.min(100, (elapsed/total)*100) : 0;
   const fill = document.getElementById('playerProgressFill');
   const handle = document.getElementById('playerProgressHandle');
@@ -6319,6 +6332,66 @@ function updatePlayerProgressUI(){
   // the PLAYER_EVENT listener (only when player_status === "playing") plus explicit one-shot
   // recalculations at the exact moment of a seek/restart/resume — see updateSubtitleOverlay's own
   // doc comment for why bar UI and subtitle timing are no longer the same call.
+}
+// ---------------------------------------------------------------------------------------------
+// LOCAL PROGRESS INTERPOLATION — makes the bottom-bar progress bar move fluidly between the real
+// PLAYER_EVENT updates (which Vaplayer/VidSrc-family embeds only send every ~5s), instead of the
+// bar visibly jumping forward once per event.
+//
+// How it works: p._elapsedSeconds / p._syncedAt together are a "sync point" — the last real
+// position Vaplayer told us about (or a position we ourselves just explicitly set, e.g. a seek
+// target) paired with the real clock time (performance.now()) it was set at. While playback is
+// actively confirmed running, a requestAnimationFrame loop below computes
+//   displayed = p._elapsedSeconds + (now - p._syncedAt)
+// every frame and feeds ONLY that number into updatePlayerProgressUI — never into
+// p._elapsedSeconds itself. That keeps every other consumer of p._elapsedSeconds (localStorage
+// saves via saveIframeProgressThrottled, isNearPlaybackEnd, the subtitle overlay) reading nothing
+// but real synced positions, exactly as before; only the visual bar gets the smoothing.
+// Re-syncing is automatic and cheap: since the loop re-reads p._elapsedSeconds/p._syncedAt fresh
+// every frame rather than capturing them once, the next PLAYER_EVENT (or seek/restart/resume,
+// each of which updates both fields together — see setPlayerSyncPoint) is picked up on the very
+// next frame with no special-casing needed here.
+let progressAnimFrameId = null;
+// Stamps the current real position as the new interpolation sync point. MUST be called every time
+// p._elapsedSeconds is set to a value that should be treated as "accurate right now" — a real
+// PLAYER_EVENT, a seek target, a restart-to-0, an initial mount/resume position, etc. — so the
+// interpolation loop's elapsed-since-sync math always starts counting from the right moment
+// instead of drifting forward from a stale clock reading.
+function setPlayerSyncPoint(elapsedSeconds){
+  const p = state.player;
+  if(!p) return;
+  p._elapsedSeconds = Math.max(0, elapsedSeconds);
+  p._syncedAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+}
+// Starts the rAF loop if it isn't already running. Safe to call repeatedly (e.g. on every
+// "playing" PLAYER_EVENT) — it's a no-op once the loop is already ticking.
+function startProgressInterpolation(){
+  if(progressAnimFrameId != null) return;
+  const tick = ()=>{
+    const p = state.player;
+    // Only iframe embeds use this custom bar at all (native <video>/hls sources render the
+    // browser's own controls, which are already frame-smooth) — and only while playback is
+    // actually confirmed playing. Anything else (paused/loading/buffering/stopped/no player)
+    // stops the loop rather than keep spinning rAF for nothing.
+    if(!p || p._embedKind !== 'iframe' || p.playbackState !== 'playing'){
+      progressAnimFrameId = null;
+      return;
+    }
+    const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    const elapsedSinceSync = Math.max(0, (now - (p._syncedAt || now)) / 1000);
+    let displayed = (p._elapsedSeconds || 0) + elapsedSinceSync;
+    if(p._totalSeconds > 0) displayed = Math.min(displayed, p._totalSeconds);
+    updatePlayerProgressUI(displayed);
+    progressAnimFrameId = requestAnimationFrame(tick);
+  };
+  progressAnimFrameId = requestAnimationFrame(tick);
+}
+// Stops the rAF loop (pause, buffer/loading, seek, restart, resume-in-flight, teardown — anything
+// short of a confirmed "playing" status). The bar is left exactly where it last was; whoever
+// called this is responsible for calling updatePlayerProgressUI itself if it needs to snap the bar
+// to a new position (seek/restart already do this).
+function stopProgressInterpolation(){
+  if(progressAnimFrameId != null){ cancelAnimationFrame(progressAnimFrameId); progressAnimFrameId = null; }
 }
 // Wires up click-to-seek and drag-to-scrub on the bottom-bar progress track. Dragging only updates
 // the visual fill/handle/current-time label (a preview) — the actual seek (fade out → destroy
@@ -6402,6 +6475,7 @@ function fakePausePlayer(){
   p._playbackBusy = true;
   setPlaybackControlsBusy(true);
   clearInterval(p._watchTimer); // stop accruing "watched" time the instant Pause is pressed
+  stopProgressInterpolation(); // freeze the bar exactly where it is — no coasting while paused
   p.fakePaused = true;
   p.playbackState = 'paused';
   saveProgress(item, p.key, p._elapsedSeconds || 0, p._totalSeconds || 0, false); // save immediately —
@@ -6457,6 +6531,8 @@ function fakeResumePlayer(){
   p.fakePaused = false;
   p.playbackState = 'loading'; // frozen through the fade + iframe rebuild; the global PLAYER_EVENT
   // listener flips this back to 'playing' once the fresh iframe reports player_status === "playing"
+  stopProgressInterpolation();
+  setPlayerSyncPoint(p._elapsedSeconds || 0); // re-stamp now — the old sync clock is stale after the pause
   if(p.subtitleCues) updateSubtitleOverlay(p._elapsedSeconds || 0); // resume support: recalculate against the unchanged position immediately
   const finish = ()=>{ p._playbackBusy = false; setPlaybackControlsBusy(false); };
   // Bring the loading overlay back up now, before the pause cover is even destroyed — see the
@@ -6518,7 +6594,8 @@ function performPlayerSeek(newTime){
   p.playbackState = 'loading'; // freeze the instant we commit to tearing the iframe down — nothing
   // moves the bar again until the global PLAYER_EVENT listener sees player_status === "playing"
   // from the rebuilt iframe
-  p._elapsedSeconds = target;
+  stopProgressInterpolation();
+  setPlayerSyncPoint(target);
   p.fakePaused = false; // a seek always resumes playback, even if the title was paused when pressed
   // Persist the new position immediately — Resume Playback and Watch Progress (continue-watching
   // rows, "watched" checkmarks, etc.) all read straight from item.progress, so this keeps them in
@@ -6603,8 +6680,9 @@ function restartPlayer(){
   // 1. Stop the playback timer.
   clearInterval(p._watchTimer);
   p.playbackState = 'loading'; // frozen until the fresh iframe actually finishes loading, below
+  stopProgressInterpolation();
   // 2. Reset the current playback position to 0.
-  p._elapsedSeconds = 0;
+  setPlayerSyncPoint(0);
   p.fakePaused = false;
   // 3. Clear/delete the saved watch progress for the current playback session.
   deleteProgress(item, p.key);
