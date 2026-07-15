@@ -441,6 +441,22 @@ a{color:inherit; text-decoration:none;}
 .detail-cast{margin-bottom:22px;}
 .detail-cast-label{display:block; font-size:11px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:9px;}
 .detail-cast-tags{display:flex; flex-wrap:wrap; gap:8px;}
+.cast-character{color:var(--highlight); font-weight:600;}
+.detail-tagline{color:var(--muted); font-size:14.5px; font-style:italic; margin:-4px 0 12px;}
+.tag-cert{border-color:var(--highlight); color:var(--highlight);}
+.detail-director{font-size:13px; color:var(--muted); margin-bottom:12px;}
+.detail-director b{color:var(--text); font-weight:700;}
+.detail-awards{font-size:13px; color:var(--muted); margin:-6px 0 18px;}
+.tv-status-line{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px;}
+.tv-status-pill{padding:3px 10px; border-radius:20px; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.04em;}
+.tv-status-pill.is-airing{background:rgba(61,219,217,.16); color:var(--highlight);}
+.tv-status-pill.is-ended{background:#232837; color:var(--muted);}
+.tv-status-next{display:flex; align-items:center; gap:5px; font-size:12.5px; color:var(--muted);}
+.tv-status-next svg{width:14px; height:14px; flex-shrink:0;}
+.detail-ratings-row{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px;}
+.rating-badge{display:flex; flex-direction:column; align-items:center; justify-content:center; background:#161923; border:1px solid #232837; border-radius:8px; padding:6px 14px; min-width:64px;}
+.rating-badge b{font-size:15px; color:var(--text); line-height:1.2;}
+.rating-badge small{font-size:9.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; font-weight:700; margin-top:2px;}
 .my-rating-widget{display:flex; align-items:center; gap:12px; margin-bottom:18px;}
 .my-rating-label{font-size:11px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.06em;}
 .my-rating-stars{display:flex; gap:2px;}
@@ -3385,15 +3401,21 @@ function renderDetail(id){
       <div class="detail-poster">${posterEl(item)}</div>
       <div class="detail-info">
         ${item.logo ? `<img class="detail-logo" src="${esc(item.logo)}" alt="${esc(item.title)}" ${contentBlurImgAttrs()} onerror="this.replaceWith(Object.assign(document.createElement('h2'),{textContent:'${esc(item.title).replace(/'/g,"\\'")}'}))">` : `<h2>${esc(item.title)}</h2>`}
+        ${item.tagline ? `<p class="detail-tagline">${esc(item.tagline)}</p>` : ''}
         <div class="detail-tags">
+          ${item.contentRating?`<span class="tag tag-cert">${esc(item.contentRating)}</span>`:''}
           ${item.year?`<span class="tag">${esc(item.year)}</span>`:''}
           ${item.runtime?`<span class="tag">${esc(item.runtime)}</span>`:''}
-          ${item.rating?`<span class="tag">★ ${esc(item.rating)}</span>`:''}
+          ${(!item.ratings||!item.ratings.length) && item.rating?`<span class="tag">★ ${esc(item.rating)}</span>`:''}
           ${(item.genre||[]).map(g=>`<span class="tag">${esc(g)}</span>`).join('')}
         </div>
+        ${item.director ? `<div class="detail-director">${item.type==='series'?'Created by':'Directed by'} <b>${esc(item.director)}</b></div>` : ''}
+        ${tvStatusLineHtml(item)}
+        ${ratingsBadgesHtml(item)}
         ${ratingWidgetHtml(item)}
         <p class="detail-desc">${esc(item.description||'No description added.')}</p>
-        ${(item.actors&&item.actors.length) ? `<div class="detail-cast"><span class="detail-cast-label">Starring</span><div class="detail-cast-tags">${item.actors.map(a=>`<span class="tag">${esc(a)}</span>`).join('')}</div></div>` : ''}
+        ${item.awards ? `<div class="detail-awards">🏆 ${esc(item.awards)}</div>` : ''}
+        ${castRowHtml(item)}
         <div class="detail-actions">
           <button class="btn-icon" title="Edit" onclick="openEditModal('${item.id}')">${ICON.edit}</button>
           <button class="btn-icon" title="Delete" style="color:#ff8b93; border-color:#3a1a1e;" onclick="deleteItem('${item.id}')">${ICON.trash}</button>
@@ -3443,6 +3465,44 @@ function watchProgressBannerHtml(item){
     </div>
     <div class="wpb-remaining">${summary.remaining} episode${summary.remaining===1?'':'s'} remaining</div>
   </div>`;
+}
+// Multi-source ratings row (IMDb / Rotten Tomatoes / Metacritic, whichever exist) — populated by
+// importFromImdb()/fetchOmdb() from OMDb's Ratings array. Falls back to the single item.rating tag
+// (usually a TMDB score) only when nothing more specific was ever fetched, so titles added by hand
+// still show *something* without implying multi-source data that was never actually pulled.
+function ratingsBadgesHtml(item){
+  const badges = (item.ratings||[]).filter(r=>r.value).map(r=>({label:r.source, value:r.value}));
+  if(!badges.length && item.rating) badges.push({label:'Rating', value:item.rating});
+  if(!badges.length) return '';
+  return `<div class="detail-ratings-row">${badges.map(b=>`<span class="rating-badge"><b>${esc(b.value)}</b><small>${esc(b.label)}</small></span>`).join('')}</div>`;
+}
+// TV-only: airing status (Returning/Ended/Canceled) plus when the next episode drops, if TMDB had one
+// scheduled at the time this was last fetched. Purely informational — doesn't touch progress tracking.
+function tvStatusLineHtml(item){
+  if(item.type!=='series') return '';
+  const next = item.nextEpisodeInfo;
+  if(!item.tvStatus && !(next && next.airDate)) return '';
+  let nextText = '';
+  if(next && next.airDate){
+    const d = new Date(next.airDate+'T00:00:00');
+    const dateStr = isNaN(d) ? next.airDate : d.toLocaleDateString(undefined,{month:'short', day:'numeric', year:'numeric'});
+    nextText = `Next: S${next.season}E${next.episode}${next.name?` "${next.name}"`:''} — ${dateStr}`;
+  }
+  return `<div class="tv-status-line">
+    ${item.tvStatus?`<span class="tv-status-pill ${/end|cancel/i.test(item.tvStatus)?'is-ended':'is-airing'}">${esc(item.tvStatus)}</span>`:''}
+    ${nextText?`<span class="tv-status-next">${ICON.schedule} ${esc(nextText)}</span>`:''}
+  </div>`;
+}
+// Prefers the richer TMDB-sourced cast (with character names) when available; falls back to the
+// plain "Starring" name chips for hand-entered titles or ones fetched before this existed.
+function castRowHtml(item){
+  if(item.cast && item.cast.length){
+    return `<div class="detail-cast"><span class="detail-cast-label">Full Cast</span><div class="detail-cast-tags">${item.cast.map(c=>`<span class="tag">${esc(c.name)}${c.character?`<span class="cast-character"> as ${esc(c.character)}</span>`:''}</span>`).join('')}</div></div>`;
+  }
+  if(item.actors && item.actors.length){
+    return `<div class="detail-cast"><span class="detail-cast-label">Starring</span><div class="detail-cast-tags">${item.actors.map(a=>`<span class="tag">${esc(a)}</span>`).join('')}</div></div>`;
+  }
+  return '';
 }
 function getSimilarLibraryItems(item, limit){
   limit = limit || 12;
@@ -3499,6 +3559,10 @@ function quickAddFromTmdb(tmdbId, type){
   state.editSeasons = [];
   state.editImdbMeta = null;
   state.editFormDraft = null;
+  state.editCast = [];
+  state.editRatings = [];
+  state.editTvStatus = '';
+  state.editNextEpisode = null;
   renderEditModal(null);
   applyTmdbDetails(tmdbId, type).then(info=>{
     state.editImdbMeta = {imdbId:null, tmdbId:info.tmdbId, trailerKey:info.trailerKey, trailerChecked:!!info.trailerKey};
@@ -3768,6 +3832,13 @@ function renderSettings(){
           Scans every stream URL in your library — movies, episodes, and live channels — to catch sources that have gone fully offline (dead domain, connection refused, timeout). Browsers can't read the actual response from another site, so this can't detect a source that loads but shows a 404 or an "unavailable" page — only ones that don't respond at all. Treat it as a first pass, not a guarantee.
         </p>
         <button class="btn btn-primary" onclick="openLinkHealthCheck()">${ICON.search} Check All Sources</button>
+      </div>
+      <div class="settings-section">
+        <h3>Library Metadata</h3>
+        <p class="field-hint" style="margin-bottom:14px;">
+          Re-fetches info-page details from TMDB (poster, backdrop, logo, description, tagline, cast, content rating, status, episode titles/thumbnails) for every TV show already in your library — handy after this app's info page gains new fields or styling, so older shows you added don't need to be re-added from scratch. Requires a TMDB API key above. <b>Your stream links (per-episode sources), watch progress, and episode ratings are never touched</b> — only metadata is refreshed.
+        </p>
+        <button class="btn btn-primary" onclick="updateAllTvShowsMetadata()">${ICON.restart} Update All TV Shows Info</button>
       </div>
       <div class="settings-section">
         <h3>Sync Between Devices</h3>
@@ -4445,6 +4516,10 @@ function openEditModal(id){
   state.editSeasons = item ? JSON.parse(JSON.stringify(item.seasons||[])) : [];
   state.editImdbMeta = item ? {imdbId:item.imdbId||null, tmdbId:item.tmdbId||null, trailerKey:item.trailerKey||'', trailerChecked:!!item.trailerChecked} : null;
   state.editFormDraft = null;
+  state.editCast = item ? JSON.parse(JSON.stringify(item.cast||[])) : [];
+  state.editRatings = item ? JSON.parse(JSON.stringify(item.ratings||[])) : [];
+  state.editTvStatus = item ? (item.tvStatus||'') : '';
+  state.editNextEpisode = item ? (item.nextEpisodeInfo||null) : null;
   renderEditModal(item);
 }
 // These 8 plain text fields only ever existed as live DOM input values, never captured into a JS
@@ -4458,7 +4533,8 @@ function captureEditFormDraft(){
   state.editFormDraft = {
     title: get('f_title'), year: get('f_year'), poster: get('f_poster'), backdrop: get('f_backdrop'),
     logo: get('f_logo'), desc: get('f_desc'), rating: get('f_rating'), runtime: get('f_runtime'),
-    panoramicBanner: get('f_panoramic'),
+    panoramicBanner: get('f_panoramic'), tagline: get('f_tagline'), director: get('f_director'),
+    contentRating: get('f_contentRating'), awards: get('f_awards'),
   };
 }
 function renderEditModal(item){
@@ -4483,6 +4559,7 @@ function renderEditModal(item){
       <div class="field" style="flex:2"><label>Title</label><input id="f_title" value="${esc(fv('title'))}" placeholder="e.g. Interstellar"></div>
       <div class="field"><label>Year</label><input id="f_year" value="${esc(fv('year'))}" placeholder="2014"></div>
     </div>
+    <div class="field"><label>Tagline <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional)</span></label><input id="f_tagline" value="${esc(fv('tagline'))}" placeholder="e.g. In space, no one can hear you scream"></div>
     <div style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
       <button class="btn btn-ghost" onclick="fetchOmdb()">Fetch from OMDb</button>
       <button class="btn btn-ghost" id="tmdbFetchBtn" onclick="fetchTmdbByTitle()">Fetch from TMDB</button>
@@ -4491,6 +4568,10 @@ function renderEditModal(item){
       <label>Genre</label>
       <div class="chip-select" id="genreChips">${genresPool.map(g=>`<button type="button" class="chip-btn ${state.editGenres.includes(g)?'active':''}" onclick="toggleGenre('${g.replace(/'/g,"\\'")}')">${esc(g)}</button>`).join('')}</div>
     </div>
+    <div class="field-row">
+      <div class="field"><label>Director / Creator <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional)</span></label><input id="f_director" value="${esc(fv('director'))}" placeholder="e.g. Christopher Nolan"></div>
+      <div class="field" style="max-width:140px;"><label>Content Rating <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional)</span></label><input id="f_contentRating" value="${esc(fv('contentRating'))}" placeholder="PG-13"></div>
+    </div>
     <div class="field">
       <label>Cast</label>
       <div class="actor-chips-wrap" id="actorChips">${actorChipsHtml()}</div>
@@ -4498,7 +4579,7 @@ function renderEditModal(item){
         <input id="actorInput" placeholder="Add actor name and press Enter" onkeydown="if(event.key==='Enter'){event.preventDefault(); addActorFromInput();}">
         <button type="button" class="btn-icon" title="Add actor" onclick="addActorFromInput()">${ICON.plus}</button>
       </div>
-      <div class="field-hint">Filled in automatically from OMDb, or add cast members manually.</div>
+      <div class="field-hint">Filled in automatically from OMDb, or add cast members manually. When you fetch from TMDB, each actor's character name is pulled in behind the scenes too and shown on the detail page.</div>
     </div>
     <div class="field-row">
       <div class="field"><label>Poster URL</label><input id="f_poster" value="${esc(fv('poster'))}" placeholder="https://..."></div>
@@ -4511,6 +4592,7 @@ function renderEditModal(item){
     </div>
     <div class="field"><label>Logo URL <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional, shown on the detail page instead of text title)</span></label><input id="f_logo" value="${esc(fv('logo'))}" placeholder="https://..."></div>
     <div class="field"><label>Description</label><textarea id="f_desc" placeholder="Synopsis...">${esc(fv('desc','description'))}</textarea></div>
+    <div class="field"><label>Awards <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional)</span></label><input id="f_awards" value="${esc(fv('awards'))}" placeholder="e.g. Won 4 Oscars"></div>
     <div class="field-row">
       <div class="field" style="max-width:140px;"><label>Rating</label><input id="f_rating" value="${esc(fv('rating'))}" placeholder="8.6"></div>
       <div class="field" style="max-width:160px;"><label>Runtime</label><input id="f_runtime" value="${esc(fv('runtime'))}" placeholder="148 min"></div>
@@ -4743,6 +4825,13 @@ function applySeasonsJsonImport(){
   toast(parts.length ? parts.join(', ').replace(/^./, c=>c.toUpperCase()) : 'Nothing to import');
 }
 
+// Normalizes OMDb's Ratings array (IMDb/Rotten Tomatoes/Metacritic, whichever it has) into plain
+// {source,value} pairs for the multi-source ratings row on the detail page. OMDb labels its own IMDb
+// entry "Internet Movie Database" — renamed here to the name people actually recognize.
+function normalizeOmdbRatings(data){
+  const src = (data && data.Ratings) || [];
+  return src.map(r=>({ source: r.Source==='Internet Movie Database' ? 'IMDb' : r.Source, value: r.Value }));
+}
 async function fetchOmdb(){
   const title = document.getElementById('f_title').value.trim();
   if(!title){ toast('Enter a title first'); return; }
@@ -4757,6 +4846,10 @@ async function fetchOmdb(){
     document.getElementById('f_desc').value = data.Plot && data.Plot!=='N/A' ? data.Plot : '';
     document.getElementById('f_rating').value = data.imdbRating && data.imdbRating!=='N/A' ? data.imdbRating : '';
     if(document.getElementById('f_runtime')) document.getElementById('f_runtime').value = data.Runtime && data.Runtime!=='N/A' ? data.Runtime : '';
+    if(document.getElementById('f_contentRating')) document.getElementById('f_contentRating').value = data.Rated && data.Rated!=='N/A' ? data.Rated : '';
+    if(document.getElementById('f_awards')) document.getElementById('f_awards').value = data.Awards && data.Awards!=='N/A' ? data.Awards : '';
+    if(data.Director && data.Director!=='N/A' && document.getElementById('f_director')) document.getElementById('f_director').value = data.Director;
+    state.editRatings = normalizeOmdbRatings(data);
     if(data.Genre) state.editGenres = data.Genre.split(',').map(g=>g.trim()).filter(Boolean);
     if(data.Actors && data.Actors!=='N/A') state.editActors = data.Actors.split(',').map(a=>a.trim()).filter(Boolean);
     if(data.imdbID) state.editImdbMeta = Object.assign({}, state.editImdbMeta, {imdbId:data.imdbID});
@@ -4769,6 +4862,9 @@ async function fetchOmdb(){
       document.getElementById('f_desc').value = data.Plot && data.Plot!=='N/A' ? data.Plot : '';
       document.getElementById('f_rating').value = data.imdbRating && data.imdbRating!=='N/A' ? data.imdbRating : '';
       if(document.getElementById('f_runtime')) document.getElementById('f_runtime').value = data.Runtime && data.Runtime!=='N/A' ? data.Runtime : '';
+      if(document.getElementById('f_contentRating')) document.getElementById('f_contentRating').value = data.Rated && data.Rated!=='N/A' ? data.Rated : '';
+      if(document.getElementById('f_awards')) document.getElementById('f_awards').value = data.Awards && data.Awards!=='N/A' ? data.Awards : '';
+      if(data.Director && data.Director!=='N/A' && document.getElementById('f_director')) document.getElementById('f_director').value = data.Director;
     }
     toast('Metadata fetched from OMDb');
   }catch(e){ toast('Failed to fetch metadata'); }
@@ -4779,7 +4875,10 @@ async function fetchOmdb(){
 // walks every season and pulls real episode titles + thumbnails (sources are left for you to add).
 async function applyTmdbDetails(tmdbId, tmdbType){
   const key = state.settings.tmdb;
-  const detailsRes = await fetch(`https://api.themoviedb.org/3/${tmdbType}/${tmdbId}?api_key=${encodeURIComponent(key)}&append_to_response=credits,videos,images&include_image_language=en,null`);
+  // release_dates (movie) / content_ratings (tv) is how TMDB exposes age/content ratings — only one
+  // of the two exists per title type, so it's picked based on tmdbType rather than requesting both.
+  const ratingsAppend = tmdbType==='movie' ? 'release_dates' : 'content_ratings';
+  const detailsRes = await fetch(`https://api.themoviedb.org/3/${tmdbType}/${tmdbId}?api_key=${encodeURIComponent(key)}&append_to_response=credits,videos,images,${ratingsAppend}&include_image_language=en,null`);
   const d = await detailsRes.json();
   if(d.success===false) throw new Error(d.status_message||'TMDB lookup failed');
 
@@ -4793,7 +4892,42 @@ async function applyTmdbDetails(tmdbId, tmdbType){
   const runtimeMinutes = tmdbType==='movie' ? d.runtime : (d.episode_run_time && d.episode_run_time[0]);
   const runtime = runtimeMinutes ? `${runtimeMinutes} min` : '';
   const overview = d.overview || '';
+  const tagline = d.tagline || '';
   const cast = ((d.credits && d.credits.cast) || []).slice(0,10).map(c=>c.name);
+  // Same cast slice, but keeping the character name too — used for the detail-page "Full Cast" row
+  // (state.editCast) rather than the plain "Starring" chip list (state.editActors), which stays
+  // free-text/manually-editable since not everyone importing has a TMDB key.
+  const castDetailed = ((d.credits && d.credits.cast) || []).slice(0,10).map(c=>({name:c.name, character:c.character||''}));
+  // Director (movies) pulled from the crew list; TV shows don't have a single "director" credit on
+  // the show level, so created_by (the showrunner/creator) is used instead — same field in the UI,
+  // just a different underlying source depending on type.
+  const director = tmdbType==='movie'
+    ? ((d.credits && d.credits.crew) || []).filter(c=>c.job==='Director').map(c=>c.name).join(', ')
+    : ((d.created_by||[]).map(c=>c.name).join(', '));
+  // US content rating (PG-13, TV-MA, etc.) — falls back to blank rather than another country's
+  // rating system, since mixing rating scales would be more confusing than just leaving it empty.
+  let contentRating = '';
+  if(tmdbType==='movie' && d.release_dates && d.release_dates.results){
+    const us = d.release_dates.results.find(r=>r.iso_3166_1==='US');
+    const cert = us && (us.release_dates||[]).map(rd=>rd.certification).find(c=>c);
+    if(cert) contentRating = cert;
+  } else if(tmdbType==='tv' && d.content_ratings && d.content_ratings.results){
+    const us = d.content_ratings.results.find(r=>r.iso_3166_1==='US');
+    if(us && us.rating) contentRating = us.rating;
+  }
+  // TV-only: whether the show is still airing, and when the next episode drops.
+  let tvStatus = '', nextEpisode = null;
+  if(tmdbType==='tv'){
+    tvStatus = d.status || '';
+    if(d.next_episode_to_air){
+      nextEpisode = {
+        season: d.next_episode_to_air.season_number,
+        episode: d.next_episode_to_air.episode_number,
+        name: d.next_episode_to_air.name || '',
+        airDate: d.next_episode_to_air.air_date || ''
+      };
+    }
+  }
   const logos = (d.images && d.images.logos) || [];
   const bestLogo = logos.find(l=>l.iso_639_1==='en') || logos[0];
   const logo = bestLogo ? `https://image.tmdb.org/t/p/original${bestLogo.file_path}` : '';
@@ -4802,6 +4936,9 @@ async function applyTmdbDetails(tmdbId, tmdbType){
 
   if(genres.length) state.editGenres = genres;
   if(cast.length) state.editActors = cast;
+  state.editCast = castDetailed;
+  state.editTvStatus = tvStatus;
+  state.editNextEpisode = nextEpisode;
 
   let episodeCount = 0, seasonCount = 0;
   if(tmdbType==='tv' && Array.isArray(d.seasons)){
@@ -4840,8 +4977,11 @@ async function applyTmdbDetails(tmdbId, tmdbType){
   setVal('f_desc', overview);
   setVal('f_rating', rating);
   setVal('f_runtime', runtime);
+  setVal('f_tagline', tagline);
+  setVal('f_director', director);
+  setVal('f_contentRating', contentRating);
 
-  return { tmdbId, trailerKey: trailerVid ? trailerVid.key : '', logo, seasonCount, episodeCount };
+  return { tmdbId, trailerKey: trailerVid ? trailerVid.key : '', logo, seasonCount, episodeCount, tvStatus, nextEpisode };
 }
 
 function setTmdbFetchBtnState(text, disabled){
@@ -4931,6 +5071,14 @@ async function importFromImdb(){
     setIfEmpty('f_desc', omdb.Plot);
     setIfEmpty('f_runtime', omdb.Runtime);
     if(omdb.imdbRating && omdb.imdbRating!=='N/A'){ const r=document.getElementById('f_rating'); if(r) r.value = omdb.imdbRating; }
+    // Director/content-rating: prefer whatever TMDB already filled in above; OMDb only fills the gap.
+    setIfEmpty('f_director', omdb.Director);
+    setIfEmpty('f_contentRating', omdb.Rated);
+    // Awards and the multi-source ratings row (Rotten Tomatoes / Metacritic alongside IMDb) only
+    // exist on OMDb — TMDB has no equivalent data — so these always come from here, not TMDB.
+    setIfEmpty('f_awards', omdb.Awards);
+    const omdbRatings = normalizeOmdbRatings(omdb);
+    if(omdbRatings.length) state.editRatings = omdbRatings;
 
     state.editImdbMeta = {
       imdbId,
@@ -4949,6 +5097,176 @@ async function importFromImdb(){
   }
 }
 
+// Bulk "Update Info" (Settings → Library Metadata): re-pulls TMDB metadata for a TV show you
+// already added, so the newer info-page fields (logo, tagline, cast, content rating, tvStatus,
+// next-episode countdown, episode thumbnails/overviews, etc.) get filled in on older library
+// entries — WITHOUT touching anything you've manually added: per-episode stream sources,
+// watch progress/ratings, or seasons/episodes that only exist locally. Mirrors the season/episode
+// shape applyTmdbDetails() builds for new imports, but merges into the saved item directly instead
+// of going through the (add/edit-only) state.editSeasons draft.
+async function refreshTvMetadataFromTmdb(item){
+  const key = state.settings.tmdb;
+  if(!key) throw new Error('No TMDB API key set');
+
+  let tmdbId = item.tmdbId;
+  if(!tmdbId){
+    // Item predates the tmdbId field (or was added manually) — resolve one by title/year search,
+    // same lookup "Fetch from TMDB" uses when adding.
+    const yearParam = item.year ? `&first_air_date_year=${encodeURIComponent(item.year)}` : '';
+    const searchRes = await fetch(`https://api.themoviedb.org/3/search/tv?api_key=${encodeURIComponent(key)}&query=${encodeURIComponent(item.title)}${yearParam}`);
+    const searchData = await searchRes.json();
+    if(searchData.success===false) throw new Error(searchData.status_message || 'TMDB search failed');
+    const match = searchData.results && searchData.results[0];
+    if(!match) throw new Error('No TMDB match found for "'+item.title+'"');
+    tmdbId = match.id;
+  }
+
+  const detailsRes = await fetch(`https://api.themoviedb.org/3/tv/${tmdbId}?api_key=${encodeURIComponent(key)}&append_to_response=credits,videos,images,content_ratings&include_image_language=en,null`);
+  const d = await detailsRes.json();
+  if(d.success===false) throw new Error(d.status_message || 'TMDB lookup failed');
+
+  const year = d.first_air_date ? d.first_air_date.split('-')[0] : item.year;
+  const poster = d.poster_path ? `https://image.tmdb.org/t/p/w780${d.poster_path}` : item.poster;
+  const backdrop = d.backdrop_path ? `https://image.tmdb.org/t/p/w1280${d.backdrop_path}` : item.backdrop;
+  const genres = (d.genres||[]).map(g=>g.name);
+  const rating = d.vote_average ? d.vote_average.toFixed(1) : item.rating;
+  const runtimeMinutes = d.episode_run_time && d.episode_run_time[0];
+  const runtime = runtimeMinutes ? `${runtimeMinutes} min` : item.runtime;
+  const overview = d.overview || item.description;
+  const tagline = d.tagline || item.tagline;
+  const cast = ((d.credits && d.credits.cast) || []).slice(0,10).map(c=>c.name);
+  const castDetailed = ((d.credits && d.credits.cast) || []).slice(0,10).map(c=>({name:c.name, character:c.character||''}));
+  const director = (d.created_by||[]).map(c=>c.name).join(', ');
+  let contentRating = item.contentRating;
+  if(d.content_ratings && d.content_ratings.results){
+    const us = d.content_ratings.results.find(r=>r.iso_3166_1==='US');
+    if(us && us.rating) contentRating = us.rating;
+  }
+  const tvStatus = d.status || item.tvStatus;
+  let nextEpisodeInfo = item.nextEpisodeInfo || null;
+  if(d.next_episode_to_air){
+    nextEpisodeInfo = {
+      season: d.next_episode_to_air.season_number,
+      episode: d.next_episode_to_air.episode_number,
+      name: d.next_episode_to_air.name || '',
+      airDate: d.next_episode_to_air.air_date || ''
+    };
+  } else if(d.status && d.status!=='Returning Series'){
+    nextEpisodeInfo = null;
+  }
+  const logos = (d.images && d.images.logos) || [];
+  const bestLogo = logos.find(l=>l.iso_639_1==='en') || logos[0];
+  const logo = bestLogo ? `https://image.tmdb.org/t/p/original${bestLogo.file_path}` : item.logo;
+
+  // Index existing episodes by season+episode number so their sources/rating/manual edits survive
+  // the rebuild below no matter how TMDB's own numbering has shifted around them.
+  const existing = {};
+  (item.seasons||[]).forEach(s=>{
+    (s.episodes||[]).forEach(e=>{ existing[s.number+'|'+e.number] = e; });
+  });
+
+  let seasons = item.seasons || [];
+  if(Array.isArray(d.seasons)){
+    const realSeasons = d.seasons.filter(s=>s.season_number>0);
+    const seasonsData = [];
+    for(const s of realSeasons){
+      try{
+        const seasonRes = await fetch(`https://api.themoviedb.org/3/tv/${tmdbId}/season/${s.season_number}?api_key=${encodeURIComponent(key)}`);
+        const seasonJson = await seasonRes.json();
+        const episodes = (seasonJson.episodes||[]).map(e=>{
+          const old = existing[s.season_number+'|'+e.episode_number];
+          return {
+            number: e.episode_number,
+            title: e.name || (old && old.title) || `Episode ${e.episode_number}`,
+            thumbnail: e.still_path ? `https://image.tmdb.org/t/p/w300${e.still_path}` : ((old && old.thumbnail) || ''),
+            overview: e.overview || (old && old.overview) || '',
+            runtime: e.runtime || (old && old.runtime) || null,
+            // The only two fields that matter to keep exactly as-is:
+            myRating: (old && old.myRating) || 0,
+            sources: (old && old.sources) || []
+          };
+        });
+        seasonsData.push({number: s.season_number, episodes});
+      }catch(e){
+        // A season failed to fetch — keep the local copy (sources and all) rather than dropping it.
+        const keep = (item.seasons||[]).find(x=>x.number===s.season_number);
+        if(keep) seasonsData.push(keep);
+      }
+    }
+    // Any local season TMDB doesn't report at all (manually added, or a lookup quirk) is kept as-is
+    // rather than silently deleted.
+    (item.seasons||[]).forEach(localS=>{
+      if(!seasonsData.find(x=>x.number===localS.number)) seasonsData.push(localS);
+    });
+    seasonsData.sort((a,b)=>a.number-b.number);
+    seasons = seasonsData;
+  }
+
+  Object.assign(item, {
+    tmdbId, year, poster, backdrop, logo,
+    genre: genres.length ? genres : item.genre,
+    actors: cast.length ? cast : item.actors,
+    cast: castDetailed.length ? castDetailed : item.cast,
+    description: overview, rating, runtime, tagline,
+    director: director || item.director,
+    contentRating, tvStatus, nextEpisodeInfo, seasons
+  });
+  return item;
+}
+async function updateAllTvShowsMetadata(){
+  if(!state.settings.tmdb){ toast('Add your TMDB API key in Settings first'); return; }
+  const shows = (state.lib.items||[]).filter(i=>i.type==='series');
+  if(!shows.length){ toast('No TV shows in your library'); return; }
+  openModal(`
+    <div class="modal-head"><h2>Updating TV Show Info</h2><button class="btn-icon" onclick="closeModal()">${ICON.close}</button></div>
+    <div style="text-align:center; padding:36px 0;">
+      <div class="spinner" style="margin:0 auto 18px auto;"></div>
+      <div id="tvUpdateProgressText" style="color:var(--muted); font-size:13px;">Updating 0 / ${shows.length}…</div>
+      <div id="tvUpdateCurrentTitle" style="color:var(--muted); font-size:12px; margin-top:6px; font-weight:700;"></div>
+    </div>
+  `);
+  const results = [];
+  for(let i=0;i<shows.length;i++){
+    const item = shows[i];
+    const progressText = document.getElementById('tvUpdateProgressText');
+    const currentTitle = document.getElementById('tvUpdateCurrentTitle');
+    if(progressText) progressText.textContent = `Updating ${i+1} / ${shows.length}…`;
+    if(currentTitle) currentTitle.textContent = item.title;
+    try{
+      await refreshTvMetadataFromTmdb(item);
+      results.push({title:item.title, ok:true});
+    }catch(e){
+      results.push({title:item.title, ok:false, error: e.message || 'Failed'});
+    }
+    saveLib(); // persist incrementally so an interrupted run doesn't lose earlier successes
+  }
+  renderTvUpdateReport(results);
+}
+function renderTvUpdateReport(results){
+  const failed = results.filter(r=>!r.ok);
+  const ok = results.filter(r=>r.ok);
+  openModal(`
+    <div class="modal-head"><h2>Update Complete</h2><button class="btn-icon" onclick="closeModal(); router();">${ICON.close}</button></div>
+    <div class="field-hint" style="margin-bottom:16px;">
+      Updated ${ok.length} of ${results.length} show${results.length===1?'':'s'}. Stream links, watch progress, and per-episode ratings were left exactly as they were.
+    </div>
+    ${failed.length ? `
+      <div style="font-size:12px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:8px;">Couldn't update (${failed.length})</div>
+      <div style="display:flex; flex-direction:column; gap:10px; max-height:320px; overflow-y:auto;">
+        ${failed.map(r=>`
+          <div class="link-health-row">
+            <div style="min-width:0;">
+              <div class="link-health-title">${esc(r.title)}</div>
+              <div class="link-health-url">${esc(r.error||'Failed')}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+    ` : ''}
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="closeModal(); router();">Done</button>
+    </div>
+  `);
+}
 function saveEditModal(){
   const title = document.getElementById('f_title').value.trim();
   if(!title){ toast('Title is required'); return; }
@@ -4965,7 +5283,17 @@ function saveEditModal(){
     description: document.getElementById('f_desc').value.trim(),
     rating: document.getElementById('f_rating').value.trim(),
     runtime: document.getElementById('f_runtime') ? document.getElementById('f_runtime').value.trim() : '',
+    tagline: document.getElementById('f_tagline') ? document.getElementById('f_tagline').value.trim() : '',
+    director: document.getElementById('f_director') ? document.getElementById('f_director').value.trim() : '',
+    contentRating: document.getElementById('f_contentRating') ? document.getElementById('f_contentRating').value.trim() : '',
+    awards: document.getElementById('f_awards') ? document.getElementById('f_awards').value.trim() : '',
+    cast: state.editCast || [],
+    ratings: state.editRatings || [],
   };
+  if(state.editType==='series'){
+    payload.tvStatus = state.editTvStatus || '';
+    payload.nextEpisodeInfo = state.editNextEpisode || null;
+  }
   if(state.editImdbMeta){
     if(state.editImdbMeta.imdbId) payload.imdbId = state.editImdbMeta.imdbId;
     if(state.editImdbMeta.tmdbId) payload.tmdbId = state.editImdbMeta.tmdbId;
@@ -6464,6 +6792,9 @@ window.addEventListener('message', (event)=>{
   if(!p || p.isLive) return; // no progress tracking for live channels
   const iframe = document.getElementById('playerIframeEl');
   if(!iframe || event.source !== iframe.contentWindow) return; // ignore a stale/foreign iframe
+  // Proof-of-life stamp for the LIFECYCLE RECOVERY module (below) — any real message from the
+  // currently-mounted iframe, whatever its status, is evidence it's still alive and posting.
+  p._lastEventAt = Date.now();
   if(p.fakePaused) return; // we've already committed to pausing — ignore stray messages from the
   // still-fading-out iframe until it's actually removed and a fresh one takes its place on resume
   const item = getItem(p.itemId);
@@ -7141,6 +7472,160 @@ function mountResumedIframe(item, p, onMounted, loadingLabel){
   applyPlayerClickShield(); // permanent shield — re-assert it in front of the freshly mounted iframe
   if(onMounted) onMounted();
 }
+
+/* =========================================================
+   LIFECYCLE RECOVERY
+   ---------------------------------------------------------
+   Android (and mobile browsers generally) can interrupt playback at any time — an incoming call,
+   switching apps, the screen locking, or the OS just backgrounding the tab/WebView to reclaim
+   memory. A third-party iframe embed (vaplayer.ru / VidSrc-family) is a cross-origin page we don't
+   control: some browsers/WebViews freeze its JS entirely while hidden, and a few discard the frame's
+   contents outright under memory pressure, so "returning" to it can mean anything from "still
+   playing fine" to "silently dead". Native <video>/hls sources don't have this problem — the
+   browser itself owns suspend/resume for those, so this module only ever touches the iframe path.
+
+   Two signal tiers, on purpose:
+     - visibilitychange (hidden/visible) and pagehide/pageshow are the authoritative "the app was
+       actually backgrounded" signals — these arm the recovery/health-check logic below.
+     - blur/focus are also wired up (per spec) but are treated as a lighter-weight signal only:
+       clicking into the video/iframe itself fires a window 'blur' even though the app is still
+       fully visible and playing normally (focus moved into a same-page cross-origin frame, not
+       away from the app), so blur/focus alone only pause/resume cosmetic UI timers and take an
+       extra safety-net progress save — they never trigger an iframe rebuild by themselves. Real
+       backgrounding always also fires visibilitychange/pagehide, which is what actually recovers
+       the player.
+
+   On background: save the exact position + play state immediately, freeze purely cosmetic timers
+   (progress-bar interpolation, the auto-hide controls timer) — and touch nothing else. The iframe
+   itself is left completely alone; it is never torn down just because the app went to the background.
+
+   On return: if the iframe is still connected and either recent activity was already heard from it
+   or the background gap was short, it's left running untouched. Otherwise (node gone, or a real
+   PLAYER_EVENT doesn't arrive within a short grace window, or the gap was long enough that a stall
+   is likely) the SAME fade-out/remove/mount-with-resumeAt= flow fakeResumePlayer already uses is
+   reused to swap in one fresh iframe at the last saved position — never more than one, never a full
+   renderPlayer() reset, and only ever a single rebuild per return (guarded by p._playbackBusy, the
+   same lock every other rebuild path already respects).
+========================================================= */
+let lifecycleHiddenAt = null;          // set only by a real background (visibilitychange/pagehide)
+let lifecycleRecoveryTimer = null;
+const LIFECYCLE_STALE_GAP_MS = 45000;  // background gap long enough to rebuild without waiting for a health-check
+const LIFECYCLE_GRACE_MS = 2500;       // health-check grace window on return, for shorter gaps
+
+function isPlayerOverlayOpen(){
+  const overlay = document.getElementById('playerOverlay');
+  return !!(overlay && overlay.classList.contains('open'));
+}
+// Immediate, idempotent progress-safety save + cosmetic-timer freeze — shared by every "we might be
+// backgrounded" signal (visibilitychange, pagehide, blur). Safe to call repeatedly.
+function lifecycleSaveAndFreeze(){
+  if(!isPlayerOverlayOpen() || !state.player) return;
+  const p = state.player;
+  stopProgressInterpolation();       // no point animating a bar nobody can see
+  clearTimeout(controlsHideTimer);   // don't let the auto-hide timer burn down off-screen
+  if(p.isLive) return;               // nothing trackable to persist for a live channel
+  const item = getItem(p.itemId);
+  if(!item) return;
+  saveProgress(item, p.key, p._elapsedSeconds || 0, p._totalSeconds || 0, false);
+}
+// Authoritative "app actually left" — arms the health-check/rebuild logic on return.
+function handleAppBackground(){
+  lifecycleSaveAndFreeze();
+  if(lifecycleHiddenAt == null) lifecycleHiddenAt = Date.now();
+}
+// Lighter-weight signal (window blur, or a visibilitychange/pagehide firing again while already
+// backgrounded) — always safe to just re-run the save/freeze without touching the recovery clock.
+function handleAppSoftBackground(){
+  lifecycleSaveAndFreeze();
+}
+function handleAppForeground(){
+  if(!isPlayerOverlayOpen() || !state.player){ lifecycleHiddenAt = null; return; }
+  scheduleHideControls(); // controls should reappear immediately on return, not wait for a fresh interaction
+  const p = state.player;
+  if(p._embedKind === 'iframe' && p.playbackState === 'playing'){
+    startProgressInterpolation(); // resume the bar's smoothing loop right away if it was running
+  }
+  if(lifecycleHiddenAt == null) return; // was only a blur/refocus, never an actual background — nothing to recover
+  const hiddenFor = Date.now() - lifecycleHiddenAt;
+  lifecycleHiddenAt = null;
+  attemptIframeRecovery(p, hiddenFor);
+}
+// Decides whether the current iframe needs rebuilding after a real background/foreground cycle,
+// and either leaves it alone or hands off to recreateFrozenIframe().
+function attemptIframeRecovery(p, hiddenForMs){
+  if(!p || p.isLive) return;                          // live channels: nothing to recover
+  if(document.getElementById('playerVideoEl')) return; // native <video>/hls: the browser already handled it
+  if(p.fakePaused || document.getElementById('playerPauseCover')) return; // user had paused — no live iframe to go stale
+  if(!p._embedBaseUrl) return;                          // not a trackable iframe embed at all
+
+  const iframe = document.getElementById('playerIframeEl');
+  if(!iframe || !iframe.isConnected){
+    // The node itself is gone — some WebViews/browsers discard iframe content under memory
+    // pressure while backgrounded. Nothing left to heal; rebuild immediately.
+    recreateFrozenIframe(p);
+    return;
+  }
+  if(hiddenForMs >= LIFECYCLE_STALE_GAP_MS){
+    // A gap this long (a real phone call, an extended app-switch) is likely enough to have
+    // stalled the embed that it's not worth waiting on a health-check first.
+    recreateFrozenIframe(p);
+    return;
+  }
+  const lastEventAt = p._lastEventAt || 0;
+  if(Date.now() - lastEventAt < LIFECYCLE_GRACE_MS){
+    return; // heard from it recently (it kept posting while briefly backgrounded) — healthy, leave it
+  }
+  // Short gap, nothing heard yet — give the iframe one brief grace window to prove it's still
+  // alive with a real PLAYER_EVENT before assuming the worst.
+  clearTimeout(lifecycleRecoveryTimer);
+  lifecycleRecoveryTimer = setTimeout(()=>{
+    if(!state.player || state.player !== p) return; // a different session is open now — irrelevant
+    if(p.fakePaused || document.getElementById('playerPauseCover')) return;
+    const stillIframe = document.getElementById('playerIframeEl');
+    if(!stillIframe || !stillIframe.isConnected){ recreateFrozenIframe(p); return; }
+    if((p._lastEventAt||0) > lastEventAt) return; // a fresh event arrived during the grace window — healthy
+    recreateFrozenIframe(p); // silence through the whole grace window — treat as frozen/unloaded
+  }, LIFECYCLE_GRACE_MS);
+}
+// Swaps a frozen/unresponsive iframe for a fresh one at the last saved position, reusing the exact
+// same fade-out/remove/mount-with-resumeAt= mechanics as fakeResumePlayer — so recovery LOOKS
+// identical to a normal resume (no flash, no duplicate iframe) rather than a jarring full reload.
+function recreateFrozenIframe(p){
+  if(!state.player || state.player !== p || p._playbackBusy) return;
+  const item = getItem(p.itemId);
+  if(!item || !p._embedBaseUrl) return;
+  p._playbackBusy = true;
+  setPlaybackControlsBusy(true);
+  p.playbackState = 'loading'; // frozen until the fresh iframe reports player_status === "playing"
+  stopProgressInterpolation();
+  setPlayerSyncPoint(p._elapsedSeconds || 0); // re-stamp — the old sync clock is stale after any gap
+
+  const loadingEl = document.getElementById('playerLoading');
+  const loadingLabelEl = document.getElementById('playerLoadingLabel');
+  if(loadingLabelEl) loadingLabelEl.textContent = 'Resuming playback…';
+  if(loadingEl) loadingEl.classList.remove('done');
+
+  const finish = ()=>{ p._playbackBusy = false; setPlaybackControlsBusy(false); };
+  const oldIframe = document.getElementById('playerIframeEl');
+  if(oldIframe && oldIframe.isConnected){
+    oldIframe.classList.add('player-fade-out');
+    setTimeout(()=>{
+      if(oldIframe.isConnected) oldIframe.remove();
+      if(state.player === p) mountResumedIframe(item, p, finish, 'Resuming playback…');
+      else finish();
+    }, 380);
+  } else {
+    mountResumedIframe(item, p, finish, 'Resuming playback…');
+  }
+}
+
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden) handleAppBackground(); else handleAppForeground();
+});
+window.addEventListener('pagehide', handleAppBackground);
+window.addEventListener('pageshow', handleAppForeground);
+window.addEventListener('blur', handleAppSoftBackground);
+window.addEventListener('focus', handleAppForeground);
 
 /* =========================================================
    GLOBAL KEYS
