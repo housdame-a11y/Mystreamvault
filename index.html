@@ -595,10 +595,14 @@ a{color:inherit; text-decoration:none;}
 .player-top-actions{display:flex; align-items:center; gap:8px;}
 .player-top-actions .btn-icon{background:rgba(22,25,35,.6); border-color:rgba(255,255,255,.12);}
 .player-top-actions .btn-icon:hover{background:rgba(22,25,35,.9);}
-/* Hide screen + Lock stay put — always visible/clickable, in and out of fullscreen, regardless of
-   the auto-hide-on-inactivity timer that fades the rest of the controls (and, for Lock, regardless
-   of the locked state itself — see .controls-locked below). */
-.player-top-pinned{display:flex; align-items:center; gap:8px;}
+/* Outside fullscreen, Subtitles/Brightness/Hide screen/Lock stay put — always visible/clickable,
+   regardless of the auto-hide-on-inactivity timer that fades the rest of the controls. In
+   fullscreen they join the auto-hide group instead (see .player-overlay.is-fullscreen.controls-hidden
+   below), so the whole UI — Brightness, Hide screen, everything — disappears together and a single
+   tap brings it all back. Locking is the one other exception, independent of fullscreen: Hide Screen
+   disappears outright and Lock itself starts fading with the auto-hide timer too — see the LOCK CSS
+   further down for both. */
+.player-top-pinned{display:flex; align-items:center; gap:8px; transition:opacity .25s ease;}
 .player-top-fade{display:flex; align-items:center; gap:8px; transition:opacity .25s ease;}
 .player-stage{flex:1; position:relative; background:#000;}
 /* Wraps ONLY the iframe/video — never the loading overlay, subtitle overlay/panel, skip buttons,
@@ -902,6 +906,30 @@ kbd.key{
 @media (max-width:860px){
   .player-brightness-panel{right:12px; top:64px;}
 }
+/* ---------- Brightness swipe HUD ----------
+   Shown only while actively dragging via initPlayerBrightnessGesture (vertical swipe-anywhere-on-
+   the-stage to adjust brightness) — a compact centered pill with a fill bar, styled like the
+   brightness/volume HUD most native media players show during that gesture. Purely a visual echo of
+   whatever applyPlayerBrightnessLive() is already doing to the filter; it holds no state of its own.
+   pointer-events:none because it sits on top of the stage during a drag that's already in progress —
+   it must never itself intercept the pointermove/pointerup finishing that drag. */
+.player-brightness-swipe-hud{
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) scale(.94); z-index:8;
+  display:flex; flex-direction:column; align-items:center; gap:10px; padding:18px 14px;
+  width:56px; background:rgba(12,14,20,.82); backdrop-filter:blur(14px);
+  border:1px solid rgba(255,255,255,.14); border-radius:16px; box-shadow:0 20px 50px rgba(0,0,0,.5);
+  opacity:0; pointer-events:none; transition:opacity .15s ease, transform .15s ease;
+}
+.player-brightness-swipe-hud.visible{opacity:1; transform:translate(-50%,-50%) scale(1);}
+.player-brightness-swipe-icon{color:var(--highlight); display:flex;}
+.player-brightness-swipe-icon svg{width:18px; height:18px;}
+.player-brightness-swipe-track{
+  position:relative; width:5px; height:110px; border-radius:3px; background:rgba(255,255,255,.15); overflow:hidden;
+}
+.player-brightness-swipe-fill{
+  position:absolute; left:0; right:0; bottom:0; height:50%; background:var(--highlight); border-radius:3px;
+}
+.player-brightness-swipe-value{font-size:12.5px; font-weight:800; color:#fff; font-variant-numeric:tabular-nums;}
 /* Sits directly in front of a third-party iframe embed so a click is hit-tested against this div,
    not the iframe underneath — the ad script inside the embed's page never receives the click event
    at all, which is what stops popup/redirect ads without needing the `sandbox` attribute (which some
@@ -944,16 +972,44 @@ kbd.key{
 .player-overlay.controls-hidden .player-next-side{
   opacity:0; pointer-events:none;
 }
-/* LOCK: hides every player control except the Hide Screen button and the Lock button itself
-   (top-pinned, so both stay reachable to unlock) — guards against accidental taps while the video
-   is, say, in a pocket or being handed to someone else. Uses !important so it wins regardless of
-   the double-tap-to-seek reveal (.center-skip-visible) or the auto-hide timer's own opacity rules. */
+/* Fullscreen-only: the pinned group (Subtitles/Brightness/Hide screen/Lock) normally ignores
+   controls-hidden (see .player-top-pinned above) so it's always reachable in the windowed player —
+   but in fullscreen the whole point is an unobstructed screen, so it fades out with everything else
+   here instead. is-fullscreen is toggled by the fullscreenchange listener; controls-hidden is the
+   same auto-hide class the rest of the UI already uses, so a single tap/click anywhere (see the
+   document-level interaction listeners near scheduleHideControls) brings it straight back. */
+.player-overlay.is-fullscreen.controls-hidden .player-top-pinned{
+  opacity:0; pointer-events:none;
+}
+/* LOCK: hides every player control except the Lock button itself (so it stays reachable to
+   unlock) — guards against accidental taps while the video is, say, in a pocket or being handed to
+   someone else. Uses !important so it wins regardless of the double-tap-to-seek reveal
+   (.center-skip-visible) or the auto-hide timer's own opacity rules.
+   Hide Screen and Brightness are included here too — while locked, both buttons disappear along
+   with everything else. For Hide Screen that's purely cosmetic: activating it is still possible via
+   the double-tap-anywhere gesture (see initPlayerHideGesture), which is bound on the stage itself
+   and has nothing to do with whether this button is visible, so the feature keeps working even
+   though the button doesn't. Brightness has no such back door, so locking it out is the real thing —
+   without this it stayed reachable (and, in fullscreen once a tap revealed the pinned group, openable)
+   even while "locked", which defeated the point of locking. */
 .player-overlay.controls-locked .player-top-fade,
 .player-overlay.controls-locked #playerSubtitleBtn,
+.player-overlay.controls-locked #playerHideScreenBtn,
+.player-overlay.controls-locked #playerBrightnessBtn,
 .player-overlay.controls-locked .player-center-skip-group,
 .player-overlay.controls-locked .player-bottom,
 .player-overlay.controls-locked .player-next-side{
   opacity:0 !important; pointer-events:none !important;
+}
+/* Lock itself: normally part of the always-visible pinned group (see .player-top-pinned above), but
+   while locked it instead joins the ordinary auto-hide cadence — fading out after a few seconds of
+   inactivity and reappearing on a single tap/click anywhere, exactly like the rest of the controls
+   (see scheduleHideControls and the document-level interaction listeners). No !important here on
+   purpose: unlike the rest of this block, this one's meant to come back on its own with a tap, not
+   stay forced off. */
+#playerLockBtn{transition:opacity .25s ease;}
+.player-overlay.controls-locked.controls-hidden #playerLockBtn{
+  opacity:0; pointer-events:none;
 }
 #playerLockBtn.is-active{background:var(--highlight-dim); border-color:var(--highlight); color:var(--highlight);}
 .up-next{
@@ -1388,6 +1444,12 @@ function heartSvg(filled){
 ========================================================= */
 const LIB_KEY = 'sv_library';
 const SET_KEY = 'sv_settings';
+// Must be defined before loadSettings() below, since it references this constant while validating
+// s.subtitleSize. It used to live down near applySubtitleDisplayStyle(), which meant loadSettings()
+// hit a temporal-dead-zone ReferenceError on every fresh page load (this function always runs before
+// that later `const` was initialized), got swallowed by loadSettings()'s catch(e), and silently reset
+// ALL settings — including saved OMDb/TMDB/SubDL API keys — back to blank defaults on every reload.
+const SUBTITLE_SIZE_PX = {small:15, medium:19, large:24, xlarge:30};
 
 function loadLib(){
   try{
@@ -5132,7 +5194,7 @@ function renderPlayer(){
         <div class="player-top-pinned">
           <button class="btn-icon" id="playerSubtitleBtn" title="Subtitles" onclick="toggleSubtitlePanel()">${ICON.subtitles}</button>
           <button class="btn-icon" id="playerBrightnessBtn" title="Brightness" onclick="event.stopPropagation(); toggleBrightnessPanel();">${ICON.brightness}</button>
-          <button class="btn-icon" title="Hide screen" onclick="togglePlayerHide()">${ICON.eyeOff}</button>
+          <button class="btn-icon" id="playerHideScreenBtn" title="Hide screen" onclick="togglePlayerHide()">${ICON.eyeOff}</button>
           <button class="btn-icon" id="playerLockBtn" title="Lock controls" onclick="event.stopPropagation(); togglePlayerLock();">${ICON.lock}</button>
         </div>
         <div class="player-top-fade">
@@ -5230,10 +5292,13 @@ function renderPlayer(){
   // applyPlayerClickShield() itself no-ops when there's no #playerIframeEl (video/hls/live-without-
   // iframe), so it's safe to call unconditionally on every render.
   applyPlayerClickShield();
-  // Double-tap anywhere on the stage toggles Hide Screen — highest priority, works locked or
-  // unlocked, live or on-demand. See initPlayerHideGesture for why capture-phase binding is what
-  // makes that guarantee possible.
+  // Double-tap anywhere on the stage activates Hide Screen, single tap deactivates it — highest
+  // priority, works locked or unlocked, live or on-demand. See initPlayerHideGesture for why
+  // capture-phase binding is what makes that guarantee possible.
   initPlayerHideGesture();
+  // Vertical swipe anywhere on the stage adjusts Brightness (unlocked only) — see
+  // initPlayerBrightnessGesture.
+  initPlayerBrightnessGesture();
 
   const isVideoLike = embed.kind==='video' || embed.kind==='hls';
   const stageEl = document.getElementById(isVideoLike ? 'playerVideoEl' : 'playerIframeEl');
@@ -5383,10 +5448,29 @@ function togglePlayerFullscreen(){
 }
 // The click shield is permanently on now (see renderPlayer) — fullscreen entry/exit just
 // re-asserts it stays up across the transition, in case anything about going fullscreen ever
-// disturbs the overlay's child elements.
+// disturbs the overlay's child elements. This is also where fullscreen drives the "everything
+// disappears on entry, a tap brings it back" behavior described above .player-top-pinned's CSS.
 document.addEventListener('fullscreenchange', ()=>{
   if(!state.player) return;
   applyPlayerClickShield();
+  const overlay = document.getElementById('playerOverlay');
+  if(!overlay) return;
+  const isFs = !!document.fullscreenElement;
+  overlay.classList.toggle('is-fullscreen', isFs);
+  if(isFs){
+    // Entering fullscreen: skip the usual 3s inactivity wait and hide every control right away —
+    // Brightness, Hide screen, Lock, Subtitles, the top/bottom bars, all of it — unless something
+    // (a loading spinner, an open popover/modal) needs to stay reachable, same check the normal
+    // auto-hide timer uses. From here the exact same document-level listeners that already handle
+    // "tap/click/move anywhere re-shows the controls" (see scheduleHideControls below) take over:
+    // one tap reveals everything, then it fades again after 3s of inactivity, same as before.
+    clearTimeout(controlsHideTimer);
+    if(!isPlayerAutoHideSuspended()) overlay.classList.add('controls-hidden');
+  } else {
+    // Leaving fullscreen: the pinned group goes back to being always-visible (is-fullscreen is gone,
+    // so the CSS rule above no longer touches it) — just re-arm the normal fade-group timer.
+    scheduleHideControls();
+  }
 });
 // Always-on click shield: an invisible div in front of any iframe embed so a click is hit-tested
 // against this div instead of the third-party page underneath — the ad script inside the embed's
@@ -5407,11 +5491,12 @@ function applyPlayerClickShield(){
   stage.appendChild(shield);
 }
 let centerSkipHideTimer = null;
-// Double-tap-anywhere-on-the-video gesture for Hide Screen. Bound directly on #playerStage in the
-// CAPTURE phase, which is what gives it "highest priority": a capture-phase listener runs on the way
-// DOWN to the actual click target, before that target's own bubble-phase handlers (the click shield's
-// revealCenterSkipButtons, the hide overlay's own content, a native <video> element, etc.) ever see
-// the event — so on a genuine double-tap this stops the event right here and none of those other
+// Double-tap-anywhere-on-the-video gesture to ACTIVATE Hide Screen (a single tap deactivates it —
+// see the click handler below). Bound directly on #playerStage in the CAPTURE phase, which is what
+// gives it "highest priority": a capture-phase listener runs on the way DOWN to the actual click
+// target, before that target's own bubble-phase handlers (the click shield's revealCenterSkipButtons,
+// the hide overlay's own content, a native <video> element, etc.) ever see the event — so on a
+// genuine double-tap (or the reveal tap) this stops the event right here and none of those other
 // handlers fire at all. It is bound once per stage element (stage._hideGestureBound guards against
 // rebinding on the fullscreen/shield-reassert paths, which don't recreate the stage) and, crucially,
 // is never touched by .controls-locked — that CSS only hides specific buttons/panels, it has no
@@ -5420,14 +5505,37 @@ let centerSkipHideTimer = null;
 // ever one Hide Screen implementation.
 const HIDE_GESTURE_MAX_GAP_MS = 350; // standard double-tap/double-click timing window
 let lastStageTapAt = 0;
+// Set by the brightness swipe gesture (see initPlayerBrightnessGesture) right after a real drag
+// ends, since the browser still fires one ordinary 'click' event on release even after a drag — this
+// stops that trailing click from being read as a tap here (which would mess with the double-tap
+// count) or bubbling on to reveal the skip buttons. Consumed once, then reset immediately.
+let suppressNextStageClick = false;
 function initPlayerHideGesture(){
   const stage = document.getElementById('playerStage');
   if(!stage || stage._hideGestureBound) return;
   stage._hideGestureBound = true;
   stage.addEventListener('click', e=>{
+    if(suppressNextStageClick){
+      suppressNextStageClick = false;
+      e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+      return;
+    }
     // Leave the subtitle search panel's own controls (input/select/buttons) alone — this gesture is
     // for "anywhere on the video", not for double-clicking inside a text field.
     if(e.target.closest('#subtitlePanel')) return;
+    // ACTIVATING Hide Screen still needs the double-tap below (so a normal single tap on the video
+    // — pause, reveal skip buttons, etc — never triggers it by accident). DEACTIVATING it, though,
+    // is a single tap anywhere: once the cover is up there's nothing else on the stage a tap could
+    // mean, so there's no ambiguity to guard against, and a single tap to bring it back is the more
+    // natural gesture. Checked first, before any double-tap bookkeeping, so it fires immediately.
+    if(document.getElementById('playerHideOverlay')){
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      lastStageTapAt = 0; // don't let this reveal-tap double up with the next tap and re-hide it
+      togglePlayerHide();
+      return;
+    }
     const now = Date.now();
     const isDoubleTap = (now - lastStageTapAt) <= HIDE_GESTURE_MAX_GAP_MS;
     lastStageTapAt = isDoubleTap ? 0 : now; // reset on a hit so a rapid triple-tap can't re-toggle
@@ -5437,6 +5545,95 @@ function initPlayerHideGesture(){
     e.stopImmediatePropagation();
     togglePlayerHide();
   }, true); // capture phase: always runs first, locked or unlocked, hidden or not
+}
+/* =========================================================
+   PLAYER BRIGHTNESS — SWIPE-ANYWHERE GESTURE
+   ---------------------------------------------------------
+   Vertical drag on the stage adjusts brightness, the same "swipe up = brighter, swipe down = dimmer"
+   gesture most native media/photo apps use — a companion to the Brightness popover slider, not a
+   replacement for it (reuses the exact same applyPlayerBrightnessLive/saveSettings functions, so a
+   swipe and a slider drag leave identical state behind). Unlocked only, on purpose: Lock already
+   hides the Brightness button and popover to keep the video inert while it's up (see the LOCK CSS),
+   so a swipe gesture bypassing that the same way the old Brightness-button gap did would just
+   reopen that hole in a new shape.
+========================================================= */
+const BRIGHTNESS_SWIPE_TAP_THRESHOLD_PX = 10; // minimum vertical movement before this counts as a swipe, not a tap
+const BRIGHTNESS_SWIPE_FULL_RANGE_PX = 300; // vertical drag distance (px) that swings the full 50–150% range
+function initPlayerBrightnessGesture(){
+  const stage = document.getElementById('playerStage');
+  if(!stage || stage._brightnessGestureBound) return;
+  stage._brightnessGestureBound = true;
+
+  let startX=null, startY=null, startPct=100, lastPct=100, dragging=false, moved=false;
+
+  function ensureHud(){
+    let hud = document.getElementById('playerBrightnessSwipeHud');
+    if(!hud){
+      hud = document.createElement('div');
+      hud.id = 'playerBrightnessSwipeHud';
+      hud.className = 'player-brightness-swipe-hud';
+      hud.innerHTML = `<div class="player-brightness-swipe-icon">${ICON.brightness}</div>
+        <div class="player-brightness-swipe-track"><div class="player-brightness-swipe-fill" id="playerBrightnessSwipeFill"></div></div>
+        <span class="player-brightness-swipe-value" id="playerBrightnessSwipeValue"></span>`;
+      stage.appendChild(hud);
+    }
+    return hud;
+  }
+  function showHud(pct){
+    ensureHud().classList.add('visible');
+    const fill = document.getElementById('playerBrightnessSwipeFill');
+    const label = document.getElementById('playerBrightnessSwipeValue');
+    if(fill) fill.style.height = (pct-50)+'%'; // 50–150 range maps directly onto a 0–100% fill height
+    if(label) label.textContent = pct+'%';
+  }
+  function hideHud(){
+    const hud = document.getElementById('playerBrightnessSwipeHud');
+    if(hud) hud.classList.remove('visible');
+  }
+
+  function onMove(e){
+    if(startY===null) return;
+    const dx = e.clientX - startX, dy = e.clientY - startY;
+    if(!moved){
+      // Don't commit to the gesture until movement is clearly vertical and past the tap threshold —
+      // this is what lets an ordinary tap (double-tap-hide, the skip-button reveal, a click on the
+      // click shield) pass through completely untouched; nothing here fires on a simple tap.
+      if(Math.abs(dy) < BRIGHTNESS_SWIPE_TAP_THRESHOLD_PX || Math.abs(dy) <= Math.abs(dx)) return;
+      moved = true; dragging = true;
+      closeSubtitlePanel(); closeBrightnessPanel(); // the swipe takes over from the popover slider
+    }
+    e.preventDefault();
+    lastPct = Math.min(150, Math.max(50, Math.round(startPct - (dy/BRIGHTNESS_SWIPE_FULL_RANGE_PX)*100)));
+    applyPlayerBrightnessLive(lastPct);
+    showHud(lastPct);
+  }
+  function onUp(){
+    window.removeEventListener('pointermove', onMove);
+    if(dragging){
+      // Same "only persist on release" rule the slider follows (see onBrightnessSliderChange) — the
+      // live-apply calls above never touch localStorage on their own.
+      state.settings.playerBrightness = lastPct/100;
+      saveSettings();
+      hideHud();
+      suppressNextStageClick = true; // swallow the trailing click (see its declaration above)
+    }
+    startX=null; startY=null; dragging=false; moved=false;
+  }
+
+  stage.addEventListener('pointerdown', e=>{
+    const overlay = document.getElementById('playerOverlay');
+    if(!overlay || overlay.classList.contains('controls-locked')) return; // unlocked only — see header comment
+    if(e.pointerType==='mouse' && e.button!==0) return; // left-click/primary touch only
+    // Let clicks on actual controls behave normally — this gesture is for "anywhere on the video",
+    // the same scope the double-tap-hide gesture uses.
+    if(e.target.closest('.player-top-actions, .player-bottom, .player-subtitle-panel, .player-brightness-panel, .player-center-skip-group, .player-next-side')) return;
+    if(document.getElementById('playerHideOverlay')) return; // screen covered — a tap there means reveal it, not this
+    startX = e.clientX; startY = e.clientY;
+    startPct = Math.round((state.settings.playerBrightness||1)*100);
+    lastPct = startPct; moved = false; dragging = false;
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp, {once:true});
+  });
 }
 // Shows the centered ±20s buttons (see player-center-skip-group) and schedules them to fade back
 // out shortly after, same "tap to reveal, then disappear" pattern most video players use for their
@@ -5479,7 +5676,8 @@ function togglePlayerPlayPause(){
   if(p.fakePaused) fakeResumePlayer(); else fakePausePlayer();
 }
 // LOCK: toggles .controls-locked on the player overlay, which the CSS above uses to hide every
-// control except Hide Screen and Lock itself (top-pinned, so both stay reachable to unlock).
+// control except Lock itself — and even Lock now fades with the normal auto-hide timer instead of
+// staying permanently on screen, reappearing on a single tap like the rest of the controls.
 // Purely a visual/pointer-events toggle — playback itself is completely untouched, so whatever's
 // already playing just keeps playing behind the now-hidden controls.
 function togglePlayerLock(){
@@ -5487,6 +5685,10 @@ function togglePlayerLock(){
   const btn = document.getElementById('playerLockBtn');
   if(!overlay || !btn) return;
   const locked = overlay.classList.toggle('controls-locked');
+  // Both popovers are standalone elements outside .player-top-fade/.player-bottom, so the CSS above
+  // never touches them — left open, either one would stay fully visible and usable and defeat the
+  // point of locking. Close them out here instead, the same way opening one already closes the other.
+  if(locked){ closeSubtitlePanel(); closeBrightnessPanel(); }
   btn.title = locked ? 'Unlock controls' : 'Lock controls';
   btn.innerHTML = locked ? ICON.unlock : ICON.lock;
   btn.classList.toggle('is-active', locked);
@@ -5496,8 +5698,8 @@ function togglePlayerLock(){
 // works identically on direct video AND third-party iframes (VidSrc, live TV) — the one thing this
 // app's smart detection can never reach, a manual cover always can, since it's just visually on top.
 // The ONLY implementation of Hide Screen — called by the button, the 'h'/'H' shortcut, AND the
-// double-tap-anywhere-on-stage gesture (see initPlayerHideGesture) — there is deliberately no
-// second copy of this toggle anywhere.
+// stage gesture (see initPlayerHideGesture: double-tap to activate, single tap to deactivate) —
+// there is deliberately no second copy of this toggle anywhere.
 function togglePlayerHide(){
   const stage = document.getElementById('playerStage');
   if(!stage) return;
@@ -5506,9 +5708,10 @@ function togglePlayerHide(){
   const overlay = document.createElement('div');
   overlay.id = 'playerHideOverlay';
   overlay.className = 'player-hide-overlay';
-  overlay.innerHTML = `<div class="player-hide-icon">${ICON.eyeOff}</div><span>Screen Hidden — double-tap to reveal</span>`;
-  // No click-to-reveal here on purpose: reveal happens exclusively through the double-tap gesture
-  // (or the Hide Screen button / 'h' key) below, so there's only ever one path in and one path out.
+  overlay.innerHTML = `<div class="player-hide-icon">${ICON.eyeOff}</div><span>Screen Hidden — tap to reveal</span>`;
+  // No click-to-reveal handler needed here — the capture-phase stage listener in
+  // initPlayerHideGesture already intercepts every tap on the stage while this overlay exists and
+  // calls back into this exact function, so there's still only one path in and one path out.
   stage.appendChild(overlay);
 }
 // Called when a title actually finishes playing — a real 'ended' event for direct video/HLS
@@ -5733,7 +5936,7 @@ function closePlayer(){
   // nothing: the overlay's own 'open' class/content were gone, but the screen stayed fullscreen
   // and blank until the user hit Esc themselves.
   if(document.fullscreenElement) document.exitFullscreen?.().catch(()=>{});
-  document.getElementById('playerOverlay').classList.remove('open','controls-hidden','center-skip-visible','controls-locked');
+  document.getElementById('playerOverlay').classList.remove('open','controls-hidden','center-skip-visible','controls-locked','is-fullscreen');
   setTimeout(()=>{ document.getElementById('playerOverlay').innerHTML=''; }, 260);
   state.player = null;
   router();
@@ -5765,8 +5968,9 @@ let subtitleTrackUrl = null; // current blob: URL backing the active <track> (vi
 /* ---- Subtitle display customization (Settings -> Subtitle Display) ----
    Drives both the SubDL overlay (.player-subtitle-overlay span, for embedded/iframe sources) and
    native <track> cues (::cue, for direct video/hls sources) from the same three settings, so the
-   two rendering paths always look identical to the user regardless of which one a given title uses. */
-const SUBTITLE_SIZE_PX = {small:15, medium:19, large:24, xlarge:30};
+   two rendering paths always look identical to the user regardless of which one a given title uses.
+   (SUBTITLE_SIZE_PX itself is declared up near LIB_KEY/SET_KEY — see the comment there — since
+   loadSettings() needs it before this point in the script has run.) */
 function hexToRgba(hex, alpha){
   hex = (hex||'#000000').replace('#','');
   if(hex.length===3) hex = hex.split('').map(c=>c+c).join('');
