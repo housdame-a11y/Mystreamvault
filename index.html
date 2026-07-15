@@ -425,12 +425,39 @@ a{color:inherit; text-decoration:none;}
 .grid .card{width:100%; flex:none;}
 
 /* ---------- Detail ---------- */
-.detail-backdrop{position:relative; height:44vh; min-height:300px; border-radius:16px; overflow:hidden; margin:20px 32px;}
-.detail-backdrop img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.5;}
+/* Shimmering placeholder shown behind the backdrop/poster while their images load (or forever, if
+   they fail) — same idea as a skeleton screen, just done with a moving gradient instead of gray bars. */
+@keyframes skeletonShimmer{0%{background-position:0% 0;} 100%{background-position:200% 0;}}
+.detail-backdrop{
+  position:relative; height:44vh; min-height:300px; border-radius:16px; overflow:hidden; margin:20px 32px;
+  --poster-glow:transparent;
+  background:linear-gradient(100deg,#12141c 0%,#1c1f2b 40%,#12141c 80%); background-size:220% 100%;
+  animation:skeletonShimmer 1.7s ease-in-out infinite;
+  /* Ambient glow bled from the poster's dominant color (see extractPosterGlowColor) — box-shadow paints
+     outside the element even though overflow:hidden clips the backdrop image itself, so it reads as a
+     soft color wash behind the whole card, Spotify/Plex "Now Playing" style. Transparent until computed. */
+  box-shadow:0 0 140px -30px var(--poster-glow), 0 0 260px -70px var(--poster-glow);
+  transition:box-shadow .9s ease;
+}
+.detail-backdrop.bg-loaded{animation:none; background:var(--bg);}
+.detail-backdrop.backdrop-fallback{animation:none; background:linear-gradient(135deg,var(--primary),var(--surface));}
+.detail-backdrop img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity .5s ease;}
+.detail-backdrop img.loaded{opacity:.5;}
 .detail-backdrop::after{content:''; position:absolute; inset:0; background:linear-gradient(0deg,var(--bg) 2%, transparent 80%);}
 .detail-body{padding:0 32px; margin-top:-90px; position:relative; z-index:2; display:flex; gap:28px;}
-.detail-poster{width:180px; flex-shrink:0; border-radius:10px; overflow:hidden; box-shadow:0 20px 40px rgba(0,0,0,.5); aspect-ratio:2/3;}
-.detail-poster img{width:100%; height:100%; object-fit:cover; display:block;}
+.detail-poster{
+  width:180px; flex-shrink:0; border-radius:10px; overflow:hidden; box-shadow:0 20px 40px rgba(0,0,0,.5); aspect-ratio:2/3;
+  background:linear-gradient(100deg,#12141c 0%,#1c1f2b 40%,#12141c 80%); background-size:220% 100%;
+  animation:skeletonShimmer 1.7s ease-in-out infinite;
+}
+.detail-poster.bg-loaded{animation:none; background:none;}
+.detail-poster img{width:100%; height:100%; object-fit:cover; display:block; opacity:0; transition:opacity .4s ease;}
+.detail-poster img.loaded{opacity:1;}
+.detail-poster .poster-fallback{
+  width:100%; height:100%; display:flex; align-items:center; justify-content:center;
+  font-size:56px; font-weight:900; color:var(--highlight); font-family:var(--display-font);
+  background:linear-gradient(135deg,var(--primary),var(--surface));
+}
 .detail-info{flex:1; min-width:0; padding-top:96px;}
 .detail-info h2{font-size:30px; font-weight:800; margin-bottom:10px;}
 .detail-logo{max-width:320px; max-height:120px; width:auto; height:auto; object-fit:contain; margin-bottom:14px; display:block; filter:drop-shadow(0 4px 20px rgba(0,0,0,.5));}
@@ -1660,7 +1687,9 @@ function revealBlurredEl(el, ev){
 }
 function contentBlurImgAttrs(){
   // Attach to any <img> we want covered — safe to include even when the feature is off (no-ops then).
-  return `onload="this.classList.add('loaded'); classifyAndBlurImage(this);" onclick="if(this.classList.contains('content-blurred')){ revealBlurredEl(this, event); }"`;
+  // The closest() check is a no-op outside the detail page; inside it, it swaps the shimmer skeleton
+  // for the real image once it's actually loaded.
+  return `onload="this.classList.add('loaded'); classifyAndBlurImage(this); const _sk=this.closest('.detail-backdrop,.detail-poster'); if(_sk) _sk.classList.add('bg-loaded');" onclick="if(this.classList.contains('content-blurred')){ revealBlurredEl(this, event); }"`;
 }
 function startVideoContentBlurWatch(videoEl){
   if(!state.settings.contentBlur || !videoEl) return null;
@@ -1689,6 +1718,58 @@ function allGenres(){
 }
 const DEFAULT_GENRES = ['Action','Drama','Comedy','Sci-Fi','Thriller','Horror','Romance','Animation','Documentary','Fantasy','Crime','Adventure'];
 
+// Dominant-color extraction — samples the poster on a tiny offscreen canvas and averages the non-neutral
+// pixels, giving a rough "album art glow" color (Spotify/Plex-style) with no API calls involved. Purely
+// client-side: draws the already-loading <img> into a canvas and reads pixel data back out.
+const posterGlowCache = new Map();
+function extractPosterGlowColor(url){
+  return new Promise(resolve=>{
+    if(!url){ resolve(null); return; }
+    if(posterGlowCache.has(url)){ resolve(posterGlowCache.get(url)); return; }
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = ()=>{
+      try{
+        const w = 24, h = 24;
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        const data = ctx.getImageData(0, 0, w, h).data;
+        let r=0, g=0, b=0, n=0;
+        for(let i=0; i<data.length; i+=4){
+          if(data[i+3] < 128) continue; // skip transparent pixels
+          const rr=data[i], gg=data[i+1], bb=data[i+2];
+          const max = Math.max(rr,gg,bb), min = Math.min(rr,gg,bb);
+          if(max < 26 || min > 235) continue; // skip near-black/near-white so the glow isn't washed out gray
+          r+=rr; g+=gg; b+=bb; n++;
+        }
+        if(!n){ r=data[0]; g=data[1]; b=data[2]; n=1; } // poster was all neutral tones — fall back to a raw pixel
+        const color = `rgb(${Math.round(r/n)}, ${Math.round(g/n)}, ${Math.round(b/n)})`;
+        posterGlowCache.set(url, color);
+        resolve(color);
+      }catch(e){
+        // Canvas got tainted — the poster host didn't send CORS headers, so pixel data can't be read.
+        // Fail silently; the backdrop just won't get a glow for this title.
+        posterGlowCache.set(url, null);
+        resolve(null);
+      }
+    };
+    img.onerror = ()=>{ posterGlowCache.set(url, null); resolve(null); };
+    img.src = url;
+  });
+}
+// Called (via setTimeout, so it runs after the caller's innerHTML assignment lands) once renderDetail's
+// markup is in the DOM. Sets --poster-glow on .detail-backdrop, which its box-shadow already reads.
+function applyDetailPosterGlow(item){
+  extractPosterGlowColor(item.poster).then(color=>{
+    if(!color) return;
+    // Bail if the user has already navigated elsewhere while this was resolving.
+    if(state.route!=='detail' || state.routeParam!==item.id) return;
+    const el = document.querySelector('.detail-backdrop');
+    if(el) el.style.setProperty('--poster-glow', color);
+  });
+}
 function posterEl(item, cls){
   if(item.poster){
     return `<img src="${esc(item.poster)}" alt="" loading="lazy" ${contentBlurImgAttrs()} onerror="this.parentElement.innerHTML=fallbackHtml('${esc(item.title).replace(/'/g,"&#39;")}')">`;
@@ -3395,8 +3476,12 @@ function renderDetail(id){
 
   const similarLibraryItems = getSimilarLibraryItems(item);
 
+  // renderDetail only returns a string — the caller assigns it to innerHTML right after this returns —
+  // so defer to the next tick to be sure .detail-backdrop actually exists in the DOM before touching it.
+  setTimeout(()=> applyDetailPosterGlow(item), 0);
+
   return `
-    <div class="detail-backdrop">${item.backdrop?`<img src="${esc(item.backdrop)}" alt="" ${contentBlurImgAttrs()}>`:''}</div>
+    <div class="detail-backdrop ${item.backdrop?'':'backdrop-fallback'}">${item.backdrop?`<img src="${esc(item.backdrop)}" alt="" ${contentBlurImgAttrs()} onerror="this.remove(); this.closest('.detail-backdrop').classList.add('backdrop-fallback');">`:''}</div>
     <div class="detail-body">
       <div class="detail-poster">${posterEl(item)}</div>
       <div class="detail-info">
@@ -3839,6 +3924,10 @@ function renderSettings(){
           Re-fetches info-page details from TMDB (poster, backdrop, logo, description, tagline, cast, content rating, status, episode titles/thumbnails) for every TV show already in your library — handy after this app's info page gains new fields or styling, so older shows you added don't need to be re-added from scratch. Requires a TMDB API key above. <b>Your stream links (per-episode sources), watch progress, and episode ratings are never touched</b> — only metadata is refreshed.
         </p>
         <button class="btn btn-primary" onclick="updateAllTvShowsMetadata()">${ICON.restart} Update All TV Shows Info</button>
+        <p class="field-hint" style="margin:14px 0;">
+          Same as above, but for movies — re-fetches poster, backdrop, logo, description, tagline, cast, and content rating from TMDB for every movie already in your library. Requires a TMDB API key above. <b>Your stream links, watch progress, and rating are never touched</b> — only metadata is refreshed.
+        </p>
+        <button class="btn btn-primary" onclick="updateAllMoviesMetadata()">${ICON.restart} Update All Movies Info</button>
       </div>
       <div class="settings-section">
         <h3>Sync Between Devices</h3>
@@ -5249,6 +5338,118 @@ function renderTvUpdateReport(results){
     <div class="modal-head"><h2>Update Complete</h2><button class="btn-icon" onclick="closeModal(); router();">${ICON.close}</button></div>
     <div class="field-hint" style="margin-bottom:16px;">
       Updated ${ok.length} of ${results.length} show${results.length===1?'':'s'}. Stream links, watch progress, and per-episode ratings were left exactly as they were.
+    </div>
+    ${failed.length ? `
+      <div style="font-size:12px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:8px;">Couldn't update (${failed.length})</div>
+      <div style="display:flex; flex-direction:column; gap:10px; max-height:320px; overflow-y:auto;">
+        ${failed.map(r=>`
+          <div class="link-health-row">
+            <div style="min-width:0;">
+              <div class="link-health-title">${esc(r.title)}</div>
+              <div class="link-health-url">${esc(r.error||'Failed')}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+    ` : ''}
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="closeModal(); router();">Done</button>
+    </div>
+  `);
+}
+// Bulk "Update Info" (Settings → Library Metadata): movie counterpart to refreshTvMetadataFromTmdb
+// above. Re-pulls TMDB metadata for a movie already in the library so newer info-page fields
+// (logo, tagline, cast, content rating, etc.) get filled in on older entries — WITHOUT touching
+// anything manually added: stream sources, watch progress, or rating.
+async function refreshMovieMetadataFromTmdb(item){
+  const key = state.settings.tmdb;
+  if(!key) throw new Error('No TMDB API key set');
+
+  let tmdbId = item.tmdbId;
+  if(!tmdbId){
+    // Item predates the tmdbId field (or was added manually) — resolve one by title/year search,
+    // same lookup "Fetch from TMDB" uses when adding.
+    const yearParam = item.year ? `&year=${encodeURIComponent(item.year)}` : '';
+    const searchRes = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${encodeURIComponent(key)}&query=${encodeURIComponent(item.title)}${yearParam}`);
+    const searchData = await searchRes.json();
+    if(searchData.success===false) throw new Error(searchData.status_message || 'TMDB search failed');
+    const match = searchData.results && searchData.results[0];
+    if(!match) throw new Error('No TMDB match found for "'+item.title+'"');
+    tmdbId = match.id;
+  }
+
+  const detailsRes = await fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${encodeURIComponent(key)}&append_to_response=credits,videos,images,release_dates&include_image_language=en,null`);
+  const d = await detailsRes.json();
+  if(d.success===false) throw new Error(d.status_message || 'TMDB lookup failed');
+
+  const year = d.release_date ? d.release_date.split('-')[0] : item.year;
+  const poster = d.poster_path ? `https://image.tmdb.org/t/p/w780${d.poster_path}` : item.poster;
+  const backdrop = d.backdrop_path ? `https://image.tmdb.org/t/p/w1280${d.backdrop_path}` : item.backdrop;
+  const genres = (d.genres||[]).map(g=>g.name);
+  const rating = d.vote_average ? d.vote_average.toFixed(1) : item.rating;
+  const runtimeMinutes = d.runtime;
+  const runtime = runtimeMinutes ? `${runtimeMinutes} min` : item.runtime;
+  const overview = d.overview || item.description;
+  const tagline = d.tagline || item.tagline;
+  const cast = ((d.credits && d.credits.cast) || []).slice(0,10).map(c=>c.name);
+  const castDetailed = ((d.credits && d.credits.cast) || []).slice(0,10).map(c=>({name:c.name, character:c.character||''}));
+  const director = ((d.credits && d.credits.crew) || []).filter(c=>c.job==='Director').map(c=>c.name).join(', ');
+  let contentRating = item.contentRating;
+  if(d.release_dates && d.release_dates.results){
+    const us = d.release_dates.results.find(r=>r.iso_3166_1==='US');
+    const cert = us && (us.release_dates||[]).map(rd=>rd.certification).find(c=>c);
+    if(cert) contentRating = cert;
+  }
+  const logos = (d.images && d.images.logos) || [];
+  const bestLogo = logos.find(l=>l.iso_639_1==='en') || logos[0];
+  const logo = bestLogo ? `https://image.tmdb.org/t/p/original${bestLogo.file_path}` : item.logo;
+
+  Object.assign(item, {
+    tmdbId, year, poster, backdrop, logo,
+    genre: genres.length ? genres : item.genre,
+    actors: cast.length ? cast : item.actors,
+    cast: castDetailed.length ? castDetailed : item.cast,
+    description: overview, rating, runtime, tagline,
+    director: director || item.director,
+    contentRating
+  });
+  return item;
+}
+async function updateAllMoviesMetadata(){
+  if(!state.settings.tmdb){ toast('Add your TMDB API key in Settings first'); return; }
+  const movies = (state.lib.items||[]).filter(i=>i.type==='movie');
+  if(!movies.length){ toast('No movies in your library'); return; }
+  openModal(`
+    <div class="modal-head"><h2>Updating Movie Info</h2><button class="btn-icon" onclick="closeModal()">${ICON.close}</button></div>
+    <div style="text-align:center; padding:36px 0;">
+      <div class="spinner" style="margin:0 auto 18px auto;"></div>
+      <div id="movieUpdateProgressText" style="color:var(--muted); font-size:13px;">Updating 0 / ${movies.length}…</div>
+      <div id="movieUpdateCurrentTitle" style="color:var(--muted); font-size:12px; margin-top:6px; font-weight:700;"></div>
+    </div>
+  `);
+  const results = [];
+  for(let i=0;i<movies.length;i++){
+    const item = movies[i];
+    const progressText = document.getElementById('movieUpdateProgressText');
+    const currentTitle = document.getElementById('movieUpdateCurrentTitle');
+    if(progressText) progressText.textContent = `Updating ${i+1} / ${movies.length}…`;
+    if(currentTitle) currentTitle.textContent = item.title;
+    try{
+      await refreshMovieMetadataFromTmdb(item);
+      results.push({title:item.title, ok:true});
+    }catch(e){
+      results.push({title:item.title, ok:false, error: e.message || 'Failed'});
+    }
+    saveLib(); // persist incrementally so an interrupted run doesn't lose earlier successes
+  }
+  renderMovieUpdateReport(results);
+}
+function renderMovieUpdateReport(results){
+  const failed = results.filter(r=>!r.ok);
+  const ok = results.filter(r=>r.ok);
+  openModal(`
+    <div class="modal-head"><h2>Update Complete</h2><button class="btn-icon" onclick="closeModal(); router();">${ICON.close}</button></div>
+    <div class="field-hint" style="margin-bottom:16px;">
+      Updated ${ok.length} of ${results.length} movie${results.length===1?'':'s'}. Stream links, watch progress, and rating were left exactly as they were.
     </div>
     ${failed.length ? `
       <div style="font-size:12px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:8px;">Couldn't update (${failed.length})</div>
