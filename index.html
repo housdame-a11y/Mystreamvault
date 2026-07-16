@@ -585,9 +585,34 @@ a{color:inherit; text-decoration:none;}
 .wpb-title{font-size:14px; font-weight:700;}
 .wpb-remaining{font-size:12.5px; color:var(--muted); font-weight:600; white-space:nowrap;}
 @media (max-width:860px){ .watch-progress-banner{margin-left:16px; margin-right:16px;} }
-.season-select-row{display:flex; align-items:center; gap:12px; margin:30px 32px 16px 32px;}
+.season-select-row{display:flex; flex-direction:column; gap:14px; margin:30px 32px 16px 32px;}
 .season-select-label{font-size:11.5px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.05em;}
-.season-select{min-width:220px; font-weight:700; padding:10px 16px; box-shadow:0 0 0 1px var(--poster-glow, transparent), 0 0 20px -8px var(--poster-glow, transparent);}
+/* Horizontal season chip strip — replaces the old native <select>. Each chip carries a cropped
+   season-poster thumbnail with a small SVG progress ring overlaid on it, so you can see at a glance
+   which seasons are finished without opening each one. Scrolls horizontally on narrow screens rather
+   than wrapping, to keep the row a single predictable strip. */
+.season-chip-row{display:flex; gap:10px; overflow-x:auto; padding-bottom:4px; scrollbar-width:thin;}
+.season-chip{
+  display:flex; flex-direction:column; align-items:center; gap:6px; flex-shrink:0; width:84px;
+  background:none; border:none; cursor:pointer; padding:0; font-family:inherit;
+}
+.season-chip-thumb-wrap{position:relative; width:64px; height:64px;}
+.season-chip-thumb{
+  width:100%; height:100%; border-radius:50%; overflow:hidden; background:var(--surface2);
+  border:2px solid #232837; transition:border-color var(--transition), box-shadow var(--transition);
+  display:flex; align-items:center; justify-content:center;
+}
+.season-chip-thumb img{width:100%; height:100%; object-fit:cover; object-position:center 18%; opacity:0; transition:opacity .3s ease;}
+.season-chip-thumb img.loaded{opacity:1;}
+.season-chip-thumb .season-chip-fallback{font-weight:800; color:var(--muted); font-size:15px;}
+.season-chip.active .season-chip-thumb{border-color:var(--poster-glow, var(--highlight));}
+.season-chip:hover .season-chip-thumb{border-color:#3a415a;}
+.season-chip-ring{position:absolute; inset:-2px; width:68px; height:68px; transform:rotate(-90deg); pointer-events:none;}
+.season-chip-ring-bg{fill:none; stroke:#232837; stroke-width:2;}
+.season-chip-ring-fg{fill:none; stroke:var(--poster-glow, var(--highlight)); stroke-width:2; stroke-linecap:round; transition:stroke-dasharray var(--transition);}
+.season-chip-label{font-size:11.5px; font-weight:700; color:var(--muted); text-align:center; line-height:1.3;}
+.season-chip.active .season-chip-label{color:var(--text);}
+.season-overview{font-size:13.5px; line-height:1.55; color:var(--muted); max-width:760px;}
 .episode-list{padding:0 32px; display:flex; flex-direction:column; gap:10px;}
 .episode-card{
   display:flex; gap:14px; background:var(--surface); border:1px solid #1a1d26; border-radius:10px; padding:10px;
@@ -3623,10 +3648,31 @@ function renderDetail(id){
       ${watchProgressBannerHtml(item)}
       <div class="season-select-row">
         ${seasons.length ? `
-          <label for="seasonSelect" class="season-select-label">Season</label>
-          <select id="seasonSelect" class="select-input season-select" onchange="setDetailSeason(parseInt(this.value,10))">
-            ${seasons.map((s,i)=>`<option value="${i}" ${i===activeIdx?'selected':''}>Season ${s.number} ${s.episodes&&s.episodes.length?`· ${s.episodes.length} episode${s.episodes.length===1?'':'s'}`:''}</option>`).join('')}
-          </select>
+          <div class="season-chip-row" role="tablist" aria-label="Season">
+            ${seasons.map((s,i)=>{
+              const epCount = (s.episodes||[]).length;
+              const watchedCount = (s.episodes||[]).filter(e=>{
+                const p = (item.progress||{})['s'+s.number+'e'+e.number];
+                return p && p.watched;
+              }).length;
+              const pct = epCount ? watchedCount/epCount : 0;
+              const r = 15, circumference = 2*Math.PI*r;
+              const thumbSrc = s.poster || item.poster || '';
+              return `<button type="button" class="season-chip ${i===activeIdx?'active':''}" role="tab" aria-selected="${i===activeIdx}" title="Season ${s.number}${epCount?` · ${watchedCount}/${epCount} watched`:''}" onclick="setDetailSeason(${i})">
+                <span class="season-chip-thumb-wrap">
+                  <span class="season-chip-thumb">
+                    ${thumbSrc ? `<img src="${esc(thumbSrc)}" alt="" loading="lazy" onload="this.classList.add('loaded')" onerror="this.remove()">` : `<span class="season-chip-fallback">${s.number}</span>`}
+                  </span>
+                  ${epCount ? `<svg class="season-chip-ring" viewBox="0 0 32 32">
+                    <circle class="season-chip-ring-bg" cx="16" cy="16" r="${r}"></circle>
+                    <circle class="season-chip-ring-fg" cx="16" cy="16" r="${r}" stroke-dasharray="${(pct*circumference).toFixed(1)} ${circumference.toFixed(1)}"></circle>
+                  </svg>` : ''}
+                </span>
+                <span class="season-chip-label">Season ${s.number}</span>
+              </button>`;
+            }).join('')}
+          </div>
+          ${active && active.overview ? `<p class="season-overview">${esc(active.overview)}</p>` : ''}
         ` : '<span style="color:var(--muted);font-size:13px;">No seasons added yet.</span>'}
       </div>
       <div class="episode-list">
@@ -5502,7 +5548,7 @@ async function applyTmdbDetails(tmdbId, tmdbType){
           tmdbRating: e.vote_average || 0,
           sources: [{label:'',url:''}]
         }));
-        seasonsData.push({number: s.season_number, episodes});
+        seasonsData.push({number: s.season_number, poster: seasonJson.poster_path ? `https://image.tmdb.org/t/p/w300${seasonJson.poster_path}` : '', overview: seasonJson.overview || '', episodes});
         episodeCount += episodes.length;
       }catch(e){ /* skip a season that fails to load rather than aborting the whole import */ }
     }
@@ -5719,6 +5765,7 @@ async function refreshTvMetadataFromTmdb(item){
       try{
         const seasonRes = await fetch(`https://api.themoviedb.org/3/tv/${tmdbId}/season/${s.season_number}?api_key=${encodeURIComponent(key)}`);
         const seasonJson = await seasonRes.json();
+        const oldSeason = (item.seasons||[]).find(x=>x.number===s.season_number);
         const episodes = (seasonJson.episodes||[]).map(e=>{
           const old = existing[s.season_number+'|'+e.episode_number];
           return {
@@ -5734,7 +5781,12 @@ async function refreshTvMetadataFromTmdb(item){
             sources: (old && old.sources) || []
           };
         });
-        seasonsData.push({number: s.season_number, episodes});
+        seasonsData.push({
+          number: s.season_number,
+          poster: seasonJson.poster_path ? `https://image.tmdb.org/t/p/w300${seasonJson.poster_path}` : ((oldSeason && oldSeason.poster) || ''),
+          overview: seasonJson.overview || (oldSeason && oldSeason.overview) || '',
+          episodes
+        });
       }catch(e){
         // A season failed to fetch — keep the local copy (sources and all) rather than dropping it.
         const keep = (item.seasons||[]).find(x=>x.number===s.season_number);
@@ -6835,7 +6887,7 @@ async function fetchTmdbSeasonEpisodes(tmdbId, seasonNumber){
     if(!res.ok) return null;
     const json = await res.json();
     if(json.success===false || !Array.isArray(json.episodes) || !json.episodes.length) return null;
-    return json.episodes.map(e=>({
+    const episodes = json.episodes.map(e=>({
       number: e.episode_number,
       title: e.name || `Episode ${e.episode_number}`,
       thumbnail: e.still_path ? `https://image.tmdb.org/t/p/w300${e.still_path}` : '',
@@ -6846,6 +6898,7 @@ async function fetchTmdbSeasonEpisodes(tmdbId, seasonNumber){
       myRating: 0,
       sources: [{label:'', url:''}]
     }));
+    return { poster: json.poster_path ? `https://image.tmdb.org/t/p/w300${json.poster_path}` : '', overview: json.overview || '', episodes };
   }catch(e){ return null; }
 }
 async function maybeAutoAddNextSeason(item, key){
@@ -6857,10 +6910,10 @@ async function maybeAutoAddNextSeason(item, key){
   const nextNum = seasonNum + 1;
   if((item.seasons||[]).some(s=>s.number===nextNum)) return; // already tracked — nothing to add
   if(!item.tmdbId || !state.settings.tmdb) return; // can't look anything up without both of these
-  const episodes = await fetchTmdbSeasonEpisodes(item.tmdbId, nextNum);
-  if(!episodes) return; // no next season on TMDB (show's finished) or the lookup failed — stay quiet
+  const seasonData = await fetchTmdbSeasonEpisodes(item.tmdbId, nextNum);
+  if(!seasonData) return; // no next season on TMDB (show's finished) or the lookup failed — stay quiet
   item.seasons = item.seasons || [];
-  item.seasons.push({number: nextNum, episodes});
+  item.seasons.push({number: nextNum, poster: seasonData.poster, overview: seasonData.overview, episodes: seasonData.episodes});
   item.seasons.sort((a,b)=>a.number-b.number);
   saveLib();
   addNeedsLinkNotification(item, nextNum);
