@@ -548,6 +548,23 @@ a{color:inherit; text-decoration:none;}
   .cast-chip-photo{width:38px; height:38px;}
 }
 .detail-tagline{color:var(--text); opacity:.75; font-size:16px; font-weight:500; font-style:italic; letter-spacing:.01em; margin:0; text-shadow:0 2px 12px rgba(0,0,0,.6);}
+/* Primary actions row (movies only) — Play, Trailer, Mark Watched — sits right under the tagline so
+   the main action is visible immediately. Play is deliberately bigger/brighter than its neighbors
+   (larger padding, bolder glow, subtle lift-on-hover) so it reads as *the* action, not one of several
+   equal buttons. */
+.detail-primary-actions{display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap; margin-top:18px;}
+.detail-play-btn{
+  padding:14px 32px; font-size:15.5px; border-radius:11px; gap:10px;
+  box-shadow:0 8px 26px rgba(61,219,217,.35), 0 0 44px -10px var(--poster-glow, transparent);
+}
+.detail-play-btn svg{width:19px; height:19px;}
+.detail-play-btn:hover{
+  box-shadow:0 10px 32px rgba(61,219,217,.48), 0 0 56px -8px var(--poster-glow, transparent);
+  transform:translateY(-2px) scale(1.02);
+}
+@media (max-width:860px){
+  .detail-play-btn{padding:13px 26px; font-size:14.5px;}
+}
 .tag-cert{border-color:var(--highlight); color:var(--highlight);}
 .detail-director{font-size:13px; color:var(--muted); margin-bottom:12px;}
 .detail-director b{color:var(--text); font-weight:700;}
@@ -3746,6 +3763,19 @@ function applyChannelsJsonImport(){
 /* =========================================================
    DETAIL
 ========================================================= */
+// Movie-only "primary actions" row — Play, Trailer, Mark Watched — rendered directly under the
+// tagline so the most important actions are visible immediately, instead of buried below the
+// synopsis/cast. Play is styled to stand out (detail-play-btn) since it's the main action; Trailer
+// and the watched-toggle are secondary ghost/icon buttons beside it.
+function moviePrimaryActionsHtml(item){
+  const watched = isFullyWatched(item);
+  const hasTrailer = item.trailerKey || (!item.trailerChecked && state.settings.tmdb);
+  return `<div class="detail-primary-actions">
+    <button class="btn btn-primary detail-play-btn" onclick="quickPlay('${item.id}')">${ICON.play} ${isStarted(item)&&!watched?'Resume':'Play'}</button>
+    ${hasTrailer ? `<button class="btn btn-ghost" onclick="openTrailerModal('${item.id}')">${ICON.play} Trailer</button>` : ''}
+    <button class="btn btn-ghost btn-icon-only" title="${watched?'Mark as Unwatched':'Mark as Watched'}" onclick="toggleMovieWatched('${item.id}')">${watched?ICON.close:ICON.check}</button>
+  </div>`;
+}
 function renderDetail(id){
   const item = getItem(id);
   if(!item) return `<div class="page">${emptyState('Title not found','It may have been removed.')}</div>`;
@@ -3758,12 +3788,9 @@ function renderDetail(id){
 
   let body = '';
   if(item.type==='movie'){
-    const watched = isFullyWatched(item);
     const preSub = preloadedSubtitles[preselectSubtitleKey(item.id, null, null)];
     body = `<div class="detail-actions" style="margin-top:6px;">
-      <button class="btn btn-primary" onclick="quickPlay('${item.id}')">${ICON.play} ${isStarted(item)&&!watched?'Resume':'Play'}</button>
       <button class="btn btn-ghost" title="${preSub?('Subtitle: '+esc(preSub.label)):'Pick a SubDL subtitle before you press Play'}" onclick="openSubtitlePreselectModal('${item.id}', null, null)">${preSub?ICON.check+' Subtitle Selected':ICON.subtitles+' Add Subtitle'}</button>
-      <button class="btn btn-ghost btn-icon-only" title="${watched?'Mark as Unwatched':'Mark as Watched'}" onclick="toggleMovieWatched('${item.id}')">${watched?ICON.close:ICON.check}</button>
     </div>`;
   } else {
     const seasons = item.seasons||[];
@@ -3886,6 +3913,7 @@ function renderDetail(id){
         <div class="detail-title-wrap">
           ${item.logo ? `<img class="detail-logo" src="${esc(item.logo)}" alt="${esc(item.title)}" ${contentBlurImgAttrs()} onerror="this.replaceWith(Object.assign(document.createElement('h2'),{textContent:'${esc(item.title).replace(/'/g,"\\'")}'}))">` : `<h2>${esc(item.title)}</h2>`}
           ${item.tagline ? `<p class="detail-tagline">${esc(item.tagline)}</p>` : ''}
+          ${item.type==='movie' ? moviePrimaryActionsHtml(item) : ''}
         </div>
       </div>
       <div class="detail-info">
@@ -3898,7 +3926,7 @@ function renderDetail(id){
         ${item.awards ? `<div class="detail-awards">${ICON.award} ${esc(item.awards)}</div>` : ''}
         ${castRowHtml(item)}
         <div class="detail-actions">
-          ${(item.trailerKey || (!item.trailerChecked && state.settings.tmdb)) ? `<button class="btn btn-ghost" onclick="openTrailerModal('${item.id}')">${ICON.play} Watch Trailer</button>` : ''}
+          ${(item.type!=='movie' && (item.trailerKey || (!item.trailerChecked && state.settings.tmdb))) ? `<button class="btn btn-ghost" onclick="openTrailerModal('${item.id}')">${ICON.play} Watch Trailer</button>` : ''}
           <button class="btn-icon ${item.watchlist?'is-active':''} btn-icon-label" title="${item.watchlist?'Remove from Watchlist':'Add to Watchlist'}" onclick="toggleWatchlist('${item.id}')">${ICON.watchlist}<span class="btn-icon-label-text">${item.watchlist?'Watchlisted':'Watchlist'}</span></button>
           <button class="btn-icon ${item.favorite?'is-fav':''} btn-icon-label" data-fav-id="${item.id}" title="${item.favorite?'Remove from Favorites':'Add to Favorites'}" onclick="toggleFavorite('${item.id}')">${heartSvg(!!item.favorite)}<span class="btn-icon-label-text">${item.favorite?'Favorited':'Favorite'}</span></button>
           <button class="btn-icon" title="Add to Collection" onclick="openAddToCollection('${item.id}')">${ICON.bookmark}</button>
