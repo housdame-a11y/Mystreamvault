@@ -453,7 +453,13 @@ a{color:inherit; text-decoration:none;}
 .detail-backdrop.bg-loaded{animation:none; background:var(--bg);}
 .detail-backdrop.backdrop-fallback{animation:none; background:linear-gradient(135deg,var(--primary),var(--surface));}
 .detail-backdrop img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity .5s ease;}
-.detail-backdrop img.loaded{opacity:.5;}
+/* Slow, barely-there zoom/pan once the backdrop image is in — "forwards" holds the zoomed-in end
+   state rather than looping, so it reads as one deliberate cinematic reveal, not a constant drift. */
+@keyframes kenBurnsBackdrop{
+  0%{transform:scale(1) translate(0,0);}
+  100%{transform:scale(1.09) translate(-1.5%,-1.5%);}
+}
+.detail-backdrop img.loaded{opacity:.5; animation:kenBurnsBackdrop 16s ease-out forwards;}
 .detail-backdrop::after{content:''; position:absolute; inset:0; background:linear-gradient(0deg,var(--bg) 2%, transparent 80%);}
 .detail-body{padding:0 32px; margin-top:-90px; position:relative; z-index:2; display:flex; flex-direction:column; gap:20px;}
 .detail-top{display:flex; align-items:center; gap:28px;}
@@ -471,12 +477,22 @@ a{color:inherit; text-decoration:none;}
   background:linear-gradient(135deg,var(--primary),var(--surface));
 }
 .detail-info{flex:1; min-width:0;}
-.detail-title-wrap{flex:1; min-width:0; display:flex; align-items:center;}
-.detail-top h2{font-size:30px; font-weight:800; margin-bottom:10px;}
+.detail-title-wrap{flex:1; min-width:0; display:flex; flex-direction:column; justify-content:center; gap:8px;}
+.detail-top h2{font-size:30px; font-weight:800; margin-bottom:0;}
 .detail-logo{max-width:100%; max-height:120px; width:auto; height:auto; object-fit:contain; margin-bottom:0; display:block; filter:drop-shadow(0 4px 20px rgba(0,0,0,.5));}
-@media (max-width:860px){ .detail-logo{max-height:80px;} .detail-top{gap:16px;} }
-.detail-tags{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;}
-.tag{background:#161923; border:1px solid #232837; padding:4px 10px; border-radius:6px; font-size:11.5px; color:var(--muted); font-weight:700;}
+@media (max-width:860px){
+  .detail-logo{max-height:80px;}
+  .detail-top{gap:16px; flex-direction:column; align-items:center; text-align:center;}
+  .detail-poster{width:150px;}
+  .detail-title-wrap{align-items:center; width:100%;}
+}
+.detail-tags{
+  display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center;
+  background:rgba(15,17,23,.5); backdrop-filter:blur(18px) saturate(140%); -webkit-backdrop-filter:blur(18px) saturate(140%);
+  border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:10px 14px; width:fit-content; max-width:100%;
+}
+.tag{background:#161923; border:1px solid #232837; padding:4px 10px; border-radius:6px; font-size:11.5px; color:var(--muted); font-weight:700; display:inline-flex; align-items:center; gap:4px;}
+.tag svg{width:12px; height:12px; flex-shrink:0;}
 .detail-genres{color:var(--muted); font-size:13px; font-weight:600; letter-spacing:.01em; margin-bottom:16px;}
 .detail-genres .genre-dot{display:inline-block; color:#384049; margin:0 8px; font-weight:700;}
 .detail-desc{color:#c7d5d3; font-size:14px; line-height:1.6; max-width:680px; margin-bottom:22px;}
@@ -488,19 +504,26 @@ a{color:inherit; text-decoration:none;}
    instead of plain text chips — mirrors the poster/backdrop treatment so the row reads as a scannable
    strip of faces rather than another block of text. Falls back to an initials avatar per-person when
    TMDB has no photo for them (or the image 404s), never omitted or left blank. */
-.cast-chip-row{display:flex; flex-wrap:wrap; align-items:flex-start; gap:14px 18px;}
-.cast-chip{display:flex; align-items:center; gap:10px; max-width:200px;}
+.cast-chip-row{display:grid; grid-template-columns:repeat(auto-fill, minmax(180px,1fr)); gap:16px 18px;}
+.cast-chip{display:flex; align-items:center; gap:10px; min-width:0;}
+.cast-chip-hidden{display:none;}
+.cast-chip-row.is-expanded .cast-chip-hidden{display:flex;}
 .cast-chip-photo{width:44px; height:44px; border-radius:50%; overflow:hidden; flex-shrink:0; background:var(--surface2); border:1px solid #232837;}
 .cast-chip-photo img{width:100%; height:100%; object-fit:cover; display:block;}
 .cast-avatar-fallback{width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:800; color:var(--muted); background:linear-gradient(135deg,#1c2130,#12141c);}
 .cast-chip-info{display:flex; flex-direction:column; min-width:0;}
 .cast-chip-name{font-size:13px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 .cast-chip-info .cast-character{font-size:11.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.cast-show-more-btn{
+  margin-top:14px; background:none; border:1px solid #232837; color:var(--highlight); font-size:12.5px; font-weight:700;
+  padding:7px 14px; border-radius:8px; cursor:pointer; transition:border-color var(--transition), background var(--transition);
+}
+.cast-show-more-btn:hover{border-color:rgba(61,219,217,.4); background:#161923;}
 @media (max-width:860px){
-  .cast-chip{max-width:150px;}
+  .cast-chip-row{grid-template-columns:repeat(auto-fill, minmax(140px,1fr));}
   .cast-chip-photo{width:38px; height:38px;}
 }
-.detail-tagline{color:var(--muted); font-size:14.5px; font-style:italic; margin:-4px 0 12px;}
+.detail-tagline{color:var(--muted); font-size:14.5px; font-style:italic; margin:0;}
 .tag-cert{border-color:var(--highlight); color:var(--highlight);}
 .detail-director{font-size:13px; color:var(--muted); margin-bottom:12px;}
 .detail-director b{color:var(--text); font-weight:700;}
@@ -511,7 +534,11 @@ a{color:inherit; text-decoration:none;}
 .tv-status-pill.is-ended{background:#232837; color:var(--muted);}
 .tv-status-next{display:flex; align-items:center; gap:5px; font-size:12.5px; color:var(--muted);}
 .tv-status-next svg{width:14px; height:14px; flex-shrink:0;}
-.detail-ratings-row{display:flex; gap:10px; flex-wrap:wrap; align-items:stretch; margin-bottom:16px;}
+.detail-ratings-row{
+  display:flex; gap:10px; flex-wrap:wrap; align-items:stretch; margin-bottom:16px; width:fit-content; max-width:100%;
+  background:rgba(15,17,23,.5); backdrop-filter:blur(18px) saturate(140%); -webkit-backdrop-filter:blur(18px) saturate(140%);
+  border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:10px 14px;
+}
 .rating-badge{display:flex; flex-direction:column; align-items:center; justify-content:center; background:#161923; border:1px solid #232837; border-radius:8px; padding:6px 14px; min-width:64px;}
 .rating-badge b{font-size:15px; color:var(--text); line-height:1.2;}
 .rating-badge small{font-size:9.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; font-weight:700; margin-top:2px;}
@@ -558,6 +585,7 @@ a{color:inherit; text-decoration:none;}
 .episode-card{
   display:flex; gap:14px; background:var(--surface); border:1px solid #1a1d26; border-radius:10px; padding:10px;
   align-items:center; cursor:pointer; transition:background var(--transition), transform var(--transition);
+  min-height:88px;
 }
 .episode-card:hover{background:#141721; transform:translateX(3px);}
 .ep-thumb{width:120px; height:68px; border-radius:6px; overflow:hidden; flex-shrink:0; background:#161923; position:relative;}
@@ -568,7 +596,7 @@ a{color:inherit; text-decoration:none;}
 .ep-info{flex:1; min-width:0;}
 .ep-info .ep-title{font-weight:700; font-size:14px; margin-bottom:3px; display:flex; align-items:center; gap:8px;}
 .ep-overview{
-  font-size:12px; color:#a6b8b6; line-height:1.5; margin-bottom:6px;
+  font-size:12px; color:#a6b8b6; line-height:1.5; margin-bottom:6px; min-height:calc(1.5em * 2);
   display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
 }
 .ep-meta-row{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
@@ -602,7 +630,11 @@ a{color:inherit; text-decoration:none;}
 }
 .overlay.open .modal{transform:translateY(0) scale(1);}
 .modal.modal-video{max-width:900px; padding:0; overflow:hidden;}
-.modal.modal-episode-info{max-width:640px; padding:0; overflow:hidden;}
+.modal.modal-episode-info{
+  max-width:640px; padding:0; overflow:hidden;
+  box-shadow:0 30px 80px rgba(0,0,0,.55), 0 0 90px -20px color-mix(in srgb, var(--episode-glow, var(--highlight)) 55%, transparent);
+  transition:box-shadow .7s ease;
+}
 .episode-modal-thumb{position:relative; width:100%; aspect-ratio:16/9; background:#12141c; overflow:hidden;}
 .episode-modal-thumb img{width:100%; height:100%; object-fit:cover; display:block;}
 .episode-modal-thumb .ep-num{width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-weight:800; color:var(--muted); font-size:42px;}
@@ -613,17 +645,23 @@ a{color:inherit; text-decoration:none;}
 .episode-modal-nav-prev{left:12px;}
 .episode-modal-nav-next{right:12px;}
 .episode-modal-progress{position:absolute; left:0; right:0; bottom:0; height:4px; background:rgba(255,255,255,.12);}
-.episode-modal-progress > div{height:100%; background:var(--highlight);}
-.episode-modal-body{padding:22px 26px 26px;}
-.episode-modal-eyebrow{font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--highlight); margin-bottom:6px;}
+.episode-modal-progress > div{height:100%; background:var(--episode-glow, var(--highlight));}
+.episode-modal-body{
+  padding:22px 26px 26px; position:relative;
+  background:radial-gradient(120% 160% at 12% -15%, color-mix(in srgb, var(--episode-glow, var(--highlight)) 16%, transparent), transparent 60%);
+}
+.episode-modal-eyebrow{font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--episode-glow, var(--highlight)); margin-bottom:6px;}
 .episode-modal-title{font-size:20px; font-weight:800; font-family:var(--display-font); margin-bottom:12px;}
 .episode-modal-meta{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;}
-.episode-modal-overview{color:#c7d5d3; font-size:14px; line-height:1.6; margin-bottom:18px;}
+.episode-modal-overview{
+  color:#c7d5d3; font-size:14px; line-height:1.6; margin-bottom:18px; min-height:calc(1.6em * 3);
+  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+}
 .episode-modal-ratings-row{display:flex; align-items:center; gap:14px; margin-bottom:12px;}
 .episode-modal-stars{display:flex; align-items:center; gap:3px;}
 .episode-modal-stars .ep-mini-star{width:22px; height:22px;}
 .episode-modal-stars .ep-mini-star svg{width:17px; height:17px;}
-.episode-modal-resume-hint{display:flex; align-items:center; gap:7px; color:var(--highlight); font-size:12.5px; font-weight:700; margin-bottom:14px;}
+.episode-modal-resume-hint{display:flex; align-items:center; gap:7px; color:var(--episode-glow, var(--highlight)); font-size:12.5px; font-weight:700; margin-bottom:14px;}
 .episode-modal-resume-hint svg{width:12px; height:12px;}
 .episode-modal-actions{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start;}
 .episode-modal-source-list{display:flex; flex-direction:column; gap:8px; width:100%;}
@@ -852,6 +890,12 @@ kbd.key{
 .content-blurred:hover{filter:blur(18px) saturate(70%);}
 .content-blur-revealed{filter:none;}
 .player-stage.content-blurred-video video{filter:blur(40px);}
+/* Cast avatars are tiny circles (36-44px) — the default 32px blur above erases them to a flat color
+   blob that looks deleted rather than blurred. A much smaller radius keeps them recognizably "a
+   blurred photo" instead of "no photo". */
+.cast-chip-photo img.content-blurred,
+.cast-blur-photo.content-blurred{filter:blur(8px) saturate(70%); transition:filter .3s ease; cursor:pointer;}
+.cast-chip-photo img.content-blurred:hover{filter:blur(5px) saturate(70%);}
 
 .player-loading{
   position:absolute; inset:0; z-index:3; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
@@ -1287,6 +1331,17 @@ kbd.key{
 .settings-section{background:var(--surface); border:1px solid #1a1d26; border-radius:12px; padding:22px; margin-bottom:18px; max-width:560px;}
 .settings-section h3{font-size:15px; font-weight:800; margin-bottom:16px;}
 .settings-row{display:flex; gap:10px; margin-bottom:12px;}
+.manage-lib-rows{display:flex; flex-direction:column; max-height:420px; overflow-y:auto; border:1px solid #1a1d26; border-radius:10px; margin-top:14px;}
+.manage-lib-row{display:flex; align-items:center; gap:14px; padding:10px 12px; border-bottom:1px solid #1a1d26;}
+.manage-lib-row:last-child{border-bottom:none;}
+.manage-lib-poster{width:44px; aspect-ratio:2/3; border-radius:6px; overflow:hidden; flex-shrink:0; background:var(--surface2);}
+.manage-lib-poster img{width:100%; height:100%; object-fit:cover; display:block;}
+.manage-lib-poster .poster-fallback{font-size:14px; border-radius:6px;}
+.manage-lib-info{flex:1; min-width:0;}
+.manage-lib-title{font-size:14px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.manage-lib-meta{font-size:12px; color:var(--muted);}
+.manage-lib-actions{display:flex; gap:6px; flex-shrink:0;}
+.manage-lib-empty{padding:18px; text-align:center; color:var(--muted); font-size:13px;}
 .link-health-row{
   display:flex; align-items:center; justify-content:space-between; gap:12px;
   background:#0c0e14; border:1px solid #232837; border-radius:10px; padding:10px 12px;
@@ -1336,7 +1391,6 @@ kbd.key{
   .hero-content h2{font-size:26px;}
   .detail-backdrop{margin:14px 16px;}
   .detail-body{padding:0 16px;}
-  .detail-poster{width:120px;}
   .row-head, .row-track, .season-select-row, .episode-list{padding-left:16px; padding-right:16px;}
   .filter-bar{padding-right:16px;}
 }
@@ -3568,7 +3622,7 @@ function renderDetail(id){
             </div>
             <div class="ep-info">
               <div class="ep-title">${ep.number}. ${esc(ep.title||'Episode '+ep.number)}</div>
-              ${ep.overview ? `<div class="ep-overview">${esc(ep.overview)}</div>` : ''}
+              <div class="ep-overview">${ep.overview ? esc(ep.overview) : 'No synopsis added for this episode.'}</div>
               <div class="ep-meta-row">
                 <span class="ep-sub">${(ep.sources||[]).length} source${(ep.sources||[]).length===1?'':'s'}</span>
                 <div class="ep-mini-stars" onclick="event.stopPropagation()">${episodeMiniStarsHtml(item.id, active.number, ep)}</div>
@@ -3593,16 +3647,11 @@ function renderDetail(id){
         <div class="detail-poster">${posterEl(item)}</div>
         <div class="detail-title-wrap">
           ${item.logo ? `<img class="detail-logo" src="${esc(item.logo)}" alt="${esc(item.title)}" ${contentBlurImgAttrs()} onerror="this.replaceWith(Object.assign(document.createElement('h2'),{textContent:'${esc(item.title).replace(/'/g,"\\'")}'}))">` : `<h2>${esc(item.title)}</h2>`}
+          ${item.tagline ? `<p class="detail-tagline">${esc(item.tagline)}</p>` : ''}
         </div>
       </div>
       <div class="detail-info">
-        ${item.tagline ? `<p class="detail-tagline">${esc(item.tagline)}</p>` : ''}
-        <div class="detail-tags">
-          ${item.contentRating?`<span class="tag tag-cert">${esc(item.contentRating)}</span>`:''}
-          ${item.year?`<span class="tag">${esc(item.year)}</span>`:''}
-          ${item.runtime?`<span class="tag">${esc(item.runtime)}</span>`:''}
-          ${(!item.ratings||!item.ratings.length) && item.rating?`<span class="tag">★ ${esc(item.rating)}</span>`:''}
-        </div>
+        ${detailTagsHtml(item)}
         ${(item.genre||[]).length ? `<div class="detail-genres">${item.genre.map(g=>esc(g)).join('<span class="genre-dot">·</span>')}</div>` : ''}
         ${item.director ? `<div class="detail-director">${item.type==='series'?'Created by':'Directed by'} <b>${esc(item.director)}</b></div>` : ''}
         ${tvStatusLineHtml(item)}
@@ -3614,10 +3663,7 @@ function renderDetail(id){
           ${(item.trailerKey || (!item.trailerChecked && state.settings.tmdb)) ? `<button class="btn btn-ghost" onclick="openTrailerModal('${item.id}')">${ICON.play} Watch Trailer</button>` : ''}
           <button class="btn-icon ${item.watchlist?'is-active':''} btn-icon-label" title="${item.watchlist?'Remove from Watchlist':'Add to Watchlist'}" onclick="toggleWatchlist('${item.id}')">${ICON.watchlist}<span class="btn-icon-label-text">${item.watchlist?'Watchlisted':'Watchlist'}</span></button>
           <button class="btn-icon ${item.favorite?'is-fav':''} btn-icon-label" data-fav-id="${item.id}" title="${item.favorite?'Remove from Favorites':'Add to Favorites'}" onclick="toggleFavorite('${item.id}')">${heartSvg(!!item.favorite)}<span class="btn-icon-label-text">${item.favorite?'Favorited':'Favorite'}</span></button>
-          <button class="btn-icon" title="Edit" onclick="openEditModal('${item.id}')">${ICON.edit}</button>
           <button class="btn-icon" title="Add to Collection" onclick="openAddToCollection('${item.id}')">${ICON.bookmark}</button>
-          <button class="btn-icon" title="Check this title's sources" onclick="openLinkHealthCheck('${item.id}')">${ICON.search}</button>
-          <button class="btn-icon" title="Delete" style="color:#ff8b93; border-color:#3a1a1e;" onclick="deleteItem('${item.id}')">${ICON.trash}</button>
         </div>
       </div>
     </div>
@@ -3668,6 +3714,19 @@ function watchProgressBannerHtml(item){
 // One unified "ratings" cluster: external scores (IMDb/RT/Metacritic, or a single fallback rating)
 // plus the user's own star rating, all rendered as the same badge-card family instead of two
 // unrelated widgets (a boxed score row vs. a plain star strip) stacked on top of each other.
+// Now that .detail-tags is a visible glass panel (border + blur), it can't just render unconditionally
+// like the old plain flex row could — an item with none of these fields would show an empty frosted
+// box. Building the chip list first and bailing out to '' when it's empty keeps that panel invisible
+// exactly when it would have been invisible before (implicit zero-height row).
+function detailTagsHtml(item){
+  const chips = [
+    item.contentRating ? `<span class="tag tag-cert">${esc(item.contentRating)}</span>` : '',
+    item.year ? `<span class="tag">${esc(item.year)}</span>` : '',
+    item.runtime ? `<span class="tag">${esc(item.runtime)}</span>` : '',
+    (!item.ratings||!item.ratings.length) && item.rating ? `<span class="tag">★ ${esc(item.rating)}</span>` : ''
+  ].filter(Boolean);
+  return chips.length ? `<div class="detail-tags">${chips.join('')}</div>` : '';
+}
 function ratingsClusterHtml(item){
   const badges = (item.ratings||[]).filter(r=>r.value).map(r=>({label:r.source, value:r.value}));
   if(!badges.length && item.rating) badges.push({label:'Rating', value:item.rating});
@@ -3710,19 +3769,30 @@ function castAvatarFallback(name){
 }
 function castRowHtml(item){
   if(item.cast && item.cast.length){
-    return `<div class="detail-cast"><span class="detail-cast-label">Full Cast</span><div class="cast-chip-row">${item.cast.map(c=>`
-      <div class="cast-chip">
+    const CAP = 6;
+    const chips = item.cast.map((c,i)=>`
+      <div class="cast-chip${i>=CAP?' cast-chip-hidden':''}">
         <div class="cast-chip-photo">${c.photo ? `<img src="${esc(c.photo)}" alt="" loading="lazy" class="${c.blurred?'content-blurred':''}" onload="this.classList.add('loaded'); ${c.blurred?'':'classifyAndBlurImage(this);'}" onclick="if(this.classList.contains('content-blurred')){ revealBlurredEl(this, event); }" onerror="this.parentElement.innerHTML=castAvatarFallback('${esc(c.name).replace(/'/g,"&#39;")}')">` : castAvatarFallback(c.name)}</div>
         <div class="cast-chip-info">
           <span class="cast-chip-name">${esc(c.name)}</span>
           ${c.character?`<span class="cast-character">${esc(c.character)}</span>`:''}
         </div>
-      </div>`).join('')}</div></div>`;
+      </div>`).join('');
+    const toggleBtn = item.cast.length>CAP ? `<button type="button" class="cast-show-more-btn" data-total="${item.cast.length}" onclick="toggleCastExpand(this)">Show all cast (${item.cast.length})</button>` : '';
+    return `<div class="detail-cast"><span class="detail-cast-label">Full Cast</span><div class="cast-chip-row">${chips}</div>${toggleBtn}</div>`;
   }
   if(item.actors && item.actors.length){
     return `<div class="detail-cast"><span class="detail-cast-label">Starring</span><div class="detail-cast-tags">${item.actors.map(a=>`<span class="tag">${esc(a)}</span>`).join('')}</div></div>`;
   }
   return '';
+}
+// Toggles the capped full-cast grid between showing just the first CAP chips and every credit —
+// data-total is stamped onto the button at render time so the label doesn't need to re-derive the
+// count from the DOM (some chips are display:none, not removed, so querying visible count would lie).
+function toggleCastExpand(btn){
+  const row = btn.previousElementSibling;
+  const expanded = row.classList.toggle('is-expanded');
+  btn.textContent = expanded ? 'Show less' : `Show all cast (${btn.dataset.total})`;
 }
 function getSimilarLibraryItems(item, limit){
   limit = limit || 12;
@@ -3850,7 +3920,24 @@ function openEpisodeInfoModal(itemId, seasonNum, epNum){
   const ep = item && findPlayerEpisode(item, seasonNum, epNum);
   if(!item || !ep) return;
   openModal(episodeInfoModalHtml(itemId, seasonNum, epNum));
-  document.getElementById('modalBody').classList.add('modal-episode-info');
+  const modalBody = document.getElementById('modalBody');
+  modalBody.classList.add('modal-episode-info');
+  const epKey = itemId+'-s'+seasonNum+'e'+epNum;
+  modalBody.dataset.epKey = epKey;
+  modalBody.style.removeProperty('--episode-glow');
+  applyEpisodeThumbGlow(epKey, ep.thumbnail);
+}
+// Same dominant-color extraction the detail page uses for --poster-glow, just pointed at the episode
+// thumbnail and scoped to the modal instead of #pageRoot. epKey is stamped at open time and re-checked
+// here since this resolves async — if the person has already flipped to a different episode (or closed
+// the modal) by the time the color is ready, that stale result gets dropped instead of mis-tinting.
+function applyEpisodeThumbGlow(epKey, thumbnail){
+  extractPosterGlowColor(thumbnail).then(color=>{
+    if(!color) return;
+    const modalBody = document.getElementById('modalBody');
+    if(!modalBody || modalBody.dataset.epKey !== epKey) return;
+    modalBody.style.setProperty('--episode-glow', color);
+  });
 }
 function episodeInfoModalHtml(itemId, seasonNum, epNum){
   const item = getItem(itemId);
@@ -3885,8 +3972,8 @@ function episodeInfoModalHtml(itemId, seasonNum, epNum){
       <div class="episode-modal-meta">
         ${ep.runtime ? `<span class="tag">${esc(ep.runtime)}</span>` : ''}
         <span class="tag">${sourceCount} source${sourceCount===1?'':'s'}</span>
-        ${watched ? `<span class="tag" style="color:var(--highlight); border-color:rgba(61,219,217,.4);">${ICON.check} Watched</span>` : ''}
-        ${isUnaired ? `<span class="tag" style="color:var(--highlight); border-color:rgba(61,219,217,.4);">Airs ${esc(airDateStr)}</span>` : (airDateValid ? `<span class="tag">${esc(airDateStr)}</span>` : '')}
+        ${watched ? `<span class="tag" style="color:var(--episode-glow, var(--highlight)); border-color:color-mix(in srgb, var(--episode-glow, var(--highlight)) 40%, transparent);">${ICON.check} Watched</span>` : ''}
+        ${isUnaired ? `<span class="tag" style="color:var(--episode-glow, var(--highlight)); border-color:color-mix(in srgb, var(--episode-glow, var(--highlight)) 40%, transparent);">Airs ${esc(airDateStr)}</span>` : (airDateValid ? `<span class="tag">${esc(airDateStr)}</span>` : '')}
       </div>
       <p class="episode-modal-overview">${esc(ep.overview || 'No synopsis added for this episode.')}</p>
       <div class="episode-modal-ratings-row">
@@ -4001,6 +4088,49 @@ function openAddToCollection(itemId){
 /* =========================================================
    SETTINGS
 ========================================================= */
+// Search-driven replacement for the old per-title Edit/Delete buttons on the detail page — lets you
+// find any movie or show by name and act on it right from Settings instead of opening its info page.
+function renderManageLibRow(item){
+  const typeLabel = item.type==='series' ? 'TV Show' : 'Movie';
+  return `<div class="manage-lib-row">
+    <div class="manage-lib-poster">${posterEl(item)}</div>
+    <div class="manage-lib-info">
+      <div class="manage-lib-title">${esc(item.title)}</div>
+      <div class="manage-lib-meta">${typeLabel}${item.year?' · '+esc(item.year):''}</div>
+    </div>
+    <div class="manage-lib-actions">
+      <button type="button" class="btn-icon" title="Edit" onclick="openEditModal('${item.id}')">${ICON.edit}</button>
+      <button type="button" class="btn-icon" title="Check this title's sources" onclick="openLinkHealthCheck('${item.id}')">${ICON.search}</button>
+      <button type="button" class="btn-icon" title="Delete" style="color:#ff8b93; border-color:#3a1a1e;" onclick="deleteItemFromManageLib('${item.id}')">${ICON.trash}</button>
+    </div>
+  </div>`;
+}
+function filterManageLibResults(){
+  const input = document.getElementById('manageLibSearch');
+  const container = document.getElementById('manageLibResults');
+  if(!input || !container) return;
+  const q = input.value.trim().toLowerCase();
+  if(!q){
+    container.innerHTML = '<div class="manage-lib-empty">Start typing a title to find it.</div>';
+    return;
+  }
+  const matches = state.lib.items
+    .filter(i=> (i.title||'').toLowerCase().includes(q))
+    .sort((a,b)=> (a.title||'').localeCompare(b.title||''))
+    .slice(0,50);
+  container.innerHTML = matches.length ? matches.map(renderManageLibRow).join('') : '<div class="manage-lib-empty">No titles match.</div>';
+}
+// Same delete as the detail page's, minus the location.hash='home' redirect — there's no detail page
+// open to navigate away from here, so it just refreshes the result list in place instead.
+function deleteItemFromManageLib(id){
+  const item = getItem(id);
+  if(!confirm(`Delete "${item?item.title:'this title'}" permanently?`)) return;
+  state.lib.items = state.lib.items.filter(i=>i.id!==id);
+  state.lib.collections.forEach(c=> c.itemIds = c.itemIds.filter(x=>x!==id));
+  saveLib();
+  toast('Title deleted');
+  filterManageLibResults();
+}
 function renderSettings(){
   const s = state.settings;
   return `
@@ -4012,6 +4142,18 @@ function renderSettings(){
           <div class="field-hint">Use the <b>"API Key (v3 auth)"</b> from your TMDB account settings — a short string like <code>a1b2c3d4...</code>. Not the long "API Read Access Token" (starts with <code>eyJ...</code>) — that one won't work here and will make every TMDB fetch fail silently. Enables hover trailer previews (hover a card ~1.5s) and the "Fetch from TMDB" / IMDb import buttons.</div>
         </div>
         <button class="btn btn-primary" onclick="saveApiKeys()">Save Keys</button>
+      </div>
+      <div class="settings-section">
+        <h3>Manage Library</h3>
+        <p class="field-hint" style="margin-bottom:14px;">
+          Search your library to edit a title's details or sources, or delete it entirely.
+        </p>
+        <div class="field">
+          <input id="manageLibSearch" placeholder="Search movies and TV shows..." oninput="filterManageLibResults()">
+        </div>
+        <div class="manage-lib-rows" id="manageLibResults">
+          <div class="manage-lib-empty">Start typing a title to find it.</div>
+        </div>
       </div>
       <div class="settings-section">
         <h3>Subtitles <span style="font-weight:600; color:var(--muted); text-transform:none;">(SubDL)</span></h3>
