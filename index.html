@@ -259,11 +259,11 @@ a{color:inherit; text-decoration:none;}
 }
 
 /* ---------- Rows / Cards ---------- */
-.row{margin:38px 0;}
-.row-head{display:flex; align-items:center; justify-content:space-between; padding:0 32px; margin-bottom:16px;}
+.row{margin:38px 0; text-align:left;}
+.row-head{display:flex; align-items:center; justify-content:space-between; padding:0 32px; margin-bottom:16px; text-align:left;}
 .row-head h3{font-size:18px; font-weight:800; font-family:var(--display-font); letter-spacing:.1px; position:relative; padding-left:14px;}
 .row-head h3::before{content:''; position:absolute; left:0; top:2px; bottom:2px; width:3px; border-radius:2px; background:linear-gradient(180deg, var(--highlight), var(--primary));}
-.row-track{display:flex; gap:16px; overflow-x:auto; padding:8px 32px 22px 32px; scroll-behavior:smooth;}
+.row-track{display:flex; justify-content:flex-start; gap:16px; overflow-x:auto; padding:8px 32px 22px 32px; scroll-behavior:smooth;}
 .row-track::-webkit-scrollbar{display:none;}
 
 .card{
@@ -504,8 +504,12 @@ a{color:inherit; text-decoration:none;}
   display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin:0 auto 10px auto; align-items:center;
 }
 .tag{background:#161923; border:1px solid #232837; padding:4px 10px; border-radius:6px; font-size:11.5px; color:var(--muted); font-weight:700; display:inline-flex; align-items:center; gap:4px;}
+.detail-cast-tags a.tag{text-decoration:none; transition:border-color .15s ease, color .15s ease;}
+.detail-cast-tags a.tag:hover, .detail-cast-tags a.tag:focus-visible{color:var(--highlight); border-color:var(--highlight);}
 .tag svg{width:12px; height:12px; flex-shrink:0;}
 .detail-genres{color:var(--muted); font-size:13px; font-weight:600; letter-spacing:.01em; margin-bottom:16px;}
+.detail-genre-link{color:inherit; text-decoration:none;}
+.detail-genre-link:hover, .detail-genre-link:focus-visible{color:var(--text); text-decoration:underline;}
 .detail-genres .genre-dot{display:inline-block; color:#384049; margin:0 8px; font-weight:700;}
 .detail-desc-wrap{max-width:680px; margin:0 auto 22px auto;}
 .detail-desc{color:#c7d5d3; font-size:14px; line-height:1.6; text-align:left;}
@@ -523,7 +527,9 @@ a{color:inherit; text-decoration:none;}
    strip of faces rather than another block of text. Falls back to an initials avatar per-person when
    TMDB has no photo for them (or the image 404s), never omitted or left blank. */
 .cast-chip-row{display:grid; grid-template-columns:repeat(auto-fill, minmax(180px,1fr)); gap:16px 18px; justify-content:center; text-align:left;}
-.cast-chip{display:flex; align-items:center; gap:10px; min-width:0;}
+.cast-chip{display:flex; align-items:center; gap:10px; min-width:0; text-decoration:none; color:inherit; border-radius:8px; padding:4px; margin:-4px; transition:background .15s ease;}
+.cast-chip:hover, .cast-chip:focus-visible{background:#141721;}
+.cast-chip:hover .cast-chip-name, .cast-chip:focus-visible .cast-chip-name{color:var(--highlight);}
 .cast-chip-hidden{display:none;}
 .cast-chip-row.is-expanded .cast-chip-hidden{display:flex;}
 .cast-chip-photo{width:44px; height:44px; border-radius:50%; overflow:hidden; flex-shrink:0; background:var(--surface2); border:1px solid #232837;}
@@ -599,27 +605,18 @@ a{color:inherit; text-decoration:none;}
 @media (max-width:860px){ .watch-progress-banner{margin-left:16px; margin-right:16px;} }
 .season-select-row{display:flex; flex-direction:column; gap:14px; margin:30px 32px 16px 32px;}
 .season-select-label{font-size:11.5px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.05em;}
-.season-select-header{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;}
-.season-dropdown{
-  background:#12141c; border:1px solid #232837; border-radius:10px; padding:8px 30px 8px 12px; font-size:13px;
-  color:var(--text); font-weight:600; cursor:pointer; font-family:inherit;
-  appearance:none; -webkit-appearance:none; -moz-appearance:none;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%237a8a94' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat:no-repeat; background-position:right 12px center; transition:border-color var(--transition);
-}
-.season-dropdown:hover{border-color:#3a415a;}
-.season-dropdown:focus{outline:none; border-color:var(--highlight);}
-/* Season chips are now poster-card style (matching .detail-poster / .card treatment) rather than a
-   small circular thumbnail — a taller 2:3 poster reads as "which season" far faster than a 64px circle,
-   and lines up visually with every other poster surface in the app. Watch progress moves from the old
-   ring-around-a-circle to a thin bottom bar, mirroring .card-progress on the main grid cards. */
-.season-chip-row{display:flex; gap:12px; overflow-x:auto; padding-bottom:4px; scrollbar-width:thin;}
+/* Season chips are poster-card style (matching .detail-poster / .card treatment) rather than a small
+   circular thumbnail — a taller 2:3 poster reads as "which season" far faster than a 64px circle, and
+   lines up visually with every other poster surface in the app. Laid out 3-per-row so every season is
+   visible at a glance instead of hidden behind horizontal scrolling. Watch progress shows as a thin
+   bottom bar, mirroring .card-progress on the main grid cards. */
+.season-chip-row{display:grid; grid-template-columns:repeat(3, 1fr); gap:14px 16px;}
 .season-chip{
-  display:flex; flex-direction:column; align-items:center; gap:8px; flex-shrink:0; width:104px;
+  display:flex; flex-direction:column; align-items:center; gap:8px; width:100%;
   background:none; border:none; cursor:pointer; padding:0; font-family:inherit;
 }
 .season-chip-thumb-wrap{
-  position:relative; width:104px; aspect-ratio:2/3; border-radius:10px; overflow:hidden;
+  position:relative; width:100%; aspect-ratio:2/3; border-radius:10px; overflow:hidden;
   background:var(--surface2); border:2px solid #232837; box-shadow:0 10px 22px rgba(0,0,0,.4);
   transition:border-color var(--transition), box-shadow var(--transition), transform var(--transition);
 }
@@ -639,14 +636,35 @@ a{color:inherit; text-decoration:none;}
 .season-chip-progress > span{display:block; height:100%; background:linear-gradient(90deg, var(--highlight), #2bc4c1);}
 .season-chip-label{font-size:12px; font-weight:700; color:var(--muted); text-align:center; line-height:1.3;}
 .season-chip.active .season-chip-label{color:var(--text);}
-.season-overview{font-size:13.5px; line-height:1.55; color:var(--muted); max-width:760px; margin-left:auto; margin-right:auto; text-align:left;}
+/* Overview panel for the active season — a proper card (poster thumb + title/meta/synopsis) instead
+   of a bare paragraph, so clicking a season reveals something with real visual weight rather than a
+   thin line of muted text floating under the grid. */
+.season-overview-panel{
+  display:flex; gap:16px; align-items:flex-start; background:var(--surface); border:1px solid #1a1d26;
+  border-radius:12px; padding:16px;
+}
+.season-overview-poster{width:64px; aspect-ratio:2/3; border-radius:8px; overflow:hidden; flex-shrink:0; background:var(--surface2);}
+.season-overview-poster img{width:100%; height:100%; object-fit:cover; display:block;}
+.season-overview-poster .poster-fallback{
+  width:100%; height:100%; display:flex; align-items:center; justify-content:center;
+  font-size:20px; font-weight:900; color:var(--highlight); font-family:var(--display-font);
+  background:linear-gradient(135deg,var(--primary),var(--surface));
+}
+.season-overview-body{flex:1; min-width:0; text-align:left;}
+.season-overview-title{font-size:15px; font-weight:800; color:var(--text); margin-bottom:3px;}
+.season-overview-meta{font-size:12px; color:var(--muted); font-weight:600; margin-bottom:9px;}
+.season-overview{font-size:13.5px; line-height:1.6; color:#c7d5d3;}
+.season-overview b{color:var(--text); font-weight:800;}
 /* Fallback synopsis shown when a season has no overview of its own (common for older/imported
-   shows) — leads with which season/show it is, then borrows the show's own synopsis so the panel
-   is never left blank, styled slightly dimmer/italic so it still reads as a stand-in, not real data. */
+   shows) — borrows the show's own synopsis so the panel is never left blank, styled slightly
+   dimmer/italic so it still reads as a stand-in, not real season-specific data. */
 .season-overview-fallback{font-style:italic; opacity:.85;}
 .season-overview-fallback b{font-style:normal; color:var(--muted);}
+.season-mark-watched-btn{margin-top:14px;}
 @media (max-width:860px){
-  .season-chip, .season-chip-thumb-wrap{width:84px;}
+  .season-overview-panel{flex-direction:column; align-items:center;}
+  .season-overview-poster{width:84px;}
+  .season-overview-title, .season-overview-meta{text-align:center;}
 }
 .episode-list{padding:0 32px; display:flex; flex-direction:column; gap:10px;}
 .episode-card{
@@ -725,6 +743,7 @@ a{color:inherit; text-decoration:none;}
 .episode-modal-nav-next{right:12px;}
 .episode-modal-progress{position:absolute; left:0; right:0; bottom:0; height:4px; background:rgba(255,255,255,.12);}
 .episode-modal-progress > div{height:100%; background:var(--episode-glow, var(--highlight));}
+.episode-modal-progress.is-complete > div{opacity:.5;}
 .episode-modal-body{
   padding:22px 26px 26px; position:relative;
   background:radial-gradient(120% 160% at 12% -15%, color-mix(in srgb, var(--episode-glow, var(--highlight)) 16%, transparent), transparent 60%);
@@ -2215,7 +2234,26 @@ function router(){
   const param = hashParts.slice(1).join('/'); // rejoin so multi-segment routes (e.g. genre/movie/Drama) keep every part
   state.route = route;
   state.routeParam = param || null;
-  if(route==='detail') state.detailSeason = 0;
+  // detail/{id}/{seasonNumber}/{episodeNumber} — id is a uuid (never contains '/'), so the first
+  // segment is always the id. seasonNumber/episodeNumber are the real season/episode NUMBERS (not
+  // array indices), so a shared/refreshed link stays correct even if seasons get reordered. Both
+  // trailing segments are optional; state.routeParam is narrowed to just the id so every existing
+  // `getItem(state.routeParam)` / `state.routeParam===item.id` check elsewhere keeps working unchanged.
+  state.detailDeepLinkEpisode = null;
+  if(route==='detail'){
+    const detailParts = param ? param.split('/') : [];
+    const itemId = detailParts[0] || null;
+    const seasonNumParam = detailParts[1];
+    const epNumParam = detailParts[2];
+    state.routeParam = itemId;
+    state.detailSeason = 0;
+    if(itemId && seasonNumParam!=null){
+      const it = getItem(itemId);
+      const idx = it && (it.seasons||[]).findIndex(s=>String(s.number)===String(seasonNumParam));
+      if(idx>=0) state.detailSeason = idx;
+    }
+    if(epNumParam!=null && !isNaN(parseInt(epNumParam,10))) state.detailDeepLinkEpisode = parseInt(epNumParam,10);
+  }
   stopHeroAutoplay();
   clearAllCardHoverTimers();
   stopMyShowsCountdown();
@@ -2235,10 +2273,25 @@ function router(){
       root.innerHTML = renderGenrePage(genreTypeParam, genreName);
       break;
     }
-    case 'detail':
-      root.innerHTML = renderDetail(param);
-      { const detailItem = getItem(param); if(detailItem) loadTmdbSimilarRow(detailItem); }
+    case 'actor': {
+      const actorName = decodeURIComponent(param || '');
+      root.innerHTML = renderActorPage(actorName);
       break;
+    }
+    case 'detail': {
+      root.innerHTML = renderDetail(state.routeParam);
+      const detailItem = getItem(state.routeParam);
+      if(detailItem){
+        loadTmdbSimilarRow(detailItem);
+        // Auto-open the episode-info modal when the URL points at a specific episode (deep link/share/
+        // refresh). Deferred a tick so it opens after renderDetail's own markup has actually landed.
+        if(state.detailDeepLinkEpisode!=null){
+          const season = (detailItem.seasons||[])[state.detailSeason];
+          if(season) setTimeout(()=> openEpisodeInfoModal(state.routeParam, season.number, state.detailDeepLinkEpisode), 0);
+        }
+      }
+      break;
+    }
     default: root.innerHTML = renderHome();
   }
   startHeroAutoplay();
@@ -2399,6 +2452,22 @@ function renderGenrePage(typeParam, genre){
       </div>
       <h2 style="margin-bottom:16px;">${esc(genre)}</h2>
       ${items.length ? `<div class="grid">${items.map(i=>cardHtml(i)).join('')}</div>` : emptyState(`No ${esc(genre)} titles`, 'Nothing in this genre yet.')}
+    </div>`;
+}
+// Same pattern as renderGenrePage, filtering by cast member instead of genre. Checks both the
+// richer item.cast[] (TMDB-fetched, has {name,character}) and the plain item.actors[] name list —
+// castRowHtml() already renders whichever one a given title actually has, so this mirrors that.
+function renderActorPage(actor){
+  const items = state.lib.items.filter(i=>
+    (i.cast||[]).some(c=>c.name===actor) || (i.actors||[]).includes(actor)
+  ).sort((a,b)=> new Date(b.dateAdded||0)-new Date(a.dateAdded||0));
+  return `
+    <div class="page">
+      <div class="filter-bar">
+        <a class="btn btn-ghost" href="#home">&larr; Home</a>
+      </div>
+      <h2 style="margin-bottom:16px;">${esc(actor)}</h2>
+      ${items.length ? `<div class="grid">${items.map(i=>cardHtml(i)).join('')}</div>` : emptyState(`Nothing with ${esc(actor)}`, 'No titles in your library feature this person.')}
     </div>`;
 }
 /* Up to 6 panoramic banner URLs per title. Falls back to the old single `panoramicBanner`
@@ -3679,28 +3748,46 @@ function renderDetail(id){
     const seasons = item.seasons||[];
     const activeIdx = Math.min(state.detailSeason, Math.max(seasons.length-1,0));
     const active = seasons[activeIdx];
-    const overviewHtml = active && active.overview
-      ? `<p class="season-overview">${esc(active.overview)}</p>`
-      : (active && item.description
-          ? `<p class="season-overview season-overview-fallback"><b>Season ${active.number} of ${esc(item.title)}.</b> ${esc(item.description)}</p>`
-          : '');
+    let overviewHtml = '';
+    if(active){
+      const activeEpCount = (active.episodes||[]).length;
+      const activeWatchedCount = (active.episodes||[]).filter(e=>{
+        const p = (item.progress||{})['s'+active.number+'e'+e.number];
+        return p && p.watched;
+      }).length;
+      const metaText = activeEpCount ? `${activeEpCount} episode${activeEpCount===1?'':'s'} · ${activeWatchedCount}/${activeEpCount} watched` : 'No episodes added yet';
+      // Aired-only subset for the bulk button: whether it reads "Mark as Watched" vs "Mark as
+      // Unwatched" is based only on episodes that have actually aired (mirrors markSeasonWatched,
+      // which likewise skips unaired episodes so it never marks something not yet out as watched).
+      const airedEpisodes = (active.episodes||[]).filter(e=>{
+        const airDateObj = e.airDate ? new Date(e.airDate+'T00:00:00') : null;
+        return !(airDateObj && !isNaN(airDateObj) && airDateObj > new Date());
+      });
+      const airedAllWatched = airedEpisodes.length>0 && airedEpisodes.every(e=>{
+        const p = (item.progress||{})['s'+active.number+'e'+e.number];
+        return p && p.watched;
+      });
+      const activeThumbSrc = active.poster || item.poster || '';
+      const bodyText = active.overview || item.description || '';
+      const synopsisHtml = bodyText
+        ? `<p class="season-overview"><b>Season ${active.number} of ${esc(item.title)}.</b> ${esc(bodyText)}</p>`
+        : `<p class="season-overview season-overview-fallback">No synopsis added for this season.</p>`;
+      overviewHtml = `
+        <div class="season-overview-panel">
+          <div class="season-overview-poster">${activeThumbSrc ? `<img src="${esc(activeThumbSrc)}" alt="" loading="lazy" onload="this.classList.add('loaded')" onerror="this.parentElement.innerHTML=fallbackHtml('${esc(item.title).replace(/'/g,"&#39;")}')">` : fallbackHtml(item.title)}</div>
+          <div class="season-overview-body">
+            <div class="season-overview-title">Season ${active.number}</div>
+            <div class="season-overview-meta">${metaText}</div>
+            ${synopsisHtml}
+            ${airedEpisodes.length ? `<button type="button" class="btn btn-ghost season-mark-watched-btn" onclick="markSeasonWatched('${item.id}', ${active.number})">${airedAllWatched?ICON.close+' Mark Season as Unwatched':ICON.check+' Mark Season as Watched'}</button>` : ''}
+          </div>
+        </div>`;
+    }
     body = `
       ${watchProgressBannerHtml(item)}
       <div class="season-select-row">
         ${seasons.length ? `
-          <div class="season-select-header">
-            <span class="season-select-label">Seasons</span>
-            ${seasons.length>1 ? `<select class="season-dropdown" aria-label="Jump to season" onchange="setDetailSeason(parseInt(this.value,10))">
-              ${seasons.map((s,i)=>{
-                const epCount = (s.episodes||[]).length;
-                const watchedCount = (s.episodes||[]).filter(e=>{
-                  const p = (item.progress||{})['s'+s.number+'e'+e.number];
-                  return p && p.watched;
-                }).length;
-                return `<option value="${i}" ${i===activeIdx?'selected':''}>Season ${s.number}${epCount?` (${watchedCount}/${epCount} watched)`:''}</option>`;
-              }).join('')}
-            </select>` : ''}
-          </div>
+          <span class="season-select-label">Seasons</span>
           <div class="season-chip-row" role="tablist" aria-label="Season">
             ${seasons.map((s,i)=>{
               const epCount = (s.episodes||[]).length;
@@ -3776,7 +3863,7 @@ function renderDetail(id){
       </div>
       <div class="detail-info">
         ${detailTagsHtml(item)}
-        ${(item.genre||[]).length ? `<div class="detail-genres">${item.genre.map(g=>esc(g)).join('<span class="genre-dot">·</span>')}</div>` : ''}
+        ${(item.genre||[]).length ? `<div class="detail-genres">${item.genre.map(g=>`<a href="#genre/${item.type}/${encodeURIComponent(g)}" class="detail-genre-link">${esc(g)}</a>`).join('<span class="genre-dot">·</span>')}</div>` : ''}
         ${item.director ? `<div class="detail-director">${item.type==='series'?'Created by':'Directed by'} <b>${esc(item.director)}</b></div>` : ''}
         ${tvStatusLineHtml(item)}
         ${ratingsClusterHtml(item)}
@@ -3917,18 +4004,18 @@ function castRowHtml(item){
   if(item.cast && item.cast.length){
     const CAP = 6;
     const chips = item.cast.map((c,i)=>`
-      <div class="cast-chip${i>=CAP?' cast-chip-hidden':''}">
-        <div class="cast-chip-photo">${c.photo ? `<img src="${esc(c.photo)}" alt="" loading="lazy" class="${c.blurred?'content-blurred':''}" onload="this.classList.add('loaded'); ${c.blurred?'':'classifyAndBlurImage(this);'}" onclick="if(this.classList.contains('content-blurred')){ revealBlurredEl(this, event); }" onerror="this.parentElement.innerHTML=castAvatarFallback('${esc(c.name).replace(/'/g,"&#39;")}')">` : castAvatarFallback(c.name)}</div>
+      <a class="cast-chip${i>=CAP?' cast-chip-hidden':''}" href="#actor/${encodeURIComponent(c.name)}" title="See titles with ${esc(c.name).replace(/"/g,'&quot;')}">
+        <div class="cast-chip-photo">${c.photo ? `<img src="${esc(c.photo)}" alt="" loading="lazy" class="${c.blurred?'content-blurred':''}" onload="this.classList.add('loaded'); ${c.blurred?'':'classifyAndBlurImage(this);'}" onclick="if(this.classList.contains('content-blurred')){ event.preventDefault(); event.stopPropagation(); revealBlurredEl(this, event); }" onerror="this.parentElement.innerHTML=castAvatarFallback('${esc(c.name).replace(/'/g,"&#39;")}')">` : castAvatarFallback(c.name)}</div>
         <div class="cast-chip-info">
           <span class="cast-chip-name">${esc(c.name)}</span>
           ${c.character?`<span class="cast-character">${esc(c.character)}</span>`:''}
         </div>
-      </div>`).join('');
+      </a>`).join('');
     const toggleBtn = item.cast.length>CAP ? `<button type="button" class="cast-show-more-btn" data-total="${item.cast.length}" onclick="toggleCastExpand(this)">Show all cast (${item.cast.length})</button>` : '';
     return `<div class="detail-cast"><span class="detail-cast-label">Full Cast</span><div class="cast-chip-row">${chips}</div>${toggleBtn}</div>`;
   }
   if(item.actors && item.actors.length){
-    return `<div class="detail-cast"><span class="detail-cast-label">Starring</span><div class="detail-cast-tags">${item.actors.map(a=>`<span class="tag">${esc(a)}</span>`).join('')}</div></div>`;
+    return `<div class="detail-cast"><span class="detail-cast-label">Starring</span><div class="detail-cast-tags">${item.actors.map(a=>`<a class="tag" href="#actor/${encodeURIComponent(a)}">${esc(a)}</a>`).join('')}</div></div>`;
   }
   return '';
 }
@@ -3937,8 +4024,15 @@ function castRowHtml(item){
 // count from the DOM (some chips are display:none, not removed, so querying visible count would lie).
 function toggleCastExpand(btn){
   const row = btn.previousElementSibling;
+  // Expanding/collapsing changes the grid's height, which reflows everything below it — most
+  // noticeable on collapse, where the button (and whatever the user was reading near it) jumps
+  // several rows up. Measure the button's position before/after and scroll by exactly the delta
+  // so it stays visually anchored instead of "losing" the user's scroll position.
+  const beforeY = btn.getBoundingClientRect().top;
   const expanded = row.classList.toggle('is-expanded');
   btn.textContent = expanded ? 'Show less' : `Show all cast (${btn.dataset.total})`;
+  const afterY = btn.getBoundingClientRect().top;
+  if(afterY !== beforeY) window.scrollBy(0, afterY - beforeY);
 }
 function getSimilarLibraryItems(item, limit){
   limit = limit || 12;
@@ -4007,8 +4101,15 @@ function quickAddFromTmdb(tmdbId, type){
 }
 function setDetailSeason(i){
   state.detailSeason=i;
-  document.getElementById('pageRoot').innerHTML = renderDetail(state.routeParam);
   const item = getItem(state.routeParam);
+  // Reflect the visible season in the URL using its real NUMBER (not this array index, which can
+  // shift) so the tab is shareable and survives a refresh. replaceState rather than location.hash so
+  // a season-chip click doesn't fire hashchange/router() (which would also reset scroll position).
+  if(item){
+    const season = (item.seasons||[])[i];
+    if(season && season.number!=null) history.replaceState(null, '', '#detail/'+state.routeParam+'/'+season.number);
+  }
+  document.getElementById('pageRoot').innerHTML = renderDetail(state.routeParam);
   if(item) loadTmdbSimilarRow(item);
 }
 function toggleMovieWatched(id){
@@ -4034,6 +4135,40 @@ function toggleEpisodeWatched(itemId, seasonNum, epNum){
   saveLib();
   document.getElementById('pageRoot').innerHTML = renderDetail(itemId);
   toast(watched?'Marked as unwatched':'Marked as watched');
+}
+// Bulk season-level toggle for the "Mark Season as Watched" button in the season overview panel —
+// same per-episode progress shape toggleEpisodeWatched writes, just applied to every episode in the
+// season in one pass/one saveLib()/one re-render instead of clicking each episode individually.
+// Skips unaired episodes (mirrors the episode-card list, which hides the watched-toggle for those)
+// so bulk-marking a season never marks something that hasn't aired yet as watched.
+// Direction is "toWatched" when the season isn't fully watched yet, and "toUnwatched" once it is —
+// same all-or-nothing pattern as toggleMovieWatched, so the button always reads as a single clear action.
+function markSeasonWatched(itemId, seasonNum){
+  const item = getItem(itemId);
+  if(!item) return;
+  const season = (item.seasons||[]).find(s=>s.number===seasonNum);
+  if(!season) return;
+  const episodes = (season.episodes||[]).filter(e=>{
+    const airDateObj = e.airDate ? new Date(e.airDate+'T00:00:00') : null;
+    return !(airDateObj && !isNaN(airDateObj) && airDateObj > new Date());
+  });
+  if(!episodes.length) return;
+  item.progress = item.progress || {};
+  const allWatched = episodes.every(e=>{
+    const p = item.progress['s'+seasonNum+'e'+e.number];
+    return p && p.watched;
+  });
+  episodes.forEach(e=>{
+    const key = 's'+seasonNum+'e'+e.number;
+    const cur = item.progress[key];
+    item.progress[key] = allWatched
+      ? {timestamp:0, duration:(cur&&cur.duration)||0, watched:false}
+      : {timestamp:(cur&&cur.duration)||1, duration:(cur&&cur.duration)||1, watched:true};
+  });
+  item.lastWatched = new Date().toISOString();
+  saveLib();
+  document.getElementById('pageRoot').innerHTML = renderDetail(itemId);
+  toast(allWatched ? `Season ${seasonNum} marked as unwatched` : `Season ${seasonNum} marked as watched`);
 }
 function episodeMiniStarsHtml(itemId, seasonNum, ep){
   const rating = ep.myRating || 0;
@@ -4068,6 +4203,12 @@ function openEpisodeInfoModal(itemId, seasonNum, epNum){
   openModal(episodeInfoModalHtml(itemId, seasonNum, epNum));
   const modalBody = document.getElementById('modalBody');
   modalBody.classList.add('modal-episode-info');
+  // Stamp the open episode into the URL (season/episode NUMBERs) purely so it's shareable/refreshable
+  // — see router()'s detail/{id}/{season}/{episode} parsing. replaceState avoids a back-button stop
+  // or a hashchange/router() re-render for every episode click, same reasoning as setDetailSeason.
+  if(state.route==='detail' && state.routeParam===itemId){
+    history.replaceState(null, '', '#detail/'+itemId+'/'+seasonNum+'/'+epNum);
+  }
   const epKey = itemId+'-s'+seasonNum+'e'+epNum;
   modalBody.dataset.epKey = epKey;
   modalBody.style.removeProperty('--episode-glow');
@@ -4110,7 +4251,7 @@ function episodeInfoModalHtml(itemId, seasonNum, epNum){
       <button type="button" class="btn-icon episode-modal-close" title="Close" onclick="closeModal()">${ICON.close}</button>
       <button type="button" class="btn-icon episode-modal-nav episode-modal-nav-prev" title="Previous Episode" ${prev?'':'disabled style="opacity:.35; cursor:not-allowed;"'} onclick="${prev?`openEpisodeInfoModal('${itemId}', ${prev.seasonNum}, ${prev.ep.number})`:''}">${ICON.chevronLeft}</button>
       <button type="button" class="btn-icon episode-modal-nav episode-modal-nav-next" title="Next Episode" ${next?'':'disabled style="opacity:.35; cursor:not-allowed;"'} onclick="${next?`openEpisodeInfoModal('${itemId}', ${next.seasonNum}, ${next.ep.number})`:''}">${ICON.chevronRight}</button>
-      ${pct>0 && !watched ? `<div class="episode-modal-progress"><div style="width:${pct}%"></div></div>` : ''}
+      ${pct>0 ? `<div class="episode-modal-progress${watched?' is-complete':''}"><div style="width:${pct}%"></div></div>` : ''}
     </div>
     <div class="episode-modal-body">
       <div class="episode-modal-eyebrow">Season ${seasonNum} · Episode ${ep.number}</div>
@@ -4133,7 +4274,7 @@ function episodeInfoModalHtml(itemId, seasonNum, epNum){
             ${sources.map((src,i)=>`<button type="button" class="btn btn-ghost episode-modal-source-btn" onclick="playEpisodeFromModal('${itemId}', ${seasonNum}, ${ep.number}, ${i})">${ICON.play} ${esc(src.label||'Source '+(i+1))}</button>`).join('')}
           </div>
         ` : `<button class="btn btn-primary" ${sourceCount?'':'disabled style="opacity:.5; cursor:not-allowed;"'} onclick="playEpisodeFromModal('${itemId}', ${seasonNum}, ${ep.number}, 0)">${ICON.play} ${canResume?`Continue from ${formatResumeTime(p.timestamp)}`:'Play Episode'}</button>`}
-        <button class="btn btn-ghost" onclick="toggleEpisodeWatchedInModal('${itemId}', ${seasonNum}, ${ep.number})">${watched?ICON.close+' Mark as Unwatched':ICON.check+' Mark as Watched'}</button>
+        <button class="btn btn-ghost" onclick="toggleEpisodeWatchedInModal('${itemId}', ${seasonNum}, ${ep.number})">${watched?ICON.close+' Mark as Unwatched':(next?ICON.check+' Watched &rarr; Next':ICON.check+' Mark as Watched')}</button>
       </div>
     </div>
   `;
@@ -4168,10 +4309,51 @@ function setEpisodeRatingInModal(itemId, seasonNum, epNum, rating){
   if(body) body.innerHTML = episodeInfoModalHtml(itemId, seasonNum, epNum);
 }
 function toggleEpisodeWatchedInModal(itemId, seasonNum, epNum){
+  const item = getItem(itemId);
+  if(!item) return;
+  const wasWatched = !!(item.progress && item.progress['s'+seasonNum+'e'+epNum] && item.progress['s'+seasonNum+'e'+epNum].watched);
   toggleEpisodeWatched(itemId, seasonNum, epNum); // updates data, toasts, repaints the page behind the modal
+  // Auto-advance to the next episode when this just got marked WATCHED (not unwatched) — the whole
+  // point of checking episodes off in this modal is not having to close/reopen it for every one.
+  // Skipped when there's no next episode (openEpisodeInfoModal doesn't care whether it's aired yet,
+  // same as the prev/next chevrons — it'll just show as "Airs <date>" with playback disabled).
+  if(!wasWatched){
+    const next = getNextEpisode(item, seasonNum, epNum);
+    if(next){ openEpisodeInfoModal(itemId, next.seasonNum, next.ep.number); return; }
+  }
   const body = document.getElementById('modalBody');
   if(body) body.innerHTML = episodeInfoModalHtml(itemId, seasonNum, epNum);
 }
+// Swipe left/right anywhere in the episode-info modal to move to the next/previous episode — same
+// dx-threshold drag pattern as the hero carousel (heroPointerDown/Move/Up), just horizontal-only and
+// bound once at the modalBody level (that DOM node persists across every openEpisodeInfoModal
+// re-render, so this only needs to be wired up a single time at startup, not per open). Guarded by
+// modal-episode-info so it's a no-op for every other modal that shares the same #modalBody element.
+// Reuses the existing prev/next chevron buttons rather than duplicating their logic, which also means
+// it automatically respects their disabled state at the first/last episode.
+let episodeModalSwipeStartX = null, episodeModalSwipeStartY = null;
+function initEpisodeModalSwipe(){
+  const modalBody = document.getElementById('modalBody');
+  if(!modalBody) return;
+  modalBody.addEventListener('touchstart', e=>{
+    if(!modalBody.classList.contains('modal-episode-info') || !e.touches.length) return;
+    episodeModalSwipeStartX = e.touches[0].clientX;
+    episodeModalSwipeStartY = e.touches[0].clientY;
+  }, {passive:true});
+  modalBody.addEventListener('touchend', e=>{
+    if(episodeModalSwipeStartX==null || !modalBody.classList.contains('modal-episode-info')) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - episodeModalSwipeStartX;
+    const dy = t.clientY - episodeModalSwipeStartY;
+    episodeModalSwipeStartX = null; episodeModalSwipeStartY = null;
+    // Require a clearly horizontal drag past a real swipe distance (same 50px threshold the hero
+    // carousel uses) so a vertical scroll through the overview text never gets mistaken for a swipe.
+    if(Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy)) return;
+    const btn = modalBody.querySelector(dx > 0 ? '.episode-modal-nav-prev' : '.episode-modal-nav-next');
+    if(btn && !btn.disabled) btn.click();
+  }, {passive:true});
+}
+initEpisodeModalSwipe();
 // Star row for the PLAYBACK END CARD specifically — deliberately separate from ratingsClusterHtml()/
 // episodeMiniStarsHtml() above, whose onclick handlers re-render the whole detail page. That's fine
 // on the detail page itself, but the player overlay sits on top of (and hides) pageRoot, so doing
@@ -5044,6 +5226,15 @@ function openModal(html){
   document.getElementById('modalOverlay').classList.add('open');
 }
 function closeModal(){
+  // If the episode-info modal was open, its season/episode were stamped into the URL for sharing
+  // (see openEpisodeInfoModal). Drop back to the season-level URL on close so the address bar
+  // matches what's actually on screen once the modal is gone.
+  const modalBody = document.getElementById('modalBody');
+  if(modalBody && modalBody.classList.contains('modal-episode-info') && state.route==='detail' && state.routeParam){
+    const item = getItem(state.routeParam);
+    const season = item && (item.seasons||[])[state.detailSeason];
+    history.replaceState(null, '', '#detail/'+state.routeParam+(season && season.number!=null ? '/'+season.number : ''));
+  }
   document.getElementById('modalOverlay').classList.remove('open');
 }
 document.getElementById('modalOverlay').addEventListener('click', e=>{
