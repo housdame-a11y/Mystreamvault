@@ -88,17 +88,6 @@ a{color:inherit; text-decoration:none;}
 .topbar.scrolled{box-shadow:0 8px 24px rgba(0,0,0,.35);}
 .topbar h1{font-size:23px; font-weight:800; letter-spacing:.1px; font-family:var(--display-font);}
 .topbar-actions{display:flex; gap:10px; align-items:center;}
-/* Detail-page mini-header: sits in the same slot as the plain <h1> (topbar route titles), but stays
-   invisible/unclickable until scrolled past the hero backdrop (see the scroll listener below), so the
-   title + primary action are always one tap away on long pages with many seasons/episodes without
-   duplicating the big hero title while it's still on screen. */
-.topbar-mini{
-  display:flex; align-items:center; gap:16px; min-width:0; flex:1; opacity:0; transform:translateY(-6px);
-  pointer-events:none; transition:opacity .25s ease, transform .25s ease;
-}
-.topbar-mini.show{opacity:1; transform:translateY(0); pointer-events:auto;}
-.topbar-mini-title{font-size:15px; font-weight:800; font-family:var(--display-font); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;}
-.topbar-mini .btn{padding:8px 16px; font-size:12.5px; flex-shrink:0;}
 
 .btn{
   padding:10px 18px; border-radius:8px; font-weight:700; font-size:13.5px;
@@ -450,7 +439,7 @@ a{color:inherit; text-decoration:none;}
    they fail) — same idea as a skeleton screen, just done with a moving gradient instead of gray bars. */
 @keyframes skeletonShimmer{0%{background-position:0% 0;} 100%{background-position:200% 0;}}
 .detail-backdrop{
-  position:relative; height:68vh; min-height:460px; max-height:680px; overflow:hidden; margin:0; border-radius:0;
+  position:relative; height:44vh; min-height:300px; border-radius:16px; overflow:hidden; margin:20px 32px;
   background:linear-gradient(100deg,#12141c 0%,#1c1f2b 40%,#12141c 80%); background-size:220% 100%;
   animation:skeletonShimmer 1.7s ease-in-out infinite;
   /* Ambient glow bled from the poster's dominant color (see extractPosterGlowColor) — box-shadow paints
@@ -470,32 +459,12 @@ a{color:inherit; text-decoration:none;}
   0%{transform:scale(1) translate(0,0);}
   100%{transform:scale(1.09) translate(-1.5%,-1.5%);}
 }
-.detail-backdrop img.loaded{opacity:.6; animation:kenBurnsBackdrop 16s ease-out forwards;}
-/* Full-bleed hero: the title/logo/tagline now live directly on top of the backdrop image (Netflix/
-   Disney+ style) instead of a separate card starting below it, so this scrim needs to do more work
-   than the old thin bottom fade — dark enough at the bottom for the overlaid text to stay readable
-   over any image, fading up to nothing so the top of the backdrop still reads as a clean photo. */
-.detail-backdrop::after{content:''; position:absolute; inset:0; z-index:1; background:linear-gradient(0deg, var(--bg) 0%, rgba(8,9,13,.88) 24%, rgba(8,9,13,.4) 52%, transparent 78%);}
-.detail-hero-content{position:absolute; inset:0; z-index:2; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; padding:0 32px 40px 32px;}
-.detail-body{padding:28px 32px 0 32px; position:relative; z-index:2; display:flex; flex-direction:column; gap:20px;}
-/* Stacked hero: poster card, then logo, then tagline — all centered on top of the backdrop, in that
-   vertical order, instead of the old side-by-side poster+title row. */
-.detail-top{display:flex; flex-direction:column; align-items:center; gap:18px; width:100%; text-align:center;}
-/* Gentle staggered entrance so the poster settles in first and the logo/tagline follow half a beat
-   later — kept on this wrapper (not .detail-poster itself) so it never fights with the poster's own
-   loading-shimmer/opacity transition below. */
-@keyframes heroPopIn{ from{opacity:0; transform:translateY(18px);} to{opacity:1; transform:translateY(0);} }
-.detail-poster-frame{
-  width:180px; border-radius:14px; flex-shrink:0;
-  /* Soft drop shadow plus a color-matched halo pulled from the poster's own dominant color
-     (--poster-glow, same variable the backdrop and Play button use), so the card reads as if it's
-     lit from within rather than just a flat box sitting on the image. */
-  box-shadow:0 26px 60px -14px rgba(0,0,0,.75), 0 0 0 1px rgba(255,255,255,.09), 0 0 80px -20px var(--poster-glow, transparent);
-  transition:box-shadow .9s ease;
-  animation:heroPopIn .55s cubic-bezier(.22,.61,.36,1) both;
-}
+.detail-backdrop img.loaded{opacity:.5; animation:kenBurnsBackdrop 16s ease-out forwards;}
+.detail-backdrop::after{content:''; position:absolute; inset:0; background:linear-gradient(0deg,var(--bg) 2%, transparent 80%);}
+.detail-body{padding:0 32px; margin-top:-90px; position:relative; z-index:2; display:flex; flex-direction:column; gap:20px;}
+.detail-top{display:flex; align-items:center; gap:28px;}
 .detail-poster{
-  width:100%; border-radius:14px; overflow:hidden; aspect-ratio:2/3;
+  width:180px; flex-shrink:0; border-radius:10px; overflow:hidden; box-shadow:0 20px 40px rgba(0,0,0,.5); aspect-ratio:2/3;
   background:linear-gradient(100deg,#12141c 0%,#1c1f2b 40%,#12141c 80%); background-size:220% 100%;
   animation:skeletonShimmer 1.7s ease-in-out infinite;
 }
@@ -508,23 +477,14 @@ a{color:inherit; text-decoration:none;}
   background:linear-gradient(135deg,var(--primary),var(--surface));
 }
 .detail-info{flex:1; min-width:0;}
-.detail-title-wrap{display:flex; flex-direction:column; align-items:center; gap:10px; width:100%; max-width:620px;}
-.detail-title-wrap > *{animation:heroPopIn .55s cubic-bezier(.22,.61,.36,1) both;}
-.detail-title-wrap > *:nth-child(1){animation-delay:.08s;}
-.detail-title-wrap > *:nth-child(2){animation-delay:.18s;}
-.detail-top h2{font-size:32px; font-weight:800; margin-bottom:0; text-align:center; text-shadow:0 4px 24px rgba(0,0,0,.7);}
-.detail-logo{max-width:340px; max-height:96px; width:auto; height:auto; object-fit:contain; margin:0 auto; display:block; filter:drop-shadow(0 4px 24px rgba(0,0,0,.6));}
-/* Small color-matched accent line separating the logo/title from the tagline underneath it. */
-.detail-tagline::before{content:''; display:block; width:34px; height:2px; margin:0 auto 12px; border-radius:2px; background:linear-gradient(90deg, transparent, var(--poster-glow, var(--highlight)), transparent); opacity:.85;}
+.detail-title-wrap{flex:1; min-width:0; display:flex; flex-direction:column; justify-content:center; gap:8px;}
+.detail-top h2{font-size:30px; font-weight:800; margin-bottom:0;}
+.detail-logo{max-width:100%; max-height:120px; width:auto; height:auto; object-fit:contain; margin-bottom:0; display:block; filter:drop-shadow(0 4px 20px rgba(0,0,0,.5));}
 @media (max-width:860px){
-  .detail-backdrop{height:60vh; min-height:440px;}
-  .detail-hero-content{padding:0 16px 22px 16px;}
-  .detail-top{gap:12px;}
-  .detail-poster-frame{width:118px; border-radius:12px;}
-  .detail-poster{border-radius:12px;}
-  .detail-logo{max-height:56px; max-width:220px;}
-  .detail-top h2{font-size:24px;}
-  .detail-title-wrap{gap:8px;}
+  .detail-logo{max-height:80px;}
+  .detail-top{gap:16px; flex-direction:column; align-items:center; text-align:center;}
+  .detail-poster{width:150px;}
+  .detail-title-wrap{align-items:center; width:100%;}
 }
 .detail-tags{
   display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center;
@@ -569,7 +529,7 @@ a{color:inherit; text-decoration:none;}
   .cast-chip-row{grid-template-columns:repeat(auto-fill, minmax(140px,1fr));}
   .cast-chip-photo{width:38px; height:38px;}
 }
-.detail-tagline{color:var(--muted); font-size:14.5px; font-style:italic; margin:0 auto; max-width:520px; text-align:center; text-shadow:0 2px 12px rgba(0,0,0,.7);}
+.detail-tagline{color:var(--muted); font-size:14.5px; font-style:italic; margin:0;}
 .tag-cert{border-color:var(--highlight); color:var(--highlight);}
 .detail-director{font-size:13px; color:var(--muted); margin-bottom:12px;}
 .detail-director b{color:var(--text); font-weight:700;}
@@ -625,37 +585,9 @@ a{color:inherit; text-decoration:none;}
 .wpb-title{font-size:14px; font-weight:700;}
 .wpb-remaining{font-size:12.5px; color:var(--muted); font-weight:600; white-space:nowrap;}
 @media (max-width:860px){ .watch-progress-banner{margin-left:16px; margin-right:16px;} }
+.season-select-row{display:flex; align-items:center; gap:12px; margin:30px 32px 16px 32px;}
 .season-select-label{font-size:11.5px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.05em;}
-
-/* Season selector: horizontal chips with a cropped season-poster thumbnail + a small watched-progress
-   ring, replacing the old plain <select> — the season art and progress now live right where you pick,
-   and switching seasons surfaces TMDB's season-level overview blurb (previously fetched, unused). */
-.season-chip-row-wrap{margin:30px 32px 16px 32px;}
-.season-chip-row{display:flex; gap:12px; overflow-x:auto; padding-bottom:4px; scrollbar-width:thin;}
-.season-chip-row::-webkit-scrollbar{height:6px;}
-.season-chip{
-  flex-shrink:0; display:flex; flex-direction:column; align-items:center; gap:6px; width:76px;
-  padding:8px 8px 10px 8px; border-radius:12px; background:var(--surface2); border:1px solid transparent;
-  transition:transform var(--transition), border-color var(--transition), background var(--transition);
-}
-.season-chip:hover{transform:translateY(-2px); background:#1b1f2b;}
-.season-chip.is-active{
-  border-color:var(--poster-glow, var(--highlight)); background:#1b1f2b;
-  box-shadow:0 0 0 1px var(--poster-glow, transparent), 0 6px 20px -8px var(--poster-glow, rgba(61,219,217,.3));
-}
-.season-chip-thumb{position:relative; width:60px; height:84px; border-radius:8px; overflow:hidden; background:#1a1d26; flex-shrink:0;}
-.season-chip-thumb img{width:100%; height:100%; object-fit:cover; display:block;}
-.season-chip-thumb-fallback{width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:20px; color:var(--muted); font-family:var(--display-font);}
-.season-chip-ring{position:absolute; top:-3px; right:-3px; width:26px; height:26px; transform:rotate(-90deg); filter:drop-shadow(0 1px 3px rgba(0,0,0,.5));}
-.season-chip-ring-bg{fill:none; stroke:rgba(8,9,13,.75); stroke-width:4;}
-.season-chip-ring-fg{fill:none; stroke:var(--highlight); stroke-width:4; stroke-linecap:round;}
-.season-chip-label{font-size:12px; font-weight:800; font-family:var(--display-font); white-space:nowrap;}
-.season-chip-count{font-size:10.5px; color:var(--muted); font-weight:600;}
-.season-overview-blurb{
-  margin:0 32px 22px 32px; color:var(--muted); font-size:13.5px; line-height:1.55; max-width:720px;
-  animation:seasonBlurbFadeIn .35s ease;
-}
-@keyframes seasonBlurbFadeIn{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);}}
+.season-select{min-width:220px; font-weight:700; padding:10px 16px; box-shadow:0 0 0 1px var(--poster-glow, transparent), 0 0 20px -8px var(--poster-glow, transparent);}
 .episode-list{padding:0 32px; display:flex; flex-direction:column; gap:10px;}
 .episode-card{
   display:flex; gap:14px; background:var(--surface); border:1px solid #1a1d26; border-radius:10px; padding:10px;
@@ -1476,9 +1408,9 @@ kbd.key{
   .hero-carousel{margin:14px 16px 0 16px; height:50vh;}
   .hero-content{padding:22px;}
   .hero-content h2{font-size:26px;}
-  .detail-backdrop{margin:0;}
-  .detail-body{padding:20px 16px 0 16px;}
-  .row-head, .row-track, .season-chip-row-wrap, .episode-list{padding-left:16px; padding-right:16px;}
+  .detail-backdrop{margin:14px 16px;}
+  .detail-body{padding:0 16px;}
+  .row-head, .row-track, .season-select-row, .episode-list{padding-left:16px; padding-right:16px;}
   .filter-bar{padding-right:16px;}
 }
 @media (prefers-reduced-motion:reduce){
@@ -1565,12 +1497,10 @@ body.tv-mode .btn:focus { outline: 3px solid var(--highlight) !important; }
 body.tv-mode .btn-icon { width: 48px; height: 48px; }
 
 /* TV detail page */
-body.tv-mode .detail-backdrop { margin: 0; }
-body.tv-mode .detail-hero-content { padding: 0 48px 48px 48px; }
-body.tv-mode .detail-body { padding: 36px 48px 0 48px; gap: 36px; }
-body.tv-mode .detail-top { gap: 26px; }
-body.tv-mode .detail-poster-frame { width: 220px; }
-body.tv-mode .detail-logo { max-height: 110px; max-width: 420px; }
+body.tv-mode .detail-backdrop { margin: 24px 48px; }
+body.tv-mode .detail-body { padding: 0 48px; gap: 36px; }
+body.tv-mode .detail-top { gap: 36px; }
+body.tv-mode .detail-poster { width: 220px; }
 body.tv-mode .detail-top h2 { font-size: 38px; }
 body.tv-mode .detail-desc { font-size: 16px; }
 body.tv-mode .tag { font-size: 14px; padding: 6px 14px; }
@@ -1993,7 +1923,7 @@ function applyDetailPosterGlow(item){
     if(!color) return;
     // Bail if the user has already navigated elsewhere while this was resolving.
     if(state.route!=='detail' || state.routeParam!==item.id) return;
-    // Set on #pageRoot rather than .detail-backdrop: the backdrop, .detail-actions, .season-chip and
+    // Set on #pageRoot rather than .detail-backdrop: the backdrop, .detail-actions, .season-select and
     // .my-rating-star are siblings/descendants under pageRoot, not nested inside the backdrop itself,
     // so the custom property needs to live on their common ancestor to cascade to all of them.
     const root = document.getElementById('pageRoot');
@@ -2198,20 +2128,8 @@ function renderShell(){
   } else if(state.route==='live'){
     topActions += `<button class="btn btn-primary btn-icon-only" title="Add Channel" onclick="openChannelModal()">${ICON.plus}</button>`;
   }
-  let titleSlotHtml = `<h1>${titles[state.route] || ''}</h1>`;
-  if(state.route==='detail' && state.routeParam){
-    const detailItem = getItem(state.routeParam);
-    if(detailItem){
-      const miniLabel = detailItem.type==='movie' && isStarted(detailItem) && !isFullyWatched(detailItem) ? 'Resume' : 'Play';
-      titleSlotHtml = `
-        <div class="topbar-mini" id="topbarMini">
-          <span class="topbar-mini-title">${esc(detailItem.title)}</span>
-          <button class="btn btn-primary" onclick="quickPlay('${detailItem.id}')">${ICON.play} ${miniLabel}</button>
-        </div>`;
-    }
-  }
   document.getElementById('topbar').innerHTML = `
-    ${titleSlotHtml}
+    <h1>${titles[state.route] || ''}</h1>
     <div class="topbar-actions">
       <div class="topbar-search ${state.globalSearchOpen?'open':''}" id="topbarSearch">
         <button class="topbar-search-icon" title="Search" onclick="event.stopPropagation(); toggleGlobalSearch()">${ICON.search}</button>
@@ -2270,14 +2188,6 @@ window.addEventListener('hashchange', router);
 window.addEventListener('scroll', ()=>{
   const tb = document.getElementById('topbar');
   if(tb) tb.classList.toggle('scrolled', window.scrollY > 4);
-  if(state.route==='detail'){
-    const backdrop = document.querySelector('.detail-backdrop');
-    const mini = document.getElementById('topbarMini');
-    if(backdrop && mini){
-      const tbHeight = tb ? tb.getBoundingClientRect().height : 0;
-      mini.classList.toggle('show', backdrop.getBoundingClientRect().bottom <= tbHeight);
-    }
-  }
 }, {passive:true});
 
 /* =========================================================
@@ -3711,33 +3621,12 @@ function renderDetail(id){
     const active = seasons[activeIdx];
     body = `
       ${watchProgressBannerHtml(item)}
-      <div class="season-chip-row-wrap">
+      <div class="season-select-row">
         ${seasons.length ? `
-          <div class="season-chip-row" role="tablist" aria-label="Seasons">
-            ${seasons.map((s,i)=>{
-              const total = (s.episodes||[]).length;
-              const watchedCount = (s.episodes||[]).filter(ep=>{
-                const key = 's'+s.number+'e'+ep.number;
-                const p = (item.progress||{})[key];
-                return p && p.watched;
-              }).length;
-              const pct = total ? Math.round((watchedCount/total)*100) : 0;
-              const ringR = 15, ringC = 2*Math.PI*ringR;
-              const thumb = s.poster || (s.episodes && s.episodes[0] && s.episodes[0].thumbnail) || '';
-              return `<button type="button" class="season-chip ${i===activeIdx?'is-active':''}" role="tab" aria-selected="${i===activeIdx}" title="Season ${s.number}" onclick="setDetailSeason(${i})">
-                <div class="season-chip-thumb">
-                  ${thumb ? `<img src="${esc(thumb)}" alt="" loading="lazy" onerror="this.remove()">` : `<div class="season-chip-thumb-fallback">${s.number}</div>`}
-                  ${pct>0 ? `<svg class="season-chip-ring" viewBox="0 0 36 36">
-                    <circle cx="18" cy="18" r="${ringR}" class="season-chip-ring-bg"/>
-                    <circle cx="18" cy="18" r="${ringR}" class="season-chip-ring-fg" stroke-dasharray="${(ringC*pct/100).toFixed(1)} ${ringC.toFixed(1)}"/>
-                  </svg>` : ''}
-                </div>
-                <span class="season-chip-label">Season ${s.number}</span>
-                ${total ? `<span class="season-chip-count">${total} ep${total===1?'':'s'}</span>` : ''}
-              </button>`;
-            }).join('')}
-          </div>
-          ${active && active.overview ? `<p class="season-overview-blurb">${esc(active.overview)}</p>` : ''}
+          <label for="seasonSelect" class="season-select-label">Season</label>
+          <select id="seasonSelect" class="select-input season-select" onchange="setDetailSeason(parseInt(this.value,10))">
+            ${seasons.map((s,i)=>`<option value="${i}" ${i===activeIdx?'selected':''}>Season ${s.number} ${s.episodes&&s.episodes.length?`· ${s.episodes.length} episode${s.episodes.length===1?'':'s'}`:''}</option>`).join('')}
+          </select>
         ` : '<span style="color:var(--muted);font-size:13px;">No seasons added yet.</span>'}
       </div>
       <div class="episode-list">
@@ -3783,18 +3672,15 @@ function renderDetail(id){
   setTimeout(()=> applyDetailPosterGlow(item), 0);
 
   return `
-    <div class="detail-backdrop ${item.backdrop?'':'backdrop-fallback'}">${item.backdrop?`<img src="${esc(item.backdrop)}" alt="" ${contentBlurImgAttrs()} onerror="this.remove(); this.closest('.detail-backdrop').classList.add('backdrop-fallback');">`:''}
-      <div class="detail-hero-content">
-        <div class="detail-top">
-          <div class="detail-poster-frame"><div class="detail-poster">${posterEl(item)}</div></div>
-          <div class="detail-title-wrap">
-            ${item.logo ? `<img class="detail-logo" src="${esc(item.logo)}" alt="${esc(item.title)}" ${contentBlurImgAttrs()} onerror="this.replaceWith(Object.assign(document.createElement('h2'),{textContent:'${esc(item.title).replace(/'/g,"\\'")}'}))">` : `<h2>${esc(item.title)}</h2>`}
-            ${item.tagline ? `<p class="detail-tagline">${esc(item.tagline)}</p>` : ''}
-          </div>
+    <div class="detail-backdrop ${item.backdrop?'':'backdrop-fallback'}">${item.backdrop?`<img src="${esc(item.backdrop)}" alt="" ${contentBlurImgAttrs()} onerror="this.remove(); this.closest('.detail-backdrop').classList.add('backdrop-fallback');">`:''}</div>
+    <div class="detail-body">
+      <div class="detail-top">
+        <div class="detail-poster">${posterEl(item)}</div>
+        <div class="detail-title-wrap">
+          ${item.logo ? `<img class="detail-logo" src="${esc(item.logo)}" alt="${esc(item.title)}" ${contentBlurImgAttrs()} onerror="this.replaceWith(Object.assign(document.createElement('h2'),{textContent:'${esc(item.title).replace(/'/g,"\\'")}'}))">` : `<h2>${esc(item.title)}</h2>`}
+          ${item.tagline ? `<p class="detail-tagline">${esc(item.tagline)}</p>` : ''}
         </div>
       </div>
-    </div>
-    <div class="detail-body">
       <div class="detail-info">
         ${detailTagsHtml(item)}
         ${(item.genre||[]).length ? `<div class="detail-genres">${item.genre.map(g=>esc(g)).join('<span class="genre-dot">·</span>')}</div>` : ''}
@@ -5616,7 +5502,7 @@ async function applyTmdbDetails(tmdbId, tmdbType){
           tmdbRating: e.vote_average || 0,
           sources: [{label:'',url:''}]
         }));
-        seasonsData.push({number: s.season_number, episodes, poster: seasonJson.poster_path ? `https://image.tmdb.org/t/p/w300${seasonJson.poster_path}` : '', overview: seasonJson.overview || ''});
+        seasonsData.push({number: s.season_number, episodes});
         episodeCount += episodes.length;
       }catch(e){ /* skip a season that fails to load rather than aborting the whole import */ }
     }
@@ -5848,7 +5734,7 @@ async function refreshTvMetadataFromTmdb(item){
             sources: (old && old.sources) || []
           };
         });
-        seasonsData.push({number: s.season_number, episodes, poster: seasonJson.poster_path ? `https://image.tmdb.org/t/p/w300${seasonJson.poster_path}` : '', overview: seasonJson.overview || ''});
+        seasonsData.push({number: s.season_number, episodes});
       }catch(e){
         // A season failed to fetch — keep the local copy (sources and all) rather than dropping it.
         const keep = (item.seasons||[]).find(x=>x.number===s.season_number);
