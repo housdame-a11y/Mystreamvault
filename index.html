@@ -604,6 +604,17 @@ a{color:inherit; text-decoration:none;}
 .wpb-remaining{font-size:12.5px; color:var(--muted); font-weight:600; white-space:nowrap;}
 @media (max-width:860px){ .watch-progress-banner{margin-left:16px; margin-right:16px;} }
 .season-select-row{display:flex; flex-direction:column; gap:14px; margin:30px 32px 16px 32px;}
+.season-chip-wrap{display:flex; flex-direction:column; gap:14px; animation:seasonBlockIn .28s ease;}
+/* Crossfade between the season-chip grid and the season-overview box — they're mutually exclusive
+   (only one exists in the DOM at a time), so the "fade" is faked in two steps: setDetailSeason /
+   closeDetailSeason add .season-block-leaving to whichever is currently showing, wait out this
+   transition, then swap the actual DOM (re-render) — the incoming block then plays seasonBlockIn on
+   mount for its half of the crossfade. See setDetailSeason/closeDetailSeason for the JS side. */
+.season-block-leaving{opacity:0 !important; transform:translateY(-6px); transition:opacity .16s ease, transform .16s ease; pointer-events:none;}
+@keyframes seasonBlockIn{
+  from{opacity:0; transform:translateY(6px);}
+  to{opacity:1; transform:translateY(0);}
+}
 .season-select-label{font-size:11.5px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.05em;}
 /* Season chips are poster-card style (matching .detail-poster / .card treatment) rather than a small
    circular thumbnail — a taller 2:3 poster reads as "which season" far faster than a 64px circle, and
@@ -641,8 +652,10 @@ a{color:inherit; text-decoration:none;}
    thin line of muted text floating under the grid. */
 .season-overview-panel{
   display:flex; gap:16px; align-items:flex-start; background:var(--surface); border:1px solid #1a1d26;
-  border-radius:12px; padding:16px;
+  border-radius:12px; padding:14px 14px; position:relative;
+  animation:seasonBlockIn .28s ease;
 }
+.season-overview-dismiss{position:absolute; top:8px; right:8px; width:30px; height:30px;}
 .season-overview-poster{width:64px; aspect-ratio:2/3; border-radius:8px; overflow:hidden; flex-shrink:0; background:var(--surface2);}
 .season-overview-poster img{width:100%; height:100%; object-fit:cover; display:block;}
 .season-overview-poster .poster-fallback{
@@ -650,7 +663,7 @@ a{color:inherit; text-decoration:none;}
   font-size:20px; font-weight:900; color:var(--highlight); font-family:var(--display-font);
   background:linear-gradient(135deg,var(--primary),var(--surface));
 }
-.season-overview-body{flex:1; min-width:0; text-align:left;}
+.season-overview-body{flex:1; min-width:0; text-align:left; padding-right:26px;}
 .season-overview-title{font-size:15px; font-weight:800; color:var(--text); margin-bottom:3px;}
 .season-overview-meta{font-size:12px; color:var(--muted); font-weight:600; margin-bottom:9px;}
 .season-overview{font-size:13.5px; line-height:1.6; color:#c7d5d3;}
@@ -660,11 +673,14 @@ a{color:inherit; text-decoration:none;}
    dimmer/italic so it still reads as a stand-in, not real season-specific data. */
 .season-overview-fallback{font-style:italic; opacity:.85;}
 .season-overview-fallback b{font-style:normal; color:var(--muted);}
-.season-mark-watched-btn{margin-top:14px;}
+.season-overview-actions{display:flex; flex-wrap:wrap; gap:10px; margin-top:14px;}
+.season-mark-watched-btn{margin-top:0;}
 @media (max-width:860px){
   .season-overview-panel{flex-direction:column; align-items:center;}
   .season-overview-poster{width:84px;}
   .season-overview-title, .season-overview-meta{text-align:center;}
+  .season-overview-body{padding-right:0;}
+  .season-overview-actions{justify-content:center;}
 }
 .episode-list{padding:0 32px; display:flex; flex-direction:column; gap:10px;}
 .episode-card{
@@ -1784,7 +1800,8 @@ const state = {
   liveTv: { category:'all', language:'all', search:'', filterOpen:false },
   browse: { movie:{sort:'recent', filter:'all'}, series:{sort:'recent', filter:'all'} },
   schedule: { date: todayISO(), search:'', cache:{}, tab:'mine', myShowsCache:{} },
-  detailSeason: 0,
+  detailSeason: null,
+  detailEpisodesOpen: false,
   editingId: null,
   editType: 'movie',
   editGenres: [],
@@ -2246,11 +2263,12 @@ function router(){
     const seasonNumParam = detailParts[1];
     const epNumParam = detailParts[2];
     state.routeParam = itemId;
-    state.detailSeason = 0;
+    state.detailSeason = null;
+    state.detailEpisodesOpen = false;
     if(itemId && seasonNumParam!=null){
       const it = getItem(itemId);
       const idx = it && (it.seasons||[]).findIndex(s=>String(s.number)===String(seasonNumParam));
-      if(idx>=0) state.detailSeason = idx;
+      if(idx>=0){ state.detailSeason = idx; state.detailEpisodesOpen = true; }
     }
     if(epNumParam!=null && !isNaN(parseInt(epNumParam,10))) state.detailDeepLinkEpisode = parseInt(epNumParam,10);
   }
@@ -3740,14 +3758,16 @@ function renderDetail(id){
   let body = '';
   if(item.type==='movie'){
     const watched = isFullyWatched(item);
+    const preSub = preloadedSubtitles[preselectSubtitleKey(item.id, null, null)];
     body = `<div class="detail-actions" style="margin-top:6px;">
       <button class="btn btn-primary" onclick="quickPlay('${item.id}')">${ICON.play} ${isStarted(item)&&!watched?'Resume':'Play'}</button>
+      <button class="btn btn-ghost" title="${preSub?('Subtitle: '+esc(preSub.label)):'Pick a SubDL subtitle before you press Play'}" onclick="openSubtitlePreselectModal('${item.id}', null, null)">${preSub?ICON.check+' Subtitle Selected':ICON.subtitles+' Add Subtitle'}</button>
       <button class="btn btn-ghost" onclick="toggleMovieWatched('${item.id}')">${watched?ICON.close+' Mark as Unwatched':ICON.check+' Mark as Watched'}</button>
     </div>`;
   } else {
     const seasons = item.seasons||[];
-    const activeIdx = Math.min(state.detailSeason, Math.max(seasons.length-1,0));
-    const active = seasons[activeIdx];
+    const activeIdx = state.detailSeason!=null ? Math.min(state.detailSeason, Math.max(seasons.length-1,0)) : null;
+    const active = activeIdx!=null ? seasons[activeIdx] : null;
     let overviewHtml = '';
     if(active){
       const activeEpCount = (active.episodes||[]).length;
@@ -3772,45 +3792,51 @@ function renderDetail(id){
       const synopsisHtml = bodyText
         ? `<p class="season-overview"><b>Season ${active.number} of ${esc(item.title)}.</b> ${esc(bodyText)}</p>`
         : `<p class="season-overview season-overview-fallback">No synopsis added for this season.</p>`;
+      const episodesOpen = !!state.detailEpisodesOpen;
       overviewHtml = `
-        <div class="season-overview-panel">
+        <div class="season-overview-panel" id="seasonOverviewBox">
+          <button type="button" class="btn-icon season-overview-dismiss" title="Close" onclick="closeDetailSeason()">${ICON.close}</button>
           <div class="season-overview-poster">${activeThumbSrc ? `<img src="${esc(activeThumbSrc)}" alt="" loading="lazy" onload="this.classList.add('loaded')" onerror="this.parentElement.innerHTML=fallbackHtml('${esc(item.title).replace(/'/g,"&#39;")}')">` : fallbackHtml(item.title)}</div>
           <div class="season-overview-body">
             <div class="season-overview-title">Season ${active.number}</div>
             <div class="season-overview-meta">${metaText}</div>
             ${synopsisHtml}
-            ${airedEpisodes.length ? `<button type="button" class="btn btn-ghost season-mark-watched-btn" onclick="markSeasonWatched('${item.id}', ${active.number})">${airedAllWatched?ICON.close+' Mark Season as Unwatched':ICON.check+' Mark Season as Watched'}</button>` : ''}
+            <div class="season-overview-actions">
+              ${activeEpCount ? `<button type="button" class="btn btn-ghost" onclick="toggleDetailEpisodesVisible()">${episodesOpen?ICON.eyeOff+' Hide Episodes':ICON.eye+' Show Episodes'}</button>` : ''}
+              ${airedEpisodes.length ? `<button type="button" class="btn btn-ghost season-mark-watched-btn" onclick="markSeasonWatched('${item.id}', ${active.number})">${airedAllWatched?ICON.close+' Mark Season as Unwatched':ICON.check+' Mark Season as Watched'}</button>` : ''}
+            </div>
           </div>
         </div>`;
     }
     body = `
       ${watchProgressBannerHtml(item)}
       <div class="season-select-row">
-        ${seasons.length ? `
-          <span class="season-select-label">Seasons</span>
-          <div class="season-chip-row" role="tablist" aria-label="Season">
-            ${seasons.map((s,i)=>{
-              const epCount = (s.episodes||[]).length;
-              const watchedCount = (s.episodes||[]).filter(e=>{
-                const p = (item.progress||{})['s'+s.number+'e'+e.number];
-                return p && p.watched;
-              }).length;
-              const pct = epCount ? Math.round((watchedCount/epCount)*100) : 0;
-              const thumbSrc = s.poster || item.poster || '';
-              return `<button type="button" class="season-chip ${i===activeIdx?'active':''}" role="tab" aria-selected="${i===activeIdx}" title="Season ${s.number}${epCount?` · ${watchedCount}/${epCount} watched`:''}" onclick="setDetailSeason(${i})">
-                <span class="season-chip-thumb-wrap">
-                  ${thumbSrc ? `<img src="${esc(thumbSrc)}" alt="" loading="lazy" onload="this.classList.add('loaded')" onerror="this.remove()">` : `<span class="season-chip-fallback">${s.number}</span>`}
-                  ${pct>0 ? `<span class="season-chip-progress"><span style="width:${pct}%"></span></span>` : ''}
-                </span>
-                <span class="season-chip-label">Season ${s.number}</span>
-              </button>`;
-            }).join('')}
+        ${seasons.length ? (active ? overviewHtml : `
+          <div class="season-chip-wrap" id="seasonChipRow">
+            <span class="season-select-label">Seasons</span>
+            <div class="season-chip-row" role="tablist" aria-label="Season">
+              ${seasons.map((s,i)=>{
+                const epCount = (s.episodes||[]).length;
+                const watchedCount = (s.episodes||[]).filter(e=>{
+                  const p = (item.progress||{})['s'+s.number+'e'+e.number];
+                  return p && p.watched;
+                }).length;
+                const pct = epCount ? Math.round((watchedCount/epCount)*100) : 0;
+                const thumbSrc = s.poster || item.poster || '';
+                return `<button type="button" class="season-chip" role="tab" aria-selected="false" title="Season ${s.number}${epCount?` · ${watchedCount}/${epCount} watched`:''}" onclick="setDetailSeason(${i})">
+                  <span class="season-chip-thumb-wrap">
+                    ${thumbSrc ? `<img src="${esc(thumbSrc)}" alt="" loading="lazy" onload="this.classList.add('loaded')" onerror="this.remove()">` : `<span class="season-chip-fallback">${s.number}</span>`}
+                    ${pct>0 ? `<span class="season-chip-progress"><span style="width:${pct}%"></span></span>` : ''}
+                  </span>
+                  <span class="season-chip-label">Season ${s.number}</span>
+                </button>`;
+              }).join('')}
+            </div>
           </div>
-          ${overviewHtml}
-        ` : '<span style="color:var(--muted);font-size:13px;">No seasons added yet.</span>'}
+        `) : '<span style="color:var(--muted);font-size:13px;">No seasons added yet.</span>'}
       </div>
       <div class="episode-list">
-        ${active ? (()=>{
+        ${active && state.detailEpisodesOpen ? (()=>{
           const progressSummary = getWatchProgressSummary(item);
           const nextUpKey = progressSummary && progressSummary.next ? (progressSummary.next.season+'-'+progressSummary.next.episode.number) : null;
           return (active.episodes||[]).map(ep=>{
@@ -4100,17 +4126,52 @@ function quickAddFromTmdb(tmdbId, type){
   }).catch(()=> toast('Could not fetch details for that title — add it manually below'));
 }
 function setDetailSeason(i){
-  state.detailSeason=i;
-  const item = getItem(state.routeParam);
-  // Reflect the visible season in the URL using its real NUMBER (not this array index, which can
-  // shift) so the tab is shareable and survives a refresh. replaceState rather than location.hash so
-  // a season-chip click doesn't fire hashchange/router() (which would also reset scroll position).
-  if(item){
-    const season = (item.seasons||[])[i];
-    if(season && season.number!=null) history.replaceState(null, '', '#detail/'+state.routeParam+'/'+season.number);
+  const doSwitch = ()=>{
+    state.detailSeason=i;
+    state.detailEpisodesOpen=false; // switching seasons always starts collapsed — "Show Episodes" is a deliberate click
+    const item = getItem(state.routeParam);
+    // Reflect the visible season in the URL using its real NUMBER (not this array index, which can
+    // shift) so the tab is shareable and survives a refresh. replaceState rather than location.hash so
+    // a season-chip click doesn't fire hashchange/router() (which would also reset scroll position).
+    if(item){
+      const season = (item.seasons||[])[i];
+      if(season && season.number!=null) history.replaceState(null, '', '#detail/'+state.routeParam+'/'+season.number);
+    }
+    document.getElementById('pageRoot').innerHTML = renderDetail(state.routeParam);
+    if(item) loadTmdbSimilarRow(item);
+  };
+  // Crossfade: fade the season-chip grid out first, THEN swap the DOM to the overview box (which
+  // plays its own fade-in on mount via .season-overview-panel's seasonBlockIn animation) — see the
+  // CSS comment above .season-block-leaving for why this two-step dance is needed at all.
+  const chipRow = document.getElementById('seasonChipRow');
+  if(chipRow){
+    chipRow.classList.add('season-block-leaving');
+    setTimeout(doSwitch, 160);
+  } else {
+    doSwitch();
   }
+}
+// Dismisses the season overview box (and its episode list) entirely, back to just the row of season
+// chips — the explicit "X" on the box, distinct from switching to a different season. Same fade-out-
+// then-swap crossfade as setDetailSeason, just in reverse (box leaves, chip grid arrives).
+function closeDetailSeason(){
+  const doClose = ()=>{
+    state.detailSeason = null;
+    state.detailEpisodesOpen = false;
+    if(state.routeParam) history.replaceState(null, '', '#detail/'+state.routeParam);
+    document.getElementById('pageRoot').innerHTML = renderDetail(state.routeParam);
+  };
+  const box = document.getElementById('seasonOverviewBox');
+  if(box){
+    box.classList.add('season-block-leaving');
+    setTimeout(doClose, 160);
+  } else {
+    doClose();
+  }
+}
+function toggleDetailEpisodesVisible(){
+  state.detailEpisodesOpen = !state.detailEpisodesOpen;
   document.getElementById('pageRoot').innerHTML = renderDetail(state.routeParam);
-  if(item) loadTmdbSimilarRow(item);
 }
 function toggleMovieWatched(id){
   const item = getItem(id);
@@ -4239,6 +4300,7 @@ function episodeInfoModalHtml(itemId, seasonNum, epNum){
   const sourceCount = sources.length;
   const prev = getPrevEpisode(item, seasonNum, epNum);
   const next = getNextEpisode(item, seasonNum, epNum);
+  const preSub = preloadedSubtitles[preselectSubtitleKey(itemId, seasonNum, epNum)];
   // Air date badge: only worth showing once we know it, and "Airs <date>" only makes sense while
   // that date is still ahead of today — a past air date is implied by the episode simply being here.
   const airDateObj = ep.airDate ? new Date(ep.airDate+'T00:00:00') : null;
@@ -4274,6 +4336,7 @@ function episodeInfoModalHtml(itemId, seasonNum, epNum){
             ${sources.map((src,i)=>`<button type="button" class="btn btn-ghost episode-modal-source-btn" onclick="playEpisodeFromModal('${itemId}', ${seasonNum}, ${ep.number}, ${i})">${ICON.play} ${esc(src.label||'Source '+(i+1))}</button>`).join('')}
           </div>
         ` : `<button class="btn btn-primary" ${sourceCount?'':'disabled style="opacity:.5; cursor:not-allowed;"'} onclick="playEpisodeFromModal('${itemId}', ${seasonNum}, ${ep.number}, 0)">${ICON.play} ${canResume?`Continue from ${formatResumeTime(p.timestamp)}`:'Play Episode'}</button>`}
+        <button class="btn btn-ghost" title="${preSub?('Subtitle: '+esc(preSub.label)):'Pick a SubDL subtitle before you press Play'}" onclick="openSubtitlePreselectModal('${itemId}', ${seasonNum}, ${ep.number})">${preSub?ICON.check+' Subtitle Selected':ICON.subtitles+' Add Subtitle'}</button>
         <button class="btn btn-ghost" onclick="toggleEpisodeWatchedInModal('${itemId}', ${seasonNum}, ${ep.number})">${watched?ICON.close+' Mark as Unwatched':(next?ICON.check+' Watched &rarr; Next':ICON.check+' Mark as Watched')}</button>
       </div>
     </div>
@@ -6409,10 +6472,21 @@ function openPlayer(item, seasonNum, epNum, sources){
     subtitle: seasonNum!=null ? `Season ${seasonNum} · Episode ${epNum}` : (item.year||''),
     playbackState: 'loading',
   };
+  // Was a subtitle picked ahead of time from the detail page / episode modal (see PRE-PLAYBACK
+  // SUBTITLE SELECTION)? If so, attach it now, before renderPlayer() ever runs, so it's already
+  // showing the instant playback starts instead of requiring a trip to the in-player panel.
+  const preSub = preloadedSubtitles[preselectSubtitleKey(item.id, seasonNum, epNum)];
+  if(preSub){
+    state.player.subtitleCues = preSub.cues;
+    state.player.subtitleLabel = preSub.label;
+    state.player.subtitleLangCode = preSub.langCode;
+    state.player.subtitleOffset = getPersistedSubtitleOffset(item.id, state.player);
+  }
   item.lastWatched = new Date().toISOString();
   saveLib();
   renderPlayer();
   document.getElementById('playerOverlay').classList.add('open');
+  if(preSub) toast(`Subtitles loaded: ${preSub.label}`);
 }
 function playChannel(id){
   const ch = getChannel(id);
@@ -6488,7 +6562,7 @@ function renderPlayer(){
       </div>
       <div class="player-top-actions">
         <div class="player-top-pinned">
-          <button class="btn-icon" id="playerSubtitleBtn" title="Subtitles" onclick="toggleSubtitlePanel()">${ICON.subtitles}</button>
+          <button class="btn-icon${p.subtitleCues?' is-active':''}" id="playerSubtitleBtn" title="Subtitles" onclick="toggleSubtitlePanel()">${ICON.subtitles}</button>
           <button class="btn-icon" id="playerBrightnessBtn" title="Brightness" onclick="event.stopPropagation(); toggleBrightnessPanel();">${ICON.brightness}</button>
           <button class="btn-icon" id="playerHideScreenBtn" title="Hide screen" onclick="togglePlayerHide()">${ICON.eyeOff}</button>
           <button class="btn-icon" id="playerLockBtn" title="Lock controls" onclick="event.stopPropagation(); togglePlayerLock();">${ICON.lock}</button>
@@ -6640,6 +6714,11 @@ function renderPlayer(){
       vidEl.addEventListener('play', ()=> setPlayerPlayIcon(true));
       vidEl.addEventListener('pause', ()=> setPlayerPlayIcon(false));
     }
+    // A subtitle chosen ahead of time (pre-playback selection) already lives on p.subtitleCues at
+    // this point — mount it onto the freshly-created <video> now that it actually exists in the DOM.
+    // The iframe/embed path needs no equivalent call: its overlay reads p.subtitleCues directly off
+    // the real PLAYER_EVENT progress updates (see updateSubtitleOverlay call sites).
+    if(vidEl && p.subtitleCues) mountSubtitleTrack(vidEl, p.subtitleCues, p.subtitleOffset||0, p.subtitleLabel, p.subtitleLangCode);
   }
 
   if(isLive) return; // no progress tracking / watch timers for live channels
@@ -7264,6 +7343,14 @@ const SUBTITLE_LANGS = [
 let subtitleResults = [];
 let subtitleTrackUrl = null; // current blob: URL backing the active <track> (video/hls path), revoked on replace/close
 
+/* ---- Pre-playback subtitle selection (movie detail page + episode modal) ----
+   Lets a subtitle be searched/chosen via SubDL BEFORE pressing Play, so it's already attached the
+   instant the player opens instead of needing the in-player panel after starting. Selections are
+   kept in memory only (cleared on page reload), keyed per title (movie) or per episode. */
+let preloadedSubtitles = {}; // key (see preselectSubtitleKey) -> {cues, label, langCode}
+let preselectSubtitleCtx = null; // {itemId, seasonNum, epNum} for whichever preselect modal is open
+let preselectSubtitleResults = [];
+
 /* ---- Subtitle display customization (Settings -> Subtitle Display) ----
    Drives both the SubDL overlay (.player-subtitle-overlay span, for embedded/iframe sources) and
    native <track> cues (::cue, for direct video/hls sources) from the same three settings, so the
@@ -7672,6 +7759,160 @@ function turnOffSubtitles(){
   const overlayEl = document.getElementById('playerSubtitleOverlay');
   if(overlayEl) overlayEl.innerHTML = '';
   toast('Subtitles off');
+}
+
+/* =========================================================
+   PRE-PLAYBACK SUBTITLE SELECTION (SubDL)
+   ---------------------------------------------------------
+   Same SubDL search/download/parse pipeline as the in-player panel above (searchSubtitles /
+   useSubtitleResult), just pointed at a title+episode BEFORE a player exists yet. The result lands
+   in preloadedSubtitles, keyed by preselectSubtitleKey — openPlayer() checks that map and, if a
+   match exists, seeds state.player.subtitleCues before renderPlayer() ever runs, so the subtitle is
+   already attached the instant playback starts instead of needing the in-player panel afterward.
+========================================================= */
+function preselectSubtitleKey(itemId, seasonNum, epNum){
+  return seasonNum!=null ? `${itemId}::s${seasonNum}e${epNum}` : `${itemId}::movie`;
+}
+function openSubtitlePreselectModal(itemId, seasonNum, epNum){
+  const item = getItem(itemId);
+  if(!item) return;
+  preselectSubtitleCtx = {itemId, seasonNum, epNum};
+  preselectSubtitleResults = [];
+  openModal(subtitlePreselectModalHtml(item, seasonNum, epNum));
+}
+// Returns to wherever the preselect modal was opened FROM — the episode-info modal if this was
+// launched from there, otherwise just closes (movie detail page has no modal underneath it) and
+// repaints the detail page so its "Add Subtitle" button reflects the new selection.
+function closePreselectSubtitleModal(){
+  const ctx = preselectSubtitleCtx;
+  if(ctx && ctx.seasonNum!=null){
+    openEpisodeInfoModal(ctx.itemId, ctx.seasonNum, ctx.epNum);
+  } else {
+    closeModal();
+    if(ctx && state.route==='detail' && state.routeParam===ctx.itemId){
+      document.getElementById('pageRoot').innerHTML = renderDetail(ctx.itemId);
+    }
+  }
+}
+function subtitlePreselectModalHtml(item, seasonNum, epNum){
+  const hasKey = !!(state.settings.subdl||'').trim();
+  const existing = preloadedSubtitles[preselectSubtitleKey(item.id, seasonNum, epNum)];
+  const heading = seasonNum!=null ? `Subtitles &middot; S${seasonNum}E${epNum}` : 'Subtitles';
+  return `
+    <div class="episode-modal-body" style="padding:26px;">
+      <div class="player-subtitle-panel-head" style="margin-bottom:14px;">
+        <b>${heading}</b>
+        <button class="btn-icon" onclick="closePreselectSubtitleModal()">${ICON.close}</button>
+      </div>
+      ${existing ? `<div class="field-hint" style="color:var(--highlight); margin-bottom:12px;">${ICON.check} Selected: ${esc(existing.label)}${existing.langCode?' &middot; '+esc(existing.langCode.toUpperCase()):''}. This loads automatically the moment you press Play.</div>` : `<div class="field-hint" style="margin-bottom:12px;">Search and pick a subtitle now — it'll be attached automatically when playback starts, no need to search again in the player.</div>`}
+      <div class="field" style="margin-bottom:10px;">
+        <input id="preselectSubtitleQuery" placeholder="Movie or show title" value="${esc(item.title||'')}" onkeydown="if(event.key==='Enter'){ event.preventDefault(); searchPreselectSubtitles(); }">
+      </div>
+      <div class="field-row" style="margin-bottom:12px;">
+        <select id="preselectSubtitleLang" class="select-input" style="flex:1; border-radius:8px;">
+          <option value="">Any language</option>
+          ${SUBTITLE_LANGS.map(l=>`<option value="${l.code}">${l.label}</option>`).join('')}
+        </select>
+        <button class="btn btn-primary" style="flex-shrink:0;" onclick="searchPreselectSubtitles()">${ICON.search}</button>
+      </div>
+      <div id="preselectSubtitleResults" class="subtitle-results-list" style="max-height:320px;">
+        ${hasKey ? '' : `<div class="field-hint">Add a free SubDL API key in Settings &rarr; Subtitles to search.</div>`}
+      </div>
+      ${existing ? `<button class="btn btn-ghost" style="width:100%; justify-content:center; margin-top:10px;" onclick="clearPreselectSubtitle()">Remove Selected Subtitle</button>` : ''}
+      <div class="field-hint" style="margin-top:10px;">
+        Powered by <a href="https://subdl.com" target="_blank" rel="noopener">SubDL</a> &mdash; needs a free API key in Settings.
+      </div>
+    </div>
+  `;
+}
+async function searchPreselectSubtitles(){
+  const resultsEl = document.getElementById('preselectSubtitleResults');
+  const apiKey = (state.settings.subdl||'').trim();
+  if(!apiKey){
+    resultsEl.innerHTML = `<div class="field-hint">Add a free SubDL API key in Settings &rarr; Subtitles to search.</div>`;
+    return;
+  }
+  const ctx = preselectSubtitleCtx;
+  if(!ctx) return;
+  const query = (document.getElementById('preselectSubtitleQuery').value||'').trim();
+  if(!query){ toast('Enter a title to search'); return; }
+  const lang = document.getElementById('preselectSubtitleLang').value;
+  const item = getItem(ctx.itemId);
+  const params = new URLSearchParams({api_key: apiKey, film_name: query, unpack:'1'});
+  if(lang) params.set('languages', lang);
+  if(item){
+    params.set('type', item.type==='series' ? 'tv' : 'movie');
+    if(item.type==='series' && ctx.seasonNum!=null){
+      params.set('season_number', String(ctx.seasonNum));
+      params.set('episode_number', String(ctx.epNum));
+    }
+  }
+  resultsEl.innerHTML = `<div style="text-align:center; padding:20px 0;"><div class="spinner" style="margin:0 auto;"></div></div>`;
+  try{
+    const res = await fetch(`https://api.subdl.com/api/v1/subtitles?${params.toString()}`);
+    const data = await res.json();
+    if(!data.status) throw new Error(data.error || 'Search failed');
+    preselectSubtitleResults = flattenSubtitleResults(data);
+    renderPreselectSubtitleResults();
+  }catch(e){
+    resultsEl.innerHTML = `<div class="field-hint">Couldn't reach SubDL (${esc(e.message||'network error')}). Double-check your API key in Settings, or try again in a moment.</div>`;
+  }
+}
+function renderPreselectSubtitleResults(){
+  const el = document.getElementById('preselectSubtitleResults');
+  if(!el) return;
+  if(!preselectSubtitleResults.length){
+    el.innerHTML = `<div class="field-hint">No subtitles found. Try a different title, or clear the language filter.</div>`;
+    return;
+  }
+  el.innerHTML = preselectSubtitleResults.map((r,i)=>`
+    <div class="subtitle-result-row">
+      <div style="min-width:0;">
+        <div class="subtitle-result-name">${esc(r.label)}</div>
+        <div class="subtitle-result-meta">${esc((r.lang||'').toUpperCase())} &middot; ${esc(r.format.toUpperCase())}${r.hi?' &middot; HI':''}</div>
+      </div>
+      <button class="btn btn-ghost" style="flex-shrink:0;" onclick="usePreselectSubtitleResult(${i})">Use</button>
+    </div>
+  `).join('');
+}
+// Downloads/unzips/parses exactly like useSubtitleResult (in-player), but stores the parsed cues in
+// preloadedSubtitles instead of directly on state.player, since no player exists yet at this point.
+async function usePreselectSubtitleResult(i){
+  const r = preselectSubtitleResults[i];
+  const ctx = preselectSubtitleCtx;
+  if(!r || !ctx) return;
+  toast('Downloading subtitle…');
+  try{
+    const fullUrl = r.url.startsWith('http') ? r.url : `https://dl.subdl.com${r.url}`;
+    const res = await fetch(fullUrl);
+    if(!res.ok) throw new Error('download failed ('+res.status+')');
+    const buf = await res.arrayBuffer();
+    const head = new Uint8Array(buf.slice(0,2));
+    const isZip = (head[0]===0x50 && head[1]===0x4B) || r.format==='zip'; // 'PK' magic bytes
+    let srtText;
+    if(isZip){
+      await loadJSZip();
+      const zip = await window.JSZip.loadAsync(buf);
+      const srtFile = Object.values(zip.files).find(f=>!f.dir && /\.srt$/i.test(f.name));
+      if(!srtFile) throw new Error('no .srt file found in the downloaded pack');
+      srtText = await srtFile.async('text');
+    } else {
+      srtText = new TextDecoder('utf-8').decode(buf);
+    }
+    const key = preselectSubtitleKey(ctx.itemId, ctx.seasonNum, ctx.epNum);
+    preloadedSubtitles[key] = { cues: parseSrtCues(srtText), label: r.label, langCode: r.lang };
+    toast('Subtitle ready — it will load automatically when you press Play');
+    closePreselectSubtitleModal();
+  }catch(e){
+    toast('Subtitle error: '+(e.message||'could not load file'));
+  }
+}
+function clearPreselectSubtitle(){
+  const ctx = preselectSubtitleCtx;
+  if(!ctx) return;
+  delete preloadedSubtitles[preselectSubtitleKey(ctx.itemId, ctx.seasonNum, ctx.epNum)];
+  toast('Subtitle selection removed');
+  closePreselectSubtitleModal();
 }
 
 /* =========================================================
