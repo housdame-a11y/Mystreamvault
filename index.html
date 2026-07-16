@@ -476,11 +476,26 @@ a{color:inherit; text-decoration:none;}
    than the old thin bottom fade — dark enough at the bottom for the overlaid text to stay readable
    over any image, fading up to nothing so the top of the backdrop still reads as a clean photo. */
 .detail-backdrop::after{content:''; position:absolute; inset:0; z-index:1; background:linear-gradient(0deg, var(--bg) 0%, rgba(8,9,13,.88) 24%, rgba(8,9,13,.4) 52%, transparent 78%);}
-.detail-hero-content{position:absolute; inset:0; z-index:2; display:flex; align-items:flex-end; padding:0 32px 40px 32px;}
+.detail-hero-content{position:absolute; inset:0; z-index:2; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; padding:0 32px 40px 32px;}
 .detail-body{padding:28px 32px 0 32px; position:relative; z-index:2; display:flex; flex-direction:column; gap:20px;}
-.detail-top{display:flex; align-items:flex-end; gap:28px; width:100%;}
+/* Stacked hero: poster card, then logo, then tagline — all centered on top of the backdrop, in that
+   vertical order, instead of the old side-by-side poster+title row. */
+.detail-top{display:flex; flex-direction:column; align-items:center; gap:18px; width:100%; text-align:center;}
+/* Gentle staggered entrance so the poster settles in first and the logo/tagline follow half a beat
+   later — kept on this wrapper (not .detail-poster itself) so it never fights with the poster's own
+   loading-shimmer/opacity transition below. */
+@keyframes heroPopIn{ from{opacity:0; transform:translateY(18px);} to{opacity:1; transform:translateY(0);} }
+.detail-poster-frame{
+  width:180px; border-radius:14px; flex-shrink:0;
+  /* Soft drop shadow plus a color-matched halo pulled from the poster's own dominant color
+     (--poster-glow, same variable the backdrop and Play button use), so the card reads as if it's
+     lit from within rather than just a flat box sitting on the image. */
+  box-shadow:0 26px 60px -14px rgba(0,0,0,.75), 0 0 0 1px rgba(255,255,255,.09), 0 0 80px -20px var(--poster-glow, transparent);
+  transition:box-shadow .9s ease;
+  animation:heroPopIn .55s cubic-bezier(.22,.61,.36,1) both;
+}
 .detail-poster{
-  width:180px; flex-shrink:0; border-radius:10px; overflow:hidden; box-shadow:0 20px 40px rgba(0,0,0,.5); aspect-ratio:2/3;
+  width:100%; border-radius:14px; overflow:hidden; aspect-ratio:2/3;
   background:linear-gradient(100deg,#12141c 0%,#1c1f2b 40%,#12141c 80%); background-size:220% 100%;
   animation:skeletonShimmer 1.7s ease-in-out infinite;
 }
@@ -493,16 +508,23 @@ a{color:inherit; text-decoration:none;}
   background:linear-gradient(135deg,var(--primary),var(--surface));
 }
 .detail-info{flex:1; min-width:0;}
-.detail-title-wrap{flex:1; min-width:0; display:flex; flex-direction:column; justify-content:center; gap:8px;}
-.detail-top h2{font-size:34px; font-weight:800; margin-bottom:0; text-shadow:0 4px 24px rgba(0,0,0,.7);}
-.detail-logo{max-width:100%; max-height:120px; width:auto; height:auto; object-fit:contain; margin-bottom:0; display:block; filter:drop-shadow(0 4px 24px rgba(0,0,0,.6));}
+.detail-title-wrap{display:flex; flex-direction:column; align-items:center; gap:10px; width:100%; max-width:620px;}
+.detail-title-wrap > *{animation:heroPopIn .55s cubic-bezier(.22,.61,.36,1) both;}
+.detail-title-wrap > *:nth-child(1){animation-delay:.08s;}
+.detail-title-wrap > *:nth-child(2){animation-delay:.18s;}
+.detail-top h2{font-size:32px; font-weight:800; margin-bottom:0; text-align:center; text-shadow:0 4px 24px rgba(0,0,0,.7);}
+.detail-logo{max-width:340px; max-height:96px; width:auto; height:auto; object-fit:contain; margin:0 auto; display:block; filter:drop-shadow(0 4px 24px rgba(0,0,0,.6));}
+/* Small color-matched accent line separating the logo/title from the tagline underneath it. */
+.detail-tagline::before{content:''; display:block; width:34px; height:2px; margin:0 auto 12px; border-radius:2px; background:linear-gradient(90deg, transparent, var(--poster-glow, var(--highlight)), transparent); opacity:.85;}
 @media (max-width:860px){
-  .detail-backdrop{height:56vh; min-height:420px;}
-  .detail-hero-content{padding:0 16px 24px 16px;}
-  .detail-logo{max-height:70px;}
-  .detail-top{gap:14px; flex-direction:column; align-items:center; text-align:center;}
-  .detail-poster{width:120px;}
-  .detail-title-wrap{align-items:center; width:100%;}
+  .detail-backdrop{height:60vh; min-height:440px;}
+  .detail-hero-content{padding:0 16px 22px 16px;}
+  .detail-top{gap:12px;}
+  .detail-poster-frame{width:118px; border-radius:12px;}
+  .detail-poster{border-radius:12px;}
+  .detail-logo{max-height:56px; max-width:220px;}
+  .detail-top h2{font-size:24px;}
+  .detail-title-wrap{gap:8px;}
 }
 .detail-tags{
   display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center;
@@ -547,7 +569,7 @@ a{color:inherit; text-decoration:none;}
   .cast-chip-row{grid-template-columns:repeat(auto-fill, minmax(140px,1fr));}
   .cast-chip-photo{width:38px; height:38px;}
 }
-.detail-tagline{color:var(--muted); font-size:14.5px; font-style:italic; margin:0; text-shadow:0 2px 12px rgba(0,0,0,.7);}
+.detail-tagline{color:var(--muted); font-size:14.5px; font-style:italic; margin:0 auto; max-width:520px; text-align:center; text-shadow:0 2px 12px rgba(0,0,0,.7);}
 .tag-cert{border-color:var(--highlight); color:var(--highlight);}
 .detail-director{font-size:13px; color:var(--muted); margin-bottom:12px;}
 .detail-director b{color:var(--text); font-weight:700;}
@@ -1546,8 +1568,9 @@ body.tv-mode .btn-icon { width: 48px; height: 48px; }
 body.tv-mode .detail-backdrop { margin: 0; }
 body.tv-mode .detail-hero-content { padding: 0 48px 48px 48px; }
 body.tv-mode .detail-body { padding: 36px 48px 0 48px; gap: 36px; }
-body.tv-mode .detail-top { gap: 36px; }
-body.tv-mode .detail-poster { width: 220px; }
+body.tv-mode .detail-top { gap: 26px; }
+body.tv-mode .detail-poster-frame { width: 220px; }
+body.tv-mode .detail-logo { max-height: 110px; max-width: 420px; }
 body.tv-mode .detail-top h2 { font-size: 38px; }
 body.tv-mode .detail-desc { font-size: 16px; }
 body.tv-mode .tag { font-size: 14px; padding: 6px 14px; }
@@ -3763,7 +3786,7 @@ function renderDetail(id){
     <div class="detail-backdrop ${item.backdrop?'':'backdrop-fallback'}">${item.backdrop?`<img src="${esc(item.backdrop)}" alt="" ${contentBlurImgAttrs()} onerror="this.remove(); this.closest('.detail-backdrop').classList.add('backdrop-fallback');">`:''}
       <div class="detail-hero-content">
         <div class="detail-top">
-          <div class="detail-poster">${posterEl(item)}</div>
+          <div class="detail-poster-frame"><div class="detail-poster">${posterEl(item)}</div></div>
           <div class="detail-title-wrap">
             ${item.logo ? `<img class="detail-logo" src="${esc(item.logo)}" alt="${esc(item.title)}" ${contentBlurImgAttrs()} onerror="this.replaceWith(Object.assign(document.createElement('h2'),{textContent:'${esc(item.title).replace(/'/g,"\\'")}'}))">` : `<h2>${esc(item.title)}</h2>`}
             ${item.tagline ? `<p class="detail-tagline">${esc(item.tagline)}</p>` : ''}
