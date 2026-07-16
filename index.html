@@ -488,7 +488,7 @@ a{color:inherit; text-decoration:none;}
    instead of plain text chips — mirrors the poster/backdrop treatment so the row reads as a scannable
    strip of faces rather than another block of text. Falls back to an initials avatar per-person when
    TMDB has no photo for them (or the image 404s), never omitted or left blank. */
-.cast-chip-row{display:flex; flex-wrap:wrap; gap:14px 18px;}
+.cast-chip-row{display:flex; flex-wrap:wrap; align-items:flex-start; gap:14px 18px;}
 .cast-chip{display:flex; align-items:center; gap:10px; max-width:200px;}
 .cast-chip-photo{width:44px; height:44px; border-radius:50%; overflow:hidden; flex-shrink:0; background:var(--surface2); border:1px solid #232837;}
 .cast-chip-photo img{width:100%; height:100%; object-fit:cover; display:block;}
@@ -608,6 +608,10 @@ a{color:inherit; text-decoration:none;}
 .episode-modal-thumb .ep-num{width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-weight:800; color:var(--muted); font-size:42px;}
 .episode-modal-close{position:absolute; top:12px; right:12px; background:rgba(10,11,16,.65); border-color:rgba(255,255,255,.15);}
 .episode-modal-close:hover{background:rgba(10,11,16,.9);}
+.episode-modal-nav{position:absolute; top:50%; transform:translateY(-50%); background:rgba(10,11,16,.55); border-color:rgba(255,255,255,.15);}
+.episode-modal-nav:hover{background:rgba(10,11,16,.85);}
+.episode-modal-nav-prev{left:12px;}
+.episode-modal-nav-next{right:12px;}
 .episode-modal-progress{position:absolute; left:0; right:0; bottom:0; height:4px; background:rgba(255,255,255,.12);}
 .episode-modal-progress > div{height:100%; background:var(--highlight);}
 .episode-modal-body{padding:22px 26px 26px;}
@@ -615,10 +619,15 @@ a{color:inherit; text-decoration:none;}
 .episode-modal-title{font-size:20px; font-weight:800; font-family:var(--display-font); margin-bottom:12px;}
 .episode-modal-meta{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;}
 .episode-modal-overview{color:#c7d5d3; font-size:14px; line-height:1.6; margin-bottom:18px;}
-.episode-modal-stars{display:flex; align-items:center; gap:3px; margin-bottom:20px;}
+.episode-modal-ratings-row{display:flex; align-items:center; gap:14px; margin-bottom:12px;}
+.episode-modal-stars{display:flex; align-items:center; gap:3px;}
 .episode-modal-stars .ep-mini-star{width:22px; height:22px;}
 .episode-modal-stars .ep-mini-star svg{width:17px; height:17px;}
-.episode-modal-actions{display:flex; gap:10px; flex-wrap:wrap;}
+.episode-modal-resume-hint{display:flex; align-items:center; gap:7px; color:var(--highlight); font-size:12.5px; font-weight:700; margin-bottom:14px;}
+.episode-modal-resume-hint svg{width:12px; height:12px;}
+.episode-modal-actions{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start;}
+.episode-modal-source-list{display:flex; flex-direction:column; gap:8px; width:100%;}
+.episode-modal-source-btn{justify-content:flex-start;}
 @media (max-width:860px){ .modal.modal-episode-info{max-width:100%;} }
 .trailer-modal-head{display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 20px; border-bottom:1px solid #1a1d26;}
 .trailer-modal-head h2{font-size:15.5px; font-weight:800; font-family:var(--display-font);}
@@ -3851,11 +3860,23 @@ function episodeInfoModalHtml(itemId, seasonNum, epNum){
   const p = (item.progress||{})[key];
   const watched = !!(p && p.watched);
   const pct = p && p.duration ? Math.min(100, Math.round((p.timestamp/p.duration)*100)) : 0;
-  const sourceCount = (ep.sources||[]).length;
+  const canResume = !!(p && !watched && p.timestamp>0);
+  const sources = ep.sources || [];
+  const sourceCount = sources.length;
+  const prev = getPrevEpisode(item, seasonNum, epNum);
+  const next = getNextEpisode(item, seasonNum, epNum);
+  // Air date badge: only worth showing once we know it, and "Airs <date>" only makes sense while
+  // that date is still ahead of today — a past air date is implied by the episode simply being here.
+  const airDateObj = ep.airDate ? new Date(ep.airDate+'T00:00:00') : null;
+  const airDateValid = airDateObj && !isNaN(airDateObj);
+  const isUnaired = airDateValid && airDateObj > new Date();
+  const airDateStr = airDateValid ? airDateObj.toLocaleDateString(undefined,{month:'short', day:'numeric', year:'numeric'}) : '';
   return `
     <div class="episode-modal-thumb">
       ${ep.thumbnail ? `<img src="${esc(ep.thumbnail)}" alt="">` : `<div class="ep-num">${ep.number}</div>`}
       <button type="button" class="btn-icon episode-modal-close" title="Close" onclick="closeModal()">${ICON.close}</button>
+      <button type="button" class="btn-icon episode-modal-nav episode-modal-nav-prev" title="Previous Episode" ${prev?'':'disabled style="opacity:.35; cursor:not-allowed;"'} onclick="${prev?`openEpisodeInfoModal('${itemId}', ${prev.seasonNum}, ${prev.ep.number})`:''}">${ICON.chevronLeft}</button>
+      <button type="button" class="btn-icon episode-modal-nav episode-modal-nav-next" title="Next Episode" ${next?'':'disabled style="opacity:.35; cursor:not-allowed;"'} onclick="${next?`openEpisodeInfoModal('${itemId}', ${next.seasonNum}, ${next.ep.number})`:''}">${ICON.chevronRight}</button>
       ${pct>0 && !watched ? `<div class="episode-modal-progress"><div style="width:${pct}%"></div></div>` : ''}
     </div>
     <div class="episode-modal-body">
@@ -3865,15 +3886,37 @@ function episodeInfoModalHtml(itemId, seasonNum, epNum){
         ${ep.runtime ? `<span class="tag">${esc(ep.runtime)}</span>` : ''}
         <span class="tag">${sourceCount} source${sourceCount===1?'':'s'}</span>
         ${watched ? `<span class="tag" style="color:var(--highlight); border-color:rgba(61,219,217,.4);">${ICON.check} Watched</span>` : ''}
+        ${isUnaired ? `<span class="tag" style="color:var(--highlight); border-color:rgba(61,219,217,.4);">Airs ${esc(airDateStr)}</span>` : (airDateValid ? `<span class="tag">${esc(airDateStr)}</span>` : '')}
       </div>
       <p class="episode-modal-overview">${esc(ep.overview || 'No synopsis added for this episode.')}</p>
-      <div class="episode-modal-stars">${episodeModalStarsHtml(itemId, seasonNum, ep)}</div>
+      <div class="episode-modal-ratings-row">
+        ${ep.tmdbRating ? `<span class="rating-badge"><b>${ep.tmdbRating.toFixed(1)}</b><small>TMDB</small></span>` : ''}
+        <div class="episode-modal-stars">${episodeModalStarsHtml(itemId, seasonNum, ep)}</div>
+      </div>
+      ${canResume ? `<div class="episode-modal-resume-hint">${ICON.play} Continue from ${formatResumeTime(p.timestamp)}</div>` : ''}
       <div class="episode-modal-actions">
-        <button class="btn btn-primary" ${sourceCount?'':'disabled style="opacity:.5; cursor:not-allowed;"'} onclick="closeModal(); openPlayer(getItem('${itemId}'), ${seasonNum}, ${ep.number}, ${JSON.stringify(ep.sources||[]).replace(/"/g,'&quot;')})">${ICON.play} Play Episode</button>
+        ${sourceCount>1 ? `
+          <div class="episode-modal-source-list">
+            ${sources.map((src,i)=>`<button type="button" class="btn btn-ghost episode-modal-source-btn" onclick="playEpisodeFromModal('${itemId}', ${seasonNum}, ${ep.number}, ${i})">${ICON.play} ${esc(src.label||'Source '+(i+1))}</button>`).join('')}
+          </div>
+        ` : `<button class="btn btn-primary" ${sourceCount?'':'disabled style="opacity:.5; cursor:not-allowed;"'} onclick="playEpisodeFromModal('${itemId}', ${seasonNum}, ${ep.number}, 0)">${ICON.play} ${canResume?`Continue from ${formatResumeTime(p.timestamp)}`:'Play Episode'}</button>`}
         <button class="btn btn-ghost" onclick="toggleEpisodeWatchedInModal('${itemId}', ${seasonNum}, ${ep.number})">${watched?ICON.close+' Mark as Unwatched':ICON.check+' Mark as Watched'}</button>
       </div>
     </div>
   `;
+}
+// Closes the modal and hands off to the player. sourceIdx lets the source-picker (shown when an
+// episode has more than one source) start playback on the one the user actually chose — the sources
+// array is reordered so that pick plays first, while the rest stay in as fallbacks if it fails, same
+// as openPlayer/tryNextSource already do for the default (single-source) path.
+function playEpisodeFromModal(itemId, seasonNum, epNum, sourceIdx){
+  const item = getItem(itemId);
+  const ep = item && findPlayerEpisode(item, seasonNum, epNum);
+  if(!item || !ep) return;
+  const sources = ep.sources || [];
+  const ordered = sourceIdx>0 ? [sources[sourceIdx], ...sources.slice(0,sourceIdx), ...sources.slice(sourceIdx+1)] : sources;
+  closeModal();
+  openPlayer(item, seasonNum, epNum, ordered);
 }
 // Same star row as episodeMiniStarsHtml on the card, but wired to refresh the open modal in place
 // (setEpisodeRating already repaints the detail page behind it; the modal is a separate DOM subtree
@@ -5260,6 +5303,8 @@ async function applyTmdbDetails(tmdbId, tmdbType){
           thumbnail: e.still_path ? `https://image.tmdb.org/t/p/w300${e.still_path}` : '',
           overview: e.overview || '',
           runtime: e.runtime || null,
+          airDate: e.air_date || '',
+          tmdbRating: e.vote_average || 0,
           sources: [{label:'',url:''}]
         }));
         seasonsData.push({number: s.season_number, episodes});
@@ -5487,6 +5532,8 @@ async function refreshTvMetadataFromTmdb(item){
             thumbnail: e.still_path ? `https://image.tmdb.org/t/p/w300${e.still_path}` : ((old && old.thumbnail) || ''),
             overview: e.overview || (old && old.overview) || '',
             runtime: e.runtime || (old && old.runtime) || null,
+            airDate: e.air_date || (old && old.airDate) || '',
+            tmdbRating: e.vote_average || (old && old.tmdbRating) || 0,
             // The only two fields that matter to keep exactly as-is:
             myRating: (old && old.myRating) || 0,
             sources: (old && old.sources) || []
@@ -5827,6 +5874,24 @@ function getNextEpisode(item, seasonNum, epNum){
   if(si+1<seasons.length){
     const nextEps = (seasons[si+1].episodes||[]).slice().sort((a,b)=>a.number-b.number);
     if(nextEps.length) return {seasonNum:seasons[si+1].number, ep:nextEps[0]};
+  }
+  return null;
+}
+// Backward-traversal mirror of getNextEpisode — powers the episode-info modal's Previous arrow,
+// crossing back over a season boundary the same way getNextEpisode crosses forward over one.
+function getPrevEpisode(item, seasonNum, epNum){
+  if(item.type!=='series' || seasonNum==null) return null;
+  const seasons = (item.seasons||[]).slice().sort((a,b)=>a.number-b.number);
+  const si = seasons.findIndex(s=>s.number===seasonNum);
+  if(si===-1) return null;
+  const eps = (seasons[si].episodes||[]).slice().sort((a,b)=>a.number-b.number);
+  const ei = eps.findIndex(e=>e.number===epNum);
+  if(ei>0){
+    return {seasonNum:seasons[si].number, ep:eps[ei-1]};
+  }
+  if(si-1>=0){
+    const prevEps = (seasons[si-1].episodes||[]).slice().sort((a,b)=>a.number-b.number);
+    if(prevEps.length) return {seasonNum:seasons[si-1].number, ep:prevEps[prevEps.length-1]};
   }
   return null;
 }
@@ -6581,6 +6646,8 @@ async function fetchTmdbSeasonEpisodes(tmdbId, seasonNumber){
       thumbnail: e.still_path ? `https://image.tmdb.org/t/p/w300${e.still_path}` : '',
       overview: e.overview || '',
       runtime: e.runtime || null,
+      airDate: e.air_date || '',
+      tmdbRating: e.vote_average || 0,
       myRating: 0,
       sources: [{label:'', url:''}]
     }));
