@@ -6,7 +6,7 @@
 <title>Stream Vault</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Inter+Tight:wght@700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Inter+Tight:wght@700;800;900&family=Oswald:wght@500;700&display=swap" rel="stylesheet">
 <style>
 :root{
   --bg:#08090d;
@@ -219,6 +219,7 @@ a{color:inherit; text-decoration:none;}
   padding:5px 11px; border-radius:20px; margin-bottom:16px; border:1px solid rgba(61,219,217,.25);
 }
 .hero-content h2{font-family:var(--display-font); font-size:44px; font-weight:900; margin-bottom:12px; line-height:1.05; letter-spacing:-.01em; text-shadow:0 4px 24px rgba(0,0,0,.5);}
+.hero-logo{max-width:420px; max-height:130px; width:auto; height:auto; object-fit:contain; display:block; margin-bottom:16px; filter:drop-shadow(0 4px 24px rgba(0,0,0,.5));}
 .hero-content p{color:#c7d5d3; font-size:15px; line-height:1.6; margin-bottom:22px; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;}
 .hero-btns{display:flex; gap:12px;}
 .hero-btns .btn{position:relative; z-index:3;}
@@ -241,7 +242,10 @@ a{color:inherit; text-decoration:none;}
 }
 
 /* ---------- Featured Release: ONE featured card for the most-recently-added title with curated
-   banner art, cycled via dot indicators.
+   banner art, cycled via dot indicators. Redesigned to match the "Featured Release Redesign v8"
+   mockup: morphing cyan blob-glow + pulsing outline text behind the card, a pulsing ring-glow border
+   on the card itself, an animated sparkle "New Movie/New Series" badge, an optional title logo image
+   (falls back to styled text), a dot-separated meta row, and a short description line.
 
    ARTWORK NOTE: true per-pixel foreground/background subject separation would need an actual
    image-segmentation model (e.g. rembg) run against the artwork, which this static client-side app
@@ -254,31 +258,71 @@ a{color:inherit; text-decoration:none;}
    Because it's one element, one URL, one paint, there is no seam and nothing is shown twice.
    If this reads as an awkward crop for a given title's artwork, turn off "Featured Artwork Bleed"
    in Settings (state.settings.featuredArtworkBleed) — the card then simply shows the artwork
-   contained cleanly inside its bounds, no escape, no cutout, still a clean result either way. */
-:root{ --featured-escape:10%; }
+   contained cleanly inside its bounds, no escape, no cutout, still a clean result either way. A
+   per-title "Featured Cutout URL" (a real transparent-PNG subject cutout, see the Add/Edit form)
+   overrides all of this with actual custom artwork instead of a heuristic. */
+:root{ --featured-escape:10%; --featured-radius:14px; --featured-font:'Oswald','Inter Tight',sans-serif; }
+@keyframes featuredRingPulse{
+  0%,100%{box-shadow:0 24px 70px rgba(0,0,0,.55), 0 0 0 1px rgba(61,219,217,.28), 0 0 30px rgba(61,219,217,.14);}
+  50%{box-shadow:0 24px 70px rgba(0,0,0,.55), 0 0 0 1px rgba(61,219,217,.42), 0 0 46px rgba(61,219,217,.22);}
+}
+@keyframes featuredTextGlow{
+  0%,100%{text-shadow:0 0 60px rgba(61,219,217,.5), 0 0 110px rgba(61,219,217,.26);}
+  50%{text-shadow:0 0 76px rgba(61,219,217,.62), 0 0 140px rgba(61,219,217,.34);}
+}
+@keyframes featuredBlobA{
+  0%{border-radius:42% 58% 65% 35% / 45% 40% 60% 55%; transform:translate(-50%,-50%) rotate(0deg) scale(1);}
+  25%{border-radius:58% 42% 38% 62% / 55% 65% 35% 45%; transform:translate(-46%,-54%) rotate(9deg) scale(1.1);}
+  50%{border-radius:50% 50% 62% 38% / 40% 58% 42% 60%; transform:translate(-54%,-47%) rotate(-6deg) scale(.94);}
+  75%{border-radius:65% 35% 45% 55% / 58% 45% 55% 42%; transform:translate(-48%,-52%) rotate(5deg) scale(1.06);}
+  100%{border-radius:42% 58% 65% 35% / 45% 40% 60% 55%; transform:translate(-50%,-50%) rotate(0deg) scale(1);}
+}
+@keyframes featuredBlobB{
+  0%{border-radius:60% 40% 35% 65% / 50% 60% 40% 50%; transform:translate(-50%,-50%) rotate(0deg) scale(1.05);}
+  33%{border-radius:40% 60% 55% 45% / 62% 38% 62% 38%; transform:translate(-56%,-45%) rotate(-10deg) scale(.9);}
+  66%{border-radius:55% 45% 60% 40% / 42% 55% 45% 58%; transform:translate(-44%,-56%) rotate(7deg) scale(1.12);}
+  100%{border-radius:60% 40% 35% 65% / 50% 60% 40% 50%; transform:translate(-50%,-50%) rotate(0deg) scale(1.05);}
+}
+@keyframes featuredShine{0%{transform:translateX(-140%) rotate(20deg);}100%{transform:translateX(240%) rotate(20deg);}}
+
 .featured-row{position:relative; padding:clamp(120px,18vw,208px) 0 40px;}
 .featured-bg-text{
   position:absolute; left:0; right:0; top:0; height:calc(100% - 40px); z-index:0;
   display:flex; align-items:flex-end; justify-content:center;
   pointer-events:none; overflow:hidden; padding:0 12px 8px;
 }
+/* Two blurred, slowly-morphing organic blobs behind the giant type — an ambient aurora-glow instead
+   of a flat box-shadow. Masked to fade out toward the bottom so they melt into the card rather than
+   ending in a hard edge. */
+.featured-bg-blob{
+  position:absolute; top:52%; left:50%; pointer-events:none; mix-blend-mode:screen; filter:blur(34px);
+  -webkit-mask-image:linear-gradient(to bottom, transparent 0%, rgba(0,0,0,.2) 30%, rgba(0,0,0,.6) 50%, #000 70%);
+  mask-image:linear-gradient(to bottom, transparent 0%, rgba(0,0,0,.2) 30%, rgba(0,0,0,.6) 50%, #000 70%);
+}
+.featured-bg-blob.a{
+  width:56%; height:120%; background:radial-gradient(circle, rgba(61,219,217,.32) 0%, rgba(61,219,217,.13) 45%, transparent 72%);
+  animation:featuredBlobA 9s ease-in-out infinite;
+}
+.featured-bg-blob.b{
+  width:42%; height:104%; background:radial-gradient(circle, rgba(120,235,220,.24) 0%, rgba(61,219,217,.09) 50%, transparent 75%);
+  animation:featuredBlobB 11s ease-in-out infinite; animation-delay:-3.5s;
+}
 /* Huge outline (not filled) type behind the card — the "visual identity" of this section. Fill is
    transparent with a thin cyan stroke rather than a solid cyan block, kept very low-opacity (8–12%)
    so it reads as an ambient watermark, not competing text. */
 .featured-bg-text span{
-  font-family:var(--display-font); font-weight:900; text-transform:uppercase;
-  font-size:clamp(80px, 18vw, 260px); letter-spacing:.03em; line-height:1;
+  position:relative; font-family:var(--featured-font); font-weight:700; text-transform:uppercase;
+  font-size:clamp(80px, 18vw, 260px); letter-spacing:.02em; line-height:1;
   color:transparent; -webkit-text-stroke:1.5px var(--highlight); text-stroke:1.5px var(--highlight);
-  opacity:.1;
-  text-shadow:0 0 70px rgba(61,219,217,.55), 0 0 130px rgba(61,219,217,.3);
-  white-space:nowrap;
+  opacity:.1; white-space:nowrap; animation:featuredTextGlow 4.5s ease-in-out infinite;
 }
 /* Outer wrapper is deliberately NOT clipped (overflow:visible) so the artwork can bleed above the
    card's top edge. .featured-card-inner below is the piece that actually gets the rounded corners
    and clips the scrim/UI to the card's real bounds. */
 .featured-card{
   position:relative; z-index:1; max-width:1040px; margin:0 auto; aspect-ratio:16/9;
-  overflow:visible; cursor:pointer; isolation:isolate;
+  overflow:visible; cursor:pointer; isolation:isolate; border-radius:var(--featured-radius);
+  animation:featuredRingPulse 3.2s ease-in-out infinite;
 }
 .featured-art{position:absolute; left:0; right:0; bottom:0; top:calc(-1 * var(--featured-escape)); z-index:0;}
 .featured-art-layer{position:absolute; inset:0; opacity:0; transition:opacity 420ms cubic-bezier(.4,0,.2,1);}
@@ -294,7 +338,7 @@ a{color:inherit; text-decoration:none;}
 /* Rounds only the bottom two corners (the card's real corners) — the top of the image is the
    escaping sliver, which has no "corner" of its own, just the fade below. */
 .featured-card.bleed-on .featured-art-img{
-  clip-path:inset(0 round 0 0 var(--radius) var(--radius));
+  clip-path:inset(0 round 0 0 var(--featured-radius) var(--featured-radius));
   -webkit-mask-image:linear-gradient(to bottom, transparent 0%, #000 calc(var(--featured-escape) + 3%), #000 100%);
   mask-image:linear-gradient(to bottom, transparent 0%, #000 calc(var(--featured-escape) + 3%), #000 100%);
 }
@@ -303,9 +347,9 @@ a{color:inherit; text-decoration:none;}
    Featured Cutout is set (.has-cutout below) — the cutout becomes the one and only breakout element,
    so the backdrop itself never bleeds too. That avoids ever stacking two escaping images. */
 .featured-card.bleed-off .featured-art{top:0;}
-.featured-card.bleed-off .featured-art-img{clip-path:inset(0 round var(--radius));}
+.featured-card.bleed-off .featured-art-img{clip-path:inset(0 round var(--featured-radius));}
 .featured-card.has-cutout .featured-art{top:0;}
-.featured-card.has-cutout .featured-art-img{clip-path:inset(0 round var(--radius));}
+.featured-card.has-cutout .featured-art-img{clip-path:inset(0 round var(--featured-radius));}
 /* Custom cutout: a transparent PNG (subject only, no background) supplied per-title in the Add/Edit
    Title form (Featured Cutout URL). Anchored to the card's bottom-center and sized taller than the
    card so the top of it (head/shoulders) pokes above the card into the giant-typography zone — real
@@ -317,32 +361,50 @@ a{color:inherit; text-decoration:none;}
 }
 .featured-cutout img{height:100%; width:auto; max-width:100%; object-fit:contain; display:block; pointer-events:auto; filter:drop-shadow(0 18px 34px rgba(0,0,0,.55));}
 .featured-card-inner{
-  position:absolute; inset:0; z-index:1; border-radius:var(--radius); overflow:hidden;
-  box-shadow:0 24px 60px rgba(0,0,0,.5); pointer-events:none;
+  position:absolute; inset:0; z-index:1; border-radius:var(--featured-radius); overflow:hidden;
+  pointer-events:none;
 }
 .featured-scrim{
   position:absolute; inset:0; z-index:1;
-  background:linear-gradient(0deg, rgba(4,5,8,.94) 0%, rgba(4,5,8,.6) 38%, transparent 70%),
-             linear-gradient(90deg, rgba(4,5,8,.6) 0%, transparent 50%);
+  background:linear-gradient(90deg, rgba(3,4,7,.92) 0%, rgba(3,4,7,.55) 45%, transparent 78%),
+             linear-gradient(0deg, rgba(3,4,7,.5) 0%, transparent 40%);
   pointer-events:none;
+}
+/* Sparkly "New Movie / New Series" pill, top-left — an animated light sweep behind the label, echoing
+   the giant type's cyan glow at a much smaller, informational scale. */
+.featured-new-badge{
+  position:absolute; left:20px; top:18px; z-index:2; display:flex; align-items:center; gap:5px;
+  background:rgba(5,7,10,.6); color:var(--highlight); font-size:11px; font-weight:800; letter-spacing:.08em;
+  text-transform:uppercase; padding:6px 14px; border-radius:20px; border:1px solid rgba(61,219,217,.4);
+  overflow:hidden; pointer-events:none;
+}
+.featured-new-badge svg{width:13px; height:13px; flex-shrink:0;}
+.featured-new-badge span{position:relative; z-index:1;}
+.featured-new-badge::after{
+  content:''; position:absolute; top:0; left:0; width:30%; height:100%;
+  background:linear-gradient(120deg, transparent, rgba(255,255,255,.35), transparent);
+  animation:featuredShine 5s ease-in-out infinite;
 }
 /* Bounded width keeps title/meta/buttons hugging the lower-left corner like a Netflix/Apple TV hero
    card, instead of stretching edge-to-edge across the whole card. */
 .featured-content{
-  position:absolute; left:0; right:0; bottom:0; z-index:2; padding:24px 28px 26px; max-width:62%;
+  position:absolute; left:0; right:0; bottom:0; z-index:2; padding:20px 24px 22px; max-width:62%;
   pointer-events:auto; transition:opacity 380ms ease, transform 380ms ease;
 }
-.featured-type-badge{
-  display:inline-block; background:rgba(8,9,13,.6); backdrop-filter:blur(4px);
-  color:var(--highlight); font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.08em;
-  padding:4px 10px; border-radius:20px; border:1px solid rgba(61,219,217,.3); margin-bottom:10px;
-}
+.featured-logo{max-width:260px; max-height:60px; width:auto; height:auto; object-fit:contain; display:block; margin-bottom:12px; filter:drop-shadow(0 2px 10px rgba(0,0,0,.5));}
 .featured-title{
-  font-family:var(--display-font); font-size:clamp(22px, 3.4vw, 34px); font-weight:800;
-  letter-spacing:.1px; margin-bottom:8px; text-shadow:0 2px 12px rgba(0,0,0,.5);
+  font-family:var(--featured-font); font-size:clamp(24px, 3.6vw, 36px); font-weight:700;
+  text-transform:uppercase; letter-spacing:.01em; margin-bottom:12px; line-height:1.05;
+  text-shadow:0 2px 14px rgba(0,0,0,.6);
 }
-.featured-meta{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;}
-.featured-actions{display:flex; gap:10px;}
+.featured-meta{display:flex; align-items:center; flex-wrap:wrap; gap:8px; font-size:12px; color:#c9cbd1; margin-bottom:12px;}
+.featured-meta .dot{color:var(--highlight);}
+.featured-desc{
+  font-size:12.5px; line-height:1.5; color:#a9adb3; margin:0 0 16px; max-width:300px;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
+.featured-actions{display:flex; gap:10px; align-items:center;}
+.featured-actions .btn-primary{box-shadow:0 0 24px rgba(61,219,217,.45);}
 .featured-indicators{
   position:absolute; right:22px; bottom:22px; z-index:2; display:flex; gap:6px; pointer-events:auto;
 }
@@ -355,22 +417,23 @@ a{color:inherit; text-decoration:none;}
   .featured-row{padding:clamp(88px,28vw,132px) 0 28px;}
   /* Was aspect-ratio:4/5 (portrait) — the actual bug behind the "looks like a poster" complaint.
      4/3 stays unambiguously landscape while giving a little extra height for stacked mobile text. */
-  .featured-card{aspect-ratio:4/3; margin:0 16px; max-width:none;}
-  .featured-card-inner{border-radius:12px;}
-  .featured-card.bleed-on .featured-art-img{clip-path:inset(0 round 0 0 12px 12px);}
-  .featured-card.bleed-off .featured-art-img,
-  .featured-card.has-cutout .featured-art-img{clip-path:inset(0 round 12px);}
-  .featured-bg-text span{font-size:clamp(48px, 19vw, 120px); letter-spacing:.02em;}
+  .featured-card{aspect-ratio:4/3; margin:0 16px; max-width:none; --featured-radius:12px;}
+  .featured-bg-text span{font-size:clamp(48px, 19vw, 120px); letter-spacing:.01em;}
   .featured-cutout{height:122%; max-width:70%;}
-  .featured-content{padding:18px 18px 20px; max-width:82%;}
+  .featured-content{padding:16px 18px 18px; max-width:82%;}
+  .featured-logo{max-width:180px; max-height:44px;}
+  .featured-title{font-size:clamp(19px,5vw,26px);}
+  .featured-desc{max-width:none; -webkit-line-clamp:2;}
   .featured-actions .btn span, .featured-actions .btn{font-size:12.5px;}
+  .featured-new-badge{left:14px; top:12px; padding:5px 11px; font-size:10px;}
   .featured-indicators{right:16px; bottom:16px;}
 }
 @media (prefers-reduced-motion:reduce){
   .featured-art-layer, .featured-content{transition:none;}
+  .featured-card, .featured-bg-text span, .featured-bg-blob, .featured-new-badge::after{animation:none;}
 }
 body.tv-mode .featured-card{aspect-ratio:16/9;}
-body.tv-mode .featured-title{font-size:clamp(26px,3vw,40px);}
+body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
 
 /* ---------- Rows / Cards ---------- */
 .row{margin:38px 0; text-align:left;}
@@ -1745,6 +1808,7 @@ kbd.key{
   .hero-carousel{margin:14px 16px 0 16px; height:50vh;}
   .hero-content{padding:22px;}
   .hero-content h2{font-size:26px;}
+  .hero-logo{max-width:240px; max-height:78px; margin-bottom:12px;}
   .detail-backdrop{margin:14px 16px;}
   .detail-body{padding:0 16px;}
   .row-head, .row-track, .episode-list{padding-left:16px; padding-right:16px;}
@@ -1813,6 +1877,7 @@ body.tv-mode .topbar h1 { font-size: 30px; }
 body.tv-mode .page { padding: 0 48px; }
 body.tv-mode .hero-carousel { margin: 24px 48px 12px 48px; height: 58vh; }
 body.tv-mode .hero-content h2 { font-size: 52px; }
+body.tv-mode .hero-logo { max-width: 500px; max-height: 156px; }
 body.tv-mode .hero-content p { font-size: 17px; }
 body.tv-mode .hero-btns .btn { padding: 16px 32px; font-size: 16px; }
 body.tv-mode .hero-nav-btn { opacity: 1; width: 52px; height: 52px; } /* always visible on TV */
@@ -1948,6 +2013,7 @@ const ICON = {
   play:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>',
   pause:'<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
   plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  sparkles:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><path d="M9 9 6.5 6.5M15 9l2.5-2.5M9 15l-2.5 2.5M15 15l2.5 2.5"/></svg>',
   close:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
   edit:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
   trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V6z"/></svg>',
@@ -2692,11 +2758,9 @@ function renderHome(){
 
   let rows = '';
   if(continueWatching.length) rows += rowHtml('Continue Watching', continueWatching, {removable:true});
+  rows += featuredReleaseHtml(panoramicItem);
   const newSeasonHome = getNewSeasonItems(items);
   if(newSeasonHome.length) rows += cappedRowHtml('New Season Available', newSeasonHome, 'newseasonall');
-  const bingeNowHome = getBingeNowItems(items);
-  if(bingeNowHome.length) rows += cappedRowHtml('Binge Now', bingeNowHome, 'bingeall');
-  rows += featuredReleaseHtml(panoramicItem);
   if(favorites.length) rows += rowHtml('Favorites', favorites);
   const becauseYouLiked = getBecauseYouLikedRow(items);
   if(becauseYouLiked) rows += rowHtml(`Because You Liked "${becauseYouLiked.seed.title}"`, becauseYouLiked.items);
@@ -2705,6 +2769,8 @@ function renderHome(){
     const inGenre = recentlyAdded.filter(i=>(i.genre||[]).includes(g));
     if(inGenre.length) rows += genreRowHtml(g, inGenre, 'all');
   });
+  const bingeNowHome = getBingeNowItems(items);
+  if(bingeNowHome.length) rows += cappedRowHtml('Binge Now', bingeNowHome, 'bingeall');
 
   return `${heroCarouselHtml(heroItems)}<div class="page">${rows}</div>`;
 }
@@ -2728,18 +2794,20 @@ function renderTypePage(type){
 
   let rows = '';
   if(continueWatching.length) rows += rowHtml('Continue Watching', continueWatching, {removable:true});
+  rows += featuredReleaseHtml(panoramicItem);
   if(type==='series'){
     const newSeasonSeries = getNewSeasonItems(items);
     if(newSeasonSeries.length) rows += cappedRowHtml('New Season Available', newSeasonSeries, 'newseasonall');
-    const bingeNowSeries = getBingeNowItems(items);
-    if(bingeNowSeries.length) rows += cappedRowHtml('Binge Now', bingeNowSeries, 'bingeall');
   }
-  rows += featuredReleaseHtml(panoramicItem);
   rows += rowHtml('Recently Added', recentlyAddedRowItems.slice(0, GENRE_ROW_CAP));
   allGenres().forEach(g=>{
     const inGenre = recentlyAdded.filter(i=>(i.genre||[]).includes(g));
     if(inGenre.length) rows += genreRowHtml(g, inGenre, type);
   });
+  if(type==='series'){
+    const bingeNowSeries = getBingeNowItems(items);
+    if(bingeNowSeries.length) rows += cappedRowHtml('Binge Now', bingeNowSeries, 'bingeall');
+  }
 
   return `${heroCarouselHtml(heroItems)}<div class="page">${rows}</div>`;
 }
@@ -2832,20 +2900,25 @@ function featuredReleaseHtml(item){
   if(!banners.length) return '';
   const bgLabel = item.type==='movie' ? 'New Movie' : 'New Show';
   const metaBits = [];
+  if(item.genre && item.genre.length) item.genre.slice(0,2).forEach(g=> metaBits.push(esc(g)));
   if(item.type==='movie'){
     if(item.runtime) metaBits.push(esc(item.runtime));
   } else {
     const seasonCount = (item.seasons||[]).length;
     if(seasonCount) metaBits.push(`${seasonCount} Season${seasonCount===1?'':'s'}`);
   }
-  if(item.genre && item.genre.length) metaBits.push(esc(item.genre.slice(0,2).join(', ')));
+  if(item.year) metaBits.push(esc(item.year));
   state.featuredItem = item;
   state.featuredIndex = 0;
   const cutoutClass = item.featuredCutout ? 'has-cutout' : '';
   const bleedClass = cutoutClass ? '' : (state.settings.featuredArtworkBleed ? 'bleed-on' : 'bleed-off');
+  const titleJsSafe = esc(item.title).replace(/'/g,"&#39;");
   return `
     <div class="row featured-row">
-      <div class="featured-bg-text"><span>${esc(bgLabel)}</span></div>
+      <div class="featured-bg-text">
+        <div class="featured-bg-blob a"></div><div class="featured-bg-blob b"></div>
+        <span>${esc(bgLabel)}</span>
+      </div>
       <div class="featured-card ${bleedClass} ${cutoutClass}" id="featuredCard" onclick="featuredCardClick(event,'${item.id}')" onmouseenter="stopFeaturedAutoplay()" onmouseleave="startFeaturedAutoplay()">
         <div class="featured-art">
           ${banners.map((url,i)=>`
@@ -2857,10 +2930,13 @@ function featuredReleaseHtml(item){
           <div class="featured-scrim"></div>
         </div>
         ${item.featuredCutout ? `<div class="featured-cutout"><img src="${esc(item.featuredCutout)}" alt="" draggable="false" ${contentBlurImgAttrs()}></div>` : ''}
+        <div class="featured-new-badge">${ICON.sparkles}<span>${item.type==='series'?'New Series':'New Movie'}</span></div>
         <div class="featured-content" id="featuredContent">
-          <span class="featured-type-badge">${item.type==='series'?'Series':'Movie'}</span>
-          <h2 class="featured-title">${esc(item.title)}</h2>
-          ${metaBits.length ? `<div class="featured-meta">${metaBits.map(m=>`<span class="tag">${m}</span>`).join('')}</div>` : ''}
+          ${item.logo
+            ? `<img class="featured-logo" src="${esc(item.logo)}" alt="${esc(item.title)}" ${contentBlurImgAttrs()} onerror="this.replaceWith(Object.assign(document.createElement('h2'),{className:'featured-title',textContent:'${titleJsSafe}'}))">`
+            : `<h2 class="featured-title">${esc(item.title)}</h2>`}
+          ${metaBits.length ? `<div class="featured-meta">${metaBits.map((m,i)=>`${i>0?'<span class="dot">&bull;</span>':''}<span>${m}</span>`).join('')}</div>` : ''}
+          ${item.description ? `<p class="featured-desc">${esc(item.description)}</p>` : ''}
           <div class="featured-actions">
             <button class="btn btn-primary" onclick="event.stopPropagation(); quickPlay('${item.id}')">${ICON.play} Play</button>
             <button class="btn btn-ghost" onclick="event.stopPropagation(); toggleWatchlist('${item.id}'); featuredWatchlistBtnSync('${item.id}')">${item.watchlist?ICON.check:ICON.plus} ${item.watchlist?'On Watchlist':'Add'}</button>
@@ -2930,12 +3006,15 @@ function heroCarouselHtml(items){
 function heroSlideHtml(item){
   const pct = item.type==='movie' ? movieProgressPct(item) : itemProgressPct(item);
   const showResume = isStarted(item) && !isFullyWatched(item);
+  const titleJsSafe = esc(item.title).replace(/'/g,"&#39;");
   return `
     <div class="hero-slide" onclick="heroSlideClick('${item.id}')">
       ${item.backdrop ? `<img src="${esc(item.backdrop)}" alt="" draggable="false" ${contentBlurImgAttrs()}>` : ''}
       <div class="hero-content">
         <span class="hero-badge">${item.type==='series'?'Series':'Movie'}</span>
-        <h2>${esc(item.title)}</h2>
+        ${item.logo
+          ? `<img class="hero-logo" src="${esc(item.logo)}" alt="${esc(item.title)}" ${contentBlurImgAttrs()} onerror="this.replaceWith(Object.assign(document.createElement('h2'),{textContent:'${titleJsSafe}'}))">`
+          : `<h2>${esc(item.title)}</h2>`}
         <p>${esc(item.description||'No description added yet.')}</p>
         <div class="hero-btns">
           <button class="btn btn-primary" onclick="event.stopPropagation(); quickPlay('${item.id}')">${ICON.play} ${showResume?'Resume':'Play'}</button>
