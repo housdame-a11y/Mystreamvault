@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Stream Vault</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,6 +23,13 @@
 }
 *{box-sizing:border-box; margin:0; padding:0;}
 html,body{height:100%;}
+/* Android Chrome recalculates its own "boosted" zoom level for the page whenever content height
+   changes a lot — going from the short home page into the much taller movie/TV detail page is
+   exactly that kind of jump. That recalculation is what makes position:fixed elements like
+   .bottom-nav (and the Home button inside it) suddenly render larger/"zoomed" right after the
+   route changes, even though no CSS on this page actually scales them up. Turning off the
+   automatic adjustment stops Chrome from ever re-zooming the layout on its own. */
+html{-webkit-text-size-adjust:100%; text-size-adjust:100%; touch-action:pan-x pan-y;}
 body{
   background:
     radial-gradient(1100px 620px at 12% -8%, rgba(13,74,74,.35), transparent 60%),
@@ -128,7 +135,7 @@ a{color:inherit; text-decoration:none;}
 .detail-action-dropdown{
   position:absolute; top:calc(100% + 8px); right:0; min-width:212px; background:var(--surface);
   border:1px solid #232837; border-radius:12px; box-shadow:0 20px 50px rgba(0,0,0,.5); padding:6px;
-  z-index:20; opacity:0; transform:translateY(-6px) scale(.97); pointer-events:none;
+  z-index:20; opacity:0; transform:translateY(-6px) scale(.97); transform-origin:top right; pointer-events:none;
   transition:opacity .18s ease, transform .18s ease;
 }
 .detail-action-dropdown.open{opacity:1; transform:translateY(0) scale(1); pointer-events:auto;}
@@ -140,7 +147,7 @@ a{color:inherit; text-decoration:none;}
 .detail-action-dropdown button:hover{background:#161923;}
 .detail-action-dropdown button svg{width:16px; height:16px; flex-shrink:0; color:var(--muted);}
 .detail-action-dropdown button[data-fav-id].is-fav svg{color:#ff6b81;}
-@media (max-width:480px){ .detail-action-dropdown{right:auto; left:0;} }
+@media (max-width:480px){ .detail-action-dropdown{right:auto; left:0; transform-origin:top left;} }
 .notif-badge{
   position:absolute; top:-4px; right:-4px; min-width:16px; height:16px; padding:0 3px; border-radius:8px;
   background:#ff6b81; color:#1a0508; font-size:9.5px; font-weight:800; line-height:16px; text-align:center;
@@ -174,7 +181,8 @@ a{color:inherit; text-decoration:none;}
 .gsr-item{display:flex; gap:12px; align-items:center; padding:8px; border-radius:10px; cursor:pointer; transition:background var(--transition);}
 .gsr-item:hover{background:#161923;}
 .gsr-poster{width:38px; height:56px; border-radius:6px; overflow:hidden; flex-shrink:0; background:var(--surface2); display:flex; align-items:center; justify-content:center;}
-.gsr-poster img{width:100%; height:100%; object-fit:cover;}
+.gsr-poster img{width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity .4s ease;}
+.gsr-poster img.loaded{opacity:1;}
 .gsr-poster .poster-fallback{font-size:16px;}
 .gsr-poster svg{width:15px; height:15px; color:var(--muted);}
 .gsr-title{font-size:13px; font-weight:700; line-height:1.3;}
@@ -185,14 +193,15 @@ a{color:inherit; text-decoration:none;}
   .topbar-search.open .global-search-input{width:130px;}
 }
 
-.page{padding:0 32px; animation:fadeIn .35s ease;}
-@keyframes fadeIn{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
+.page{padding:0 32px; animation:fadeIn .4s cubic-bezier(.16,1,.3,1);}
+@keyframes fadeIn{from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:translateY(0);}}
 
 /* ---------- Hero ---------- */
 .hero-carousel{
   position:relative; height:64vh; min-height:420px; max-height:600px;
   border-radius:18px; overflow:hidden; margin:20px 32px 8px 32px;
   border:1px solid #171a24; background:#0c0e13;
+  animation:fadeIn .4s cubic-bezier(.16,1,.3,1);
 }
 .hero-track{display:flex; height:100%; transition:transform .65s cubic-bezier(.65,0,.35,1); cursor:grab; touch-action:pan-y;}
 .hero-track.dragging{transition:none; cursor:grabbing;}
@@ -236,23 +245,31 @@ a{color:inherit; text-decoration:none;}
    original pass, and given a soft glowing "this is the newest add" treatment: an ambient blurred
    glow sits behind the whole row, and each card carries a slow-pulsing highlight ring — no badge
    text needed, it just reads as "freshly lit up". ---------- */
-.panoramic-row{position:relative;}
-.panoramic-caption{
-  position:relative; z-index:2; display:flex; align-items:center; gap:7px;
-  padding:0 32px; margin-bottom:8px;
-  font-size:11.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
-  color:rgba(199,213,211,.5);
-}
-.panoramic-caption::before{
-  content:''; width:5px; height:5px; border-radius:50%; flex-shrink:0;
-  background:var(--highlight); box-shadow:0 0 6px rgba(61,219,217,.7);
-}
-.panoramic-caption b{color:var(--text); font-weight:700; text-transform:none; letter-spacing:0; opacity:.85;}
-@media (max-width:860px){ .panoramic-caption{padding:0 16px;} }
+.panoramic-row{position:relative; padding:52px 0;}
 .panoramic-row::before{
-  content:''; position:absolute; left:16px; right:16px; top:-14px; bottom:-14px; z-index:0;
+  content:''; position:absolute; left:16px; right:16px; top:36px; bottom:36px; z-index:0;
   background:radial-gradient(ellipse at center, rgba(61,219,217,.16) 0%, rgba(61,219,217,.05) 45%, transparent 75%);
   filter:blur(22px); pointer-events:none; animation:panoramicAmbientGlow 3.6s ease-in-out infinite;
+}
+/* Big glowing "NEW SHOW"/"NEW MOVIE" wordmark sitting behind the panoramic cards — replaces the
+   old "Just Added · Title" caption line. Transparent fill + thin colored stroke + soft text-shadow
+   reads as a lit-up neon sign; the row gets extra top/bottom padding (above) so the mark has real
+   room to sit tall behind the (much shorter) card strip instead of being squeezed to card height.
+   z-index sits between the ambient glow (0) and the cards (1). */
+.panoramic-bg-text{
+  position:absolute; inset:0; z-index:0; display:flex; align-items:center; justify-content:center;
+  pointer-events:none; overflow:hidden; padding:0 32px;
+}
+.panoramic-bg-text span{
+  font-family:var(--display-font); font-weight:900; text-transform:uppercase;
+  font-size:clamp(36px, 7.5vw, 92px); letter-spacing:.04em; line-height:1;
+  color:transparent; -webkit-text-stroke:1.5px rgba(61,219,217,.55);
+  text-shadow:0 0 18px rgba(61,219,217,.55), 0 0 40px rgba(61,219,217,.3);
+  white-space:nowrap; animation:panoramicAmbientGlow 3.6s ease-in-out infinite;
+}
+@media (max-width:860px){
+  .panoramic-row{padding:36px 0;}
+  .panoramic-bg-text span{ font-size:clamp(24px,11vw,52px);}
 }
 .panoramic-row .row-track{position:relative; z-index:1;}
 .row-track .panoramic-card{
@@ -270,7 +287,7 @@ a{color:inherit; text-decoration:none;}
   50%{box-shadow:0 0 0 1.5px rgba(61,219,217,.85), 0 0 24px 4px rgba(61,219,217,.5);}
 }
 @media (prefers-reduced-motion:reduce){
-  .panoramic-row::before, .row-track .panoramic-card{animation:none;}
+  .panoramic-row::before, .panoramic-bg-text span, .row-track .panoramic-card{animation:none;}
 }
 @media (hover:hover) and (pointer:fine){
   .row-track .panoramic-card:hover{animation-play-state:paused;}
@@ -424,7 +441,7 @@ a{color:inherit; text-decoration:none;}
 .card-play svg{width:14px; height:14px;}
 .card:hover .card-play{transform:scale(1.1);}
 .card-title{font-size:12.5px; font-weight:700; line-height:1.3; margin-bottom:2px;}
-.card-meta{font-size:10.5px; color:var(--muted);}
+.card-meta{font-size:10.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 
 .empty-state{
   text-align:center; padding:90px 24px; color:var(--muted);
@@ -454,6 +471,21 @@ a{color:inherit; text-decoration:none;}
   display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:18px; padding-bottom:20px;
 }
 .grid .card{width:100%; flex:none;}
+
+/* Fixed 3-per-row layout used for Collections and Category (genre) pages — unlike .grid's
+   auto-fill (which packs however many columns fit the viewport), this always wraps at 3 so
+   collections read as tidy rows of posters regardless of screen width. */
+.grid-3col{
+  display:grid; grid-template-columns:repeat(3,1fr); gap:18px; padding-bottom:20px;
+}
+.grid-3col .card{width:100%; flex:none;}
+.grid-3col .card.skeleton-card{
+  background:linear-gradient(100deg,#12141c 0%,#1c1f2b 40%,#12141c 80%); background-size:220% 100%;
+  animation:skeletonShimmer 1.7s ease-in-out infinite; cursor:default;
+}
+@media (max-width:640px){
+  .grid-3col{gap:8px;}
+}
 
 /* ---------- Detail ---------- */
 /* Shimmering placeholder shown behind the backdrop/poster while their images load (or forever, if
@@ -497,7 +529,7 @@ a{color:inherit; text-decoration:none;}
     transparent 92%
   );
 }
-.detail-body{padding:0 32px; margin-top:-150px; position:relative; z-index:2; display:flex; flex-direction:column; gap:20px;}
+.detail-body{padding:0 32px; margin-top:-150px; position:relative; z-index:2; display:flex; flex-direction:column; gap:20px; animation:fadeIn .4s cubic-bezier(.16,1,.3,1);}
 .detail-top{display:flex; flex-direction:column; align-items:center; text-align:center; gap:16px; margin-top:-40px;}
 .detail-poster{
   width:150px; flex-shrink:0; border-radius:10px; overflow:hidden; box-shadow:0 20px 44px rgba(0,0,0,.65); aspect-ratio:2/3;
@@ -1018,6 +1050,18 @@ a{color:inherit; text-decoration:none;}
 .player-end-card-stars .my-rating-star svg{width:26px; height:26px;}
 .player-end-card-actions{display:flex; flex-direction:column; gap:10px; width:100%; margin-top:10px;}
 .player-end-card-actions .btn{width:100%; justify-content:center; padding:13px; font-size:14.5px;}
+/* Small pie-timer that fills up over the autoplay countdown, sitting right in the Next Episode
+   button so the "why is this button changing" question is answered at a glance without a separate
+   progress bar competing for attention. --pct is ticked from 0 to 100 by startEndCardAutoplay(). */
+.player-end-card-next-ring{
+  width:16px; height:16px; border-radius:50%; flex-shrink:0;
+  background:conic-gradient(#04211f calc(var(--pct,0)*1%), rgba(4,33,31,.35) 0);
+}
+.player-end-card-cancel-link{
+  background:none; border:none; color:var(--muted); font-size:12.5px; font-weight:700;
+  padding:2px; text-align:center; width:100%; transition:color var(--transition);
+}
+.player-end-card-cancel-link:hover{color:var(--text); text-decoration:underline;}
 
 /* ---------- Keyboard shortcuts cheat-sheet ('?') ----------
    A dedicated overlay (not the generic modal system) so it can sit ABOVE the player: modalOverlay
@@ -1433,7 +1477,8 @@ kbd.key{
 .watchlist-row:last-child{border-bottom:none;}
 .watchlist-row:hover{background:#12141c;}
 .watchlist-row-poster{width:60px; aspect-ratio:2/3; border-radius:8px; overflow:hidden; flex-shrink:0; background:var(--surface2);}
-.watchlist-row-poster img{width:100%; height:100%; object-fit:cover; display:block;}
+.watchlist-row-poster img{width:100%; height:100%; object-fit:cover; display:block; opacity:0; transition:opacity .4s ease;}
+.watchlist-row-poster img.loaded{opacity:1;}
 .watchlist-row-poster .poster-fallback{font-size:18px; border-radius:8px;}
 .watchlist-row-info{flex:1; min-width:0;}
 .watchlist-row-title{font-size:17px; font-weight:800; margin-bottom:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
@@ -1531,13 +1576,34 @@ kbd.key{
 
 /* ---------- Settings ---------- */
 .settings-section{background:var(--surface); border:1px solid #1a1d26; border-radius:12px; padding:22px; margin-bottom:18px; max-width:560px;}
-.settings-section h3{font-size:15px; font-weight:800; margin-bottom:16px;}
+.settings-section h3{
+  font-size:15px; font-weight:800; margin-bottom:16px; cursor:pointer; user-select:none;
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  transition:margin-bottom .28s ease;
+}
+.settings-section h3:hover .settings-chevron{color:var(--highlight);}
+.settings-title-text{display:flex; align-items:center; flex-wrap:wrap; gap:6px;}
+.settings-chevron{display:flex; flex-shrink:0; color:var(--muted); transition:transform .25s ease, color var(--transition);}
+.settings-chevron svg{width:18px; height:18px;}
+/* Collapsed state: chevron points sideways, the h3's bottom margin collapses along with the body so
+   there's no leftover gap, and the body itself shrinks via max-height rather than display:none so it
+   can actually transition instead of popping. max-height is a generous fixed value rather than the
+   real content height (which JS would have to measure) — every section here comfortably fits under
+   it, so the eased curve still reads as a smooth open/close in practice. */
+.settings-section.is-collapsed h3{margin-bottom:0;}
+.settings-section.is-collapsed .settings-chevron{transform:rotate(-90deg);}
+.settings-section-body{
+  max-height:1200px; opacity:1; overflow:hidden;
+  transition:max-height .32s ease, opacity .25s ease, margin-top .32s ease;
+}
+.settings-section.is-collapsed .settings-section-body{max-height:0; opacity:0; pointer-events:none;}
 .settings-row{display:flex; gap:10px; margin-bottom:12px;}
 .manage-lib-rows{display:flex; flex-direction:column; max-height:420px; overflow-y:auto; border:1px solid #1a1d26; border-radius:10px; margin-top:14px;}
 .manage-lib-row{display:flex; align-items:center; gap:14px; padding:10px 12px; border-bottom:1px solid #1a1d26;}
 .manage-lib-row:last-child{border-bottom:none;}
 .manage-lib-poster{width:44px; aspect-ratio:2/3; border-radius:6px; overflow:hidden; flex-shrink:0; background:var(--surface2);}
-.manage-lib-poster img{width:100%; height:100%; object-fit:cover; display:block;}
+.manage-lib-poster img{width:100%; height:100%; object-fit:cover; display:block; opacity:0; transition:opacity .4s ease;}
+.manage-lib-poster img.loaded{opacity:1;}
 .manage-lib-poster .poster-fallback{font-size:14px; border-radius:6px;}
 .manage-lib-info{flex:1; min-width:0;}
 .manage-lib-title{font-size:14px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
@@ -1567,8 +1633,15 @@ kbd.key{
   position:fixed; bottom:26px; left:50%; transform:translateX(-50%) translateY(20px); z-index:300;
   background:var(--surface2); border:1px solid #232837; padding:12px 20px; border-radius:8px; font-size:13.5px; font-weight:600;
   opacity:0; transition:all var(--transition); pointer-events:none; box-shadow:0 10px 30px rgba(0,0,0,.4);
+  display:flex; align-items:center; gap:14px;
 }
 #toast.show{opacity:1; transform:translateX(-50%) translateY(0); bottom:76px;}
+#toast.has-action{pointer-events:auto;}
+.toast-undo-btn{
+  background:none; border:none; color:var(--highlight); font-size:13px; font-weight:800;
+  white-space:nowrap; letter-spacing:.02em; padding:2px; cursor:pointer;
+}
+.toast-undo-btn:hover{text-decoration:underline;}
 
 /* ---------- Mobile bottom nav ---------- */
 .bottom-nav{display:none;}
@@ -1595,6 +1668,15 @@ kbd.key{
   .detail-body{padding:0 16px;}
   .row-head, .row-track, .episode-list{padding-left:16px; padding-right:16px;}
   .filter-bar{padding-right:16px;}
+  /* iOS Safari auto-zooms the whole page in when a focused text field's computed font-size is under
+     16px, and — since this is a hash-routed SPA with no real page reload — that zoomed-in state just
+     carries over when you then navigate to another route. The fixed .bottom-nav (with the Home
+     button) doesn't scroll away like normal content, so it's what makes the leftover zoom obvious:
+     it ends up looking blown up on whatever page you land on next, most noticeably the detail/"more
+     info" page reached right after tapping a search result. Forcing every field to 16px here stops
+     the zoom from triggering in the first place, without changing how anything actually looks (the
+     16px only applies while the field has focus/text entry on a touch device).*/
+  input, select, textarea{font-size:16px !important;}
 }
 @media (prefers-reduced-motion:reduce){
   *{transition:none !important; animation:none !important;}
@@ -1888,7 +1970,6 @@ const state = {
   route: 'home',
   routeParam: null,
   liveTv: { category:'all', language:'all', search:'', filterOpen:false },
-  browse: { movie:{sort:'recent', filter:'all'}, series:{sort:'recent', filter:'all'} },
   schedule: { date: todayISO(), search:'', cache:{}, tab:'mine', myShowsCache:{} },
   detailSeason: null,
   detailEpisodesOpen: false,
@@ -1907,12 +1988,35 @@ function uuid(){
   });
 }
 function esc(s){ return (s||'').toString().replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
-function toast(msg){
+// opts.undoLabel/opts.onUndo are optional — every existing toast(msg) call elsewhere in the app
+// keeps working unchanged. When present, the toast holds a real button (pointer-events re-enabled
+// just for this toast via .has-action) and stays up longer than a plain confirmation, since it now
+// needs to survive an actual read-and-decide instead of just a glance.
+let toastUndoHandler = null;
+function toast(msg, opts){
+  opts = opts || {};
   const t = document.getElementById('toast');
-  t.textContent = msg;
+  if(!t) return;
+  toastUndoHandler = opts.onUndo || null;
+  t.innerHTML = opts.undoLabel
+    ? `<span class="toast-msg"></span><button type="button" class="toast-undo-btn" onclick="runToastUndo()">${esc(opts.undoLabel)}</button>`
+    : '';
+  if(opts.undoLabel){ t.querySelector('.toast-msg').textContent = msg; } else { t.textContent = msg; }
+  t.classList.toggle('has-action', !!opts.undoLabel);
   t.classList.add('show');
   clearTimeout(toast._t);
-  toast._t = setTimeout(()=>t.classList.remove('show'), 2400);
+  toast._t = setTimeout(()=>{ t.classList.remove('show'); toastUndoHandler = null; }, opts.undoLabel ? 5000 : 2400);
+}
+// Bound to the toast's own Undo button (see toast() above) rather than a closure passed straight
+// into onclick, since the button is rendered via innerHTML — a real function reference wouldn't
+// survive that round-trip the way an inline string handler does.
+function runToastUndo(){
+  const t = document.getElementById('toast');
+  const handler = toastUndoHandler;
+  toastUndoHandler = null;
+  clearTimeout(toast._t);
+  if(t) t.classList.remove('show');
+  if(handler) handler();
 }
 function getItem(id){ return state.lib.items.find(i=>i.id===id); }
 function getChannel(id){ return (state.lib.channels||[]).find(c=>c.id===id); }
@@ -2058,7 +2162,7 @@ function allGenres(){
   state.lib.items.forEach(i=> (i.genre||[]).forEach(g=>set.add(g)));
   return [...set];
 }
-const DEFAULT_GENRES = ['Action','Drama','Comedy','Sci-Fi','Thriller','Horror','Romance','Animation','Documentary','Fantasy','Crime','Adventure'];
+const DEFAULT_GENRES = ['Action','Drama','Comedy','Sci-Fi','Thriller','Horror','Romance','Animation','Documentary','Fantasy','Crime','Adventure','Arabic'];
 
 // Dominant-color extraction — samples the poster on a tiny offscreen canvas and averages the non-neutral
 // pixels, giving a rough "album art glow" color (Spotify/Plex-style) with no API calls involved. Purely
@@ -2285,6 +2389,36 @@ function isFullyWatched(item){
     return hasEpisodes;
   }
 }
+// A series counts as "ended" once TMDB reports its status as Ended/Canceled (same test the
+// detail-page status pill already uses) — i.e. every episode that will ever exist is already
+// in the library, so there's no cliffhanger wait for a next season. "Binge Now" surfaces those,
+// minus anything already fully watched, since there's nothing left to binge there.
+function isEndedSeries(item){
+  return item.type==='series' && !!item.tvStatus && /end|cancel/i.test(item.tvStatus);
+}
+function getBingeNowItems(items){
+  return items.filter(i=> isEndedSeries(i) && !isFullyWatched(i))
+    .sort((a,b)=> new Date(b.dateAdded||0)-new Date(a.dateAdded||0));
+}
+// A show belongs in "New Season Available" once its next unwatched episode sits in a later
+// season than anything the viewer has actually watched — that's the real "a new season just
+// dropped" moment, distinct from plain Continue Watching (which also fires mid-season on the
+// very next episode of the season you're already in). Only applies to shows still airing
+// (ended shows can't get new seasons) that the viewer has watched at least some of before —
+// a completely untouched show isn't "new", it's just unwatched.
+function getNewSeasonItems(items){
+  return items.filter(i=>{
+    if(i.type!=='series' || isEndedSeries(i) || !isStarted(i)) return false;
+    const summary = getWatchProgressSummary(i);
+    if(!summary || !summary.next) return false;
+    const prog = i.progress || {};
+    const watchedSeasons = (i.seasons||[]).flatMap(s=> (s.episodes||[])
+      .filter(e=>{ const key='s'+s.number+'e'+e.number; return prog[key] && prog[key].watched; })
+      .map(()=>s.number));
+    if(!watchedSeasons.length) return false;
+    return summary.next.season > Math.max(...watchedSeasons);
+  }).sort((a,b)=> new Date(b.dateAdded||0)-new Date(a.dateAdded||0));
+}
 
 /* =========================================================
    NAV / RENDER SHELL
@@ -2375,7 +2509,9 @@ function router(){
     case 'series': root.innerHTML = renderTypePage('series'); break;
     case 'live': root.innerHTML = renderLiveTV(); break;
     case 'schedule': root.innerHTML = renderSchedule(); if((state.schedule.tab||'mine')==='mine') loadMyShowsSchedule(); else loadScheduleData(); break;
-    case 'collections': root.innerHTML = renderCollections(param); break;
+    case 'collections': root.innerHTML = renderCollections(param); if(param==='top100shows') loadTmdbTopListGrid('tv'); else if(param==='top100movies') loadTmdbTopListGrid('movie'); break;
+    case 'bingeall': root.innerHTML = renderBingeAllPage(); break;
+    case 'newseasonall': root.innerHTML = renderNewSeasonAllPage(); break;
     case 'settings': root.innerHTML = renderSettings(); break;
     case 'genre': {
       const genreParts = param.split('/');
@@ -2464,6 +2600,10 @@ function renderHome(){
 
   let rows = '';
   if(continueWatching.length) rows += rowHtml('Continue Watching', continueWatching, {removable:true});
+  const newSeasonHome = getNewSeasonItems(items);
+  if(newSeasonHome.length) rows += cappedRowHtml('New Season Available', newSeasonHome, 'newseasonall');
+  const bingeNowHome = getBingeNowItems(items);
+  if(bingeNowHome.length) rows += cappedRowHtml('Binge Now', bingeNowHome, 'bingeall');
   rows += panoramicBannerHtml(panoramicItem);
   if(favorites.length) rows += rowHtml('Favorites', favorites);
   const becauseYouLiked = getBecauseYouLikedRow(items);
@@ -2483,36 +2623,6 @@ function renderTypePage(type){
   if(!items.length){
     return `<div class="page">${emptyState(`No ${label} yet`, `Add your first ${type==='movie'?'movie':'series'} to get started.`)}</div>`;
   }
-  const bp = state.browse[type];
-  const isDefaultView = bp.sort==='recent' && bp.filter==='all';
-  const filterBarHtml = `
-    <div class="filter-bar">
-      <select class="select-input" title="Sort" onchange="setBrowseSort('${type}', this.value)">
-        <option value="recent" ${bp.sort==='recent'?'selected':''}>Recently Added</option>
-        <option value="year" ${bp.sort==='year'?'selected':''}>Year</option>
-        <option value="rating" ${bp.sort==='rating'?'selected':''}>My Rating</option>
-        <option value="az" ${bp.sort==='az'?'selected':''}>A–Z</option>
-      </select>
-      <select class="select-input" title="Filter" onchange="setBrowseFilter('${type}', this.value)">
-        <option value="all" ${bp.filter==='all'?'selected':''}>All Titles</option>
-        <option value="unwatched" ${bp.filter==='unwatched'?'selected':''}>Unwatched Only</option>
-      </select>
-    </div>`;
-
-  // Sorting/filtering flattens the page into a single grid — genre rows and the hero carousel
-  // are a "browse by recency/genre" experience that doesn't map cleanly onto "sorted by rating"
-  // or "unwatched only", so once either control leaves its default we switch views entirely
-  // rather than trying to sort/filter inside every row.
-  if(!isDefaultView){
-    let list = [...items];
-    if(bp.filter==='unwatched') list = list.filter(i=>!isStarted(i));
-    list = sortBrowseItems(list, bp.sort);
-    return `
-      <div class="page">
-        ${filterBarHtml}
-        ${list.length ? `<div class="grid">${list.map(i=>cardHtml(i)).join('')}</div>` : emptyState('Nothing matches', 'Try a different sort or filter.', 'Reset', `setBrowseFilter('${type}','all'); setBrowseSort('${type}','recent');`)}
-      </div>`;
-  }
 
   const heroItems = [...items].sort((a,b)=> new Date(b.dateAdded||0)-new Date(a.dateAdded||0)).slice(0,5);
   const watched = items.filter(isStarted).sort((a,b)=> new Date(b.lastWatched||0)-new Date(a.lastWatched||0));
@@ -2526,6 +2636,12 @@ function renderTypePage(type){
 
   let rows = '';
   if(continueWatching.length) rows += rowHtml('Continue Watching', continueWatching, {removable:true});
+  if(type==='series'){
+    const newSeasonSeries = getNewSeasonItems(items);
+    if(newSeasonSeries.length) rows += cappedRowHtml('New Season Available', newSeasonSeries, 'newseasonall');
+    const bingeNowSeries = getBingeNowItems(items);
+    if(bingeNowSeries.length) rows += cappedRowHtml('Binge Now', bingeNowSeries, 'bingeall');
+  }
   rows += panoramicBannerHtml(panoramicItem);
   rows += rowHtml('Recently Added', recentlyAddedRowItems.slice(0, GENRE_ROW_CAP));
   allGenres().forEach(g=>{
@@ -2533,23 +2649,36 @@ function renderTypePage(type){
     if(inGenre.length) rows += genreRowHtml(g, inGenre, type);
   });
 
-  return `${heroCarouselHtml(heroItems)}<div class="page">${filterBarHtml}${rows}</div>`;
-}
-function sortBrowseItems(list, sort){
-  if(sort==='year') return list.sort((a,b)=> (parseInt(b.year)||0) - (parseInt(a.year)||0));
-  if(sort==='rating') return list.sort((a,b)=> (b.myRating||0)-(a.myRating||0) || (parseFloat(b.rating)||0)-(parseFloat(a.rating)||0));
-  if(sort==='az') return list.sort((a,b)=> (a.title||'').localeCompare(b.title||''));
-  return list.sort((a,b)=> new Date(b.dateAdded||0)-new Date(a.dateAdded||0)); // 'recent'
-}
-function setBrowseSort(type, val){
-  state.browse[type].sort = val;
-  document.getElementById('pageRoot').innerHTML = renderTypePage(type);
-}
-function setBrowseFilter(type, val){
-  state.browse[type].filter = val;
-  document.getElementById('pageRoot').innerHTML = renderTypePage(type);
+  return `${heroCarouselHtml(heroItems)}<div class="page">${rows}</div>`;
 }
 
+// "See All" page for the Binge Now row — every ended series (per isEndedSeries) that isn't
+// fully watched yet, across the whole library. Reachable from both Home's and TV Shows' Binge
+// Now rows since the underlying set is identical either way (Binge Now only ever contains series).
+function renderBingeAllPage(){
+  const items = getBingeNowItems(state.lib.items);
+  return `
+    <div class="page">
+      <div class="filter-bar">
+        <a class="btn btn-ghost" href="#home">&larr; Home</a>
+      </div>
+      <h2 style="margin-bottom:16px;">Binge Now</h2>
+      ${items.length ? `<div class="grid-3col">${items.map(i=>cardHtml(i)).join('')}</div>` : emptyState('Nothing to binge yet', 'Ended shows you add will show up here once TMDB reports them as finished.')}
+    </div>`;
+}
+// "See All" page for the New Season Available row — every still-airing show (per getNewSeasonItems)
+// whose next unwatched episode has crossed into a season beyond anything already watched.
+function renderNewSeasonAllPage(){
+  const items = getNewSeasonItems(state.lib.items);
+  return `
+    <div class="page">
+      <div class="filter-bar">
+        <a class="btn btn-ghost" href="#home">&larr; Home</a>
+      </div>
+      <h2 style="margin-bottom:16px;">New Season Available</h2>
+      ${items.length ? `<div class="grid-3col">${items.map(i=>cardHtml(i)).join('')}</div>` : emptyState('Nothing new yet', "Shows will show up here once a season beyond what you've watched becomes available.")}
+    </div>`;
+}
 function renderGenrePage(typeParam, genre){
   const backHref = typeParam==='movie' ? 'movies' : typeParam==='series' ? 'series' : 'home';
   const backLabel = typeParam==='movie' ? 'Movies' : typeParam==='series' ? 'TV Shows' : 'Home';
@@ -2562,7 +2691,7 @@ function renderGenrePage(typeParam, genre){
         <a class="btn btn-ghost" href="#${backHref}">&larr; ${esc(backLabel)}</a>
       </div>
       <h2 style="margin-bottom:16px;">${esc(genre)}</h2>
-      ${items.length ? `<div class="grid">${items.map(i=>cardHtml(i)).join('')}</div>` : emptyState(`No ${esc(genre)} titles`, 'Nothing in this genre yet.')}
+      ${items.length ? `<div class="grid-3col">${items.map(i=>cardHtml(i)).join('')}</div>` : emptyState(`No ${esc(genre)} titles`, 'Nothing in this genre yet.')}
     </div>`;
 }
 // Same pattern as renderGenrePage, filtering by cast member instead of genre. Checks both the
@@ -2606,15 +2735,18 @@ function hasManualPanoramicBanners(item){
    title, living in their own horizontally-scrollable row (same row/card mechanics as the rest
    of the app). Only rendered when that title has at least one Panoramic Banner URL set — if it
    doesn't, the row is simply absent (it doesn't fall back to an older title), and it reappears
-   the moment a Panoramic Banner URL is added to that title. Plain art only — no title, no genre,
-   no "Newly Added" tag, no Play / More Info buttons; like any other card, the whole thing is just
-   clickable through to the detail page. ---- */
+   the moment a Panoramic Banner URL is added to that title. Plain art only — no per-card title,
+   genre, or Play / More Info buttons; like any other card, the whole thing is just clickable
+   through to the detail page. A big glowing "NEW SHOW"/"NEW MOVIE" wordmark sits behind the cards
+   instead of a text caption — reads as signage rather than a label, and needs no title/date since
+   it's always the newest addition of that type. ---- */
 function panoramicBannerHtml(item){
   const banners = getPanoramicBanners(item);
   if(!banners.length) return '';
+  const bgLabel = item.type==='movie' ? 'New Movie' : 'New Show';
   return `
     <div class="row panoramic-row">
-      <div class="panoramic-caption">Just Added &middot; <b>${esc(item.title)}</b></div>
+      <div class="panoramic-bg-text"><span>${esc(bgLabel)}</span></div>
       <div class="row-track">
         ${banners.map(url => `
         <div class="card panoramic-card" onclick="location.hash='detail/${item.id}'">
@@ -2771,6 +2903,18 @@ function isNew(item){
 function cardHtml(item, opts){
   opts = opts || {};
   const pct = item.type==='movie' ? movieProgressPct(item) : itemProgressPct(item);
+  // On the Continue Watching row specifically (opts.removable is only ever set there), a TV show's
+  // card swaps its normal year/genre meta line for the actual next episode — "S2 · E5 — Title" —
+  // since "what do I watch next" is the whole point of that row, and the generic meta line already
+  // answers a question the person isn't asking once a show is mid-watch.
+  let metaHtml = `${esc(item.year||'')}${item.genre&&item.genre.length?' • '+esc(item.genre[0]):''}`;
+  if(opts.removable && item.type==='series'){
+    const summary = getWatchProgressSummary(item);
+    if(summary && summary.next){
+      const epTitle = summary.next.episode.title;
+      metaHtml = `S${summary.next.season} · E${summary.next.episode.number}${epTitle ? ' — '+esc(epTitle) : ''}`;
+    }
+  }
   return `
     <div class="card" onclick="location.hash='detail/${item.id}'" onmouseenter="cardHoverStart(event,'${item.id}')" onmouseleave="cardHoverEnd(event,'${item.id}')">
       ${posterEl(item)}
@@ -2783,7 +2927,7 @@ function cardHtml(item, opts){
       <div class="card-overlay">
         <div class="card-play" onclick="event.stopPropagation(); quickPlay('${item.id}')">${ICON.play}</div>
         <div class="card-title">${esc(item.title)}</div>
-        <div class="card-meta">${esc(item.year||'')}${item.genre&&item.genre.length?' • '+esc(item.genre[0]):''}</div>
+        <div class="card-meta">${metaHtml}</div>
       </div>
       ${pct>0 ? `<div class="card-progress"><div style="width:${pct}%"></div></div>` : ''}
     </div>`;
@@ -2791,10 +2935,17 @@ function cardHtml(item, opts){
 function removeFromContinueWatching(id){
   const item = getItem(id);
   if(!item) return;
+  const prevProgress = item.progress; // kept by reference for Undo — item.progress below just repoints
   item.progress = {};
   saveLib();
   router();
-  toast('Removed from Continue Watching');
+  toast('Removed from Continue Watching', {undoLabel:'Undo', onUndo:()=>{
+    const it = getItem(id);
+    if(!it) return;
+    it.progress = prevProgress;
+    saveLib();
+    router();
+  }});
 }
 
 /* ---- Card tilt (mouse) / tap-shine (touch) ---- */
@@ -3439,6 +3590,8 @@ function toggleWatchlist(itemId){
 ========================================================= */
 function renderCollections(param){
   if(param==='watchlist') return renderWatchlistView();
+  if(param==='top100shows') return renderTmdbTopListShell('tv');
+  if(param==='top100movies') return renderTmdbTopListShell('movie');
   if(param) return renderCollectionDetail(param);
   return renderCollectionsList();
 }
@@ -3474,8 +3627,24 @@ function watchlistRowHtml(item){
         <div class="watchlist-row-title">${esc(item.title)}</div>
         <div class="watchlist-row-episode">${episodeLine}</div>
       </div>
-      <button type="button" class="btn-icon" title="Remove from Watchlist" onclick="event.stopPropagation(); toggleWatchlist('${item.id}'); document.getElementById('pageRoot').innerHTML=renderWatchlistView();">${ICON.close}</button>
+      <button type="button" class="btn-icon" title="Remove from Watchlist" onclick="event.stopPropagation(); removeFromWatchlistRow('${item.id}')">${ICON.close}</button>
     </div>`;
+}
+function removeFromWatchlistRow(itemId){
+  const item = getItem(itemId);
+  if(!item) return;
+  item.watchlist = false;
+  saveLib();
+  document.getElementById('pageRoot').innerHTML = renderWatchlistView();
+  toast('Removed from Watchlist', {undoLabel:'Undo', onUndo:()=>{
+    const it = getItem(itemId);
+    if(!it) return;
+    it.watchlist = true;
+    saveLib();
+    if(state.route==='collections' && state.routeParam==='watchlist'){
+      document.getElementById('pageRoot').innerHTML = renderWatchlistView();
+    }
+  }});
 }
 function renderCollectionsList(){
   const cols = state.lib.collections;
@@ -3489,6 +3658,14 @@ function renderCollectionsList(){
         <div class="collection-card watchlist-collection-card" onclick="location.hash='collections/watchlist'">
           <h4>${ICON.watchlist} Watchlist</h4>
           <span>${watchlistCount} title${watchlistCount===1?'':'s'}</span>
+        </div>
+        <div class="collection-card watchlist-collection-card" onclick="location.hash='collections/top100shows'">
+          <h4>${ICON.award} TMDB Top 100 Shows</h4>
+          <span>Fetched from TMDB</span>
+        </div>
+        <div class="collection-card watchlist-collection-card" onclick="location.hash='collections/top100movies'">
+          <h4>${ICON.award} TMDB Top 100 Movies</h4>
+          <span>Fetched from TMDB</span>
         </div>
         ${cols.map(c=>`
           <div class="collection-card" onclick="location.hash='collections/${c.id}'">
@@ -3509,8 +3686,49 @@ function renderCollectionDetail(id){
         <button class="btn btn-danger" onclick="deleteCollection('${col.id}')">${ICON.trash} Delete Collection</button>
       </div>
       <h2 style="margin-bottom:16px;">${esc(col.name)}</h2>
-      ${items.length ? `<div class="grid">${items.map(cardHtml).join('')}</div>` : emptyState('This collection is empty','Add titles to it from any detail page.')}
+      ${items.length ? `<div class="grid-3col">${items.map(cardHtml).join('')}</div>` : emptyState('This collection is empty','Add titles to it from any detail page.')}
     </div>`;
+}
+/* Default, always-there "collections" that aren't stored in state.lib — fetched live from TMDB's
+   top-rated endpoint each time you open them, same idea as the "You Might Also Like" row on the
+   detail page. TMDB returns 20 results per page, so getting to 100 means pulling pages 1-5 and
+   concatenating. Shared between the Shows and Movies versions via the mediaType param ('tv' | 'movie').
+   Render the shell synchronously (so the back button/header show up immediately) and let
+   loadTmdbTopListGrid() fill #tmdbTopListGrid once the fetch resolves. */
+const TMDB_TOP_LIST_PAGES = 5; // 5 pages x 20 results = up to 100 titles
+function tmdbTopListLabel(mediaType){ return mediaType==='movie' ? 'TMDB Top 100 Movies' : 'TMDB Top 100 Shows'; }
+function renderTmdbTopListShell(mediaType){
+  const label = tmdbTopListLabel(mediaType);
+  return `
+    <div class="page">
+      <div class="filter-bar">
+        <a class="btn btn-ghost" href="#collections">&larr; All Collections</a>
+      </div>
+      <h2 style="margin-bottom:16px; display:flex; align-items:center; gap:10px;">${ICON.award} ${label}</h2>
+      <div id="tmdbTopListGrid" data-media-type="${mediaType}">
+        ${state.settings.tmdb ? `<div class="grid-3col">${Array.from({length:9}).map(()=> `<div class="card skeleton-card"></div>`).join('')}</div>` : emptyState('TMDB API key required', `Add a TMDB API key in Settings to fetch the ${esc(label)} list.`, 'Open Settings', "location.hash='settings'")}
+      </div>
+    </div>`;
+}
+async function loadTmdbTopListGrid(mediaType){
+  const container = document.getElementById('tmdbTopListGrid');
+  if(!container || !state.settings.tmdb) return;
+  const endpoint = mediaType==='movie' ? 'movie' : 'tv';
+  try{
+    const pageNums = Array.from({length:TMDB_TOP_LIST_PAGES}, (_,i)=> i+1);
+    const pages = await Promise.all(pageNums.map(p=>
+      fetch(`https://api.themoviedb.org/3/${endpoint}/top_rated?api_key=${encodeURIComponent(state.settings.tmdb)}&page=${p}`).then(r=>r.json())
+    ));
+    const results = pages
+      .flatMap(d=> d.results||[])
+      .filter(r=>r.poster_path)
+      .slice(0,100);
+    if(!container.isConnected || container.dataset.mediaType!==mediaType) return;
+    if(!results.length){ container.innerHTML = emptyState('Nothing to show', 'TMDB did not return any results just now.'); return; }
+    container.innerHTML = `<div class="grid-3col">${results.map(r=>externalSimilarCardHtml(r,mediaType)).join('')}</div>`;
+  }catch(e){
+    if(container.isConnected) container.innerHTML = emptyState('Could not load Top 100', 'Check your connection or TMDB API key and try again.');
+  }
 }
 function createCollection(){
   const name = prompt('Collection name:');
@@ -3854,9 +4072,13 @@ function moviePrimaryActionsHtml(item){
 // TV-show counterpart to moviePrimaryActionsHtml — same look/position (right under the tagline), but a
 // series has no single file to "quick play": pressing it instead scrolls down to the seasons row so the
 // person can pick a season/episode, since that's the actual next step for playback on a TV show page.
+// Trailer + the actions dropdown sit right next to Play here too, matching the movie layout.
 function seriesPrimaryActionsHtml(item){
+  const hasTrailer = item.trailerKey || (!item.trailerChecked && state.settings.tmdb);
   return `<div class="detail-primary-actions">
     <button class="btn btn-primary detail-play-btn" onclick="scrollToSeasons()">${ICON.play} Play</button>
+    ${hasTrailer ? `<button class="btn btn-ghost" onclick="openTrailerModal('${item.id}')">${ICON.play} Trailer</button>` : ''}
+    ${detailActionMenuHtml(item)}
   </div>`;
 }
 // Smooth-scrolls the detail page down to the seasons row. Used by the TV show Play button above.
@@ -4050,12 +4272,6 @@ function renderDetail(id){
         ${descHtml(item)}
         ${item.awards ? `<div class="detail-awards">${ICON.award} ${esc(item.awards)}</div>` : ''}
         ${castRowHtml(item)}
-        <div class="detail-actions">
-          ${item.type!=='movie' ? `
-          ${(item.trailerKey || (!item.trailerChecked && state.settings.tmdb)) ? `<button class="btn btn-ghost" onclick="openTrailerModal('${item.id}')">${ICON.play} Watch Trailer</button>` : ''}
-          ${detailActionMenuHtml(item)}
-          ` : ''}
-        </div>
       </div>
     </div>
     <div class="page">
@@ -4804,20 +5020,40 @@ function deleteItemFromManageLib(id){
   toast('Title deleted');
   filterManageLibResults();
 }
+// Settings sections default to expanded — settingsSectionClass() only returns 'is-collapsed' once
+// the person has actually clicked a header to close it, tracked per-section-key in
+// state.settingsCollapsed so it survives any full re-render of the Settings page (e.g. after saving
+// the subtitle display defaults, which calls router() to refresh its inputs).
+function settingsSectionClass(key){
+  return (state.settingsCollapsed && state.settingsCollapsed[key]) ? ' is-collapsed' : '';
+}
+// Toggles just the one clicked section's class directly on its existing DOM node, rather than
+// re-rendering the whole Settings page — a full re-render would blow away whatever the person has
+// typed into any other section's inputs (e.g. a half-typed Manage Library search) and reset scroll.
+function toggleSettingsSection(key){
+  state.settingsCollapsed = state.settingsCollapsed || {};
+  const collapsed = !state.settingsCollapsed[key];
+  state.settingsCollapsed[key] = collapsed;
+  const section = document.querySelector('.settings-section[data-section="'+key+'"]');
+  if(section) section.classList.toggle('is-collapsed', collapsed);
+}
 function renderSettings(){
   const s = state.settings;
   return `
     <div class="page">
-      <div class="settings-section">
-        <h3>API Keys</h3>
+      <div class="settings-section${settingsSectionClass('apiKeys')}" data-section="apiKeys">
+        <h3 onclick="toggleSettingsSection('apiKeys')"><span class="settings-title-text">API Keys</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
+        <div class="settings-section-body">
         <div class="field"><label>OMDb API Key</label><input id="omdbKey" value="${esc(s.omdb)}" placeholder="Enter your OMDb key"></div>
         <div class="field"><label>TMDB API Key</label><input id="tmdbKey" value="${esc(s.tmdb)}" placeholder="Enter your TMDB key">
           <div class="field-hint">Use the <b>"API Key (v3 auth)"</b> from your TMDB account settings — a short string like <code>a1b2c3d4...</code>. Not the long "API Read Access Token" (starts with <code>eyJ...</code>) — that one won't work here and will make every TMDB fetch fail silently. Enables hover trailer previews (hover a card ~1.5s) and the "Fetch from TMDB" / IMDb import buttons.</div>
         </div>
         <button class="btn btn-primary" onclick="saveApiKeys()">Save Keys</button>
+        </div>
       </div>
-      <div class="settings-section">
-        <h3>Manage Library</h3>
+      <div class="settings-section${settingsSectionClass('manageLibrary')}" data-section="manageLibrary">
+        <h3 onclick="toggleSettingsSection('manageLibrary')"><span class="settings-title-text">Manage Library</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
+        <div class="settings-section-body">
         <p class="field-hint" style="margin-bottom:14px;">
           Search your library to edit a title's details or sources, or delete it entirely.
         </p>
@@ -4827,9 +5063,11 @@ function renderSettings(){
         <div class="manage-lib-rows" id="manageLibResults">
           <div class="manage-lib-empty">Start typing a title to find it.</div>
         </div>
+        </div>
       </div>
-      <div class="settings-section">
-        <h3>Subtitles <span style="font-weight:600; color:var(--muted); text-transform:none;">(SubDL)</span></h3>
+      <div class="settings-section${settingsSectionClass('subtitles')}" data-section="subtitles">
+        <h3 onclick="toggleSettingsSection('subtitles')"><span class="settings-title-text">Subtitles <span style="font-weight:600; color:var(--muted); text-transform:none;">(SubDL)</span></span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
+        <div class="settings-section-body">
         <div class="field">
           <label>SubDL API Key</label>
           <input id="subdlKey" value="${esc(s.subdl)}" placeholder="Enter your SubDL key">
@@ -4838,9 +5076,11 @@ function renderSettings(){
           </div>
         </div>
         <button class="btn btn-primary" onclick="saveSubdlKey()">Save Key</button>
+        </div>
       </div>
-      <div class="settings-section">
-        <h3>Subtitle Display</h3>
+      <div class="settings-section${settingsSectionClass('subtitleDisplay')}" data-section="subtitleDisplay">
+        <h3 onclick="toggleSettingsSection('subtitleDisplay')"><span class="settings-title-text">Subtitle Display</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
+        <div class="settings-section-body">
         <p class="field-hint" style="margin-bottom:14px;">
           Size, color, and background of subtitle text — applies everywhere subtitles show up, both the SubDL overlay on embedded sources and native subtitle tracks on direct video sources. Preview updates live as you adjust.
         </p>
@@ -4871,9 +5111,11 @@ function renderSettings(){
           <input type="range" id="subtitleBgOpacityInput" min="0" max="100" value="${s.subtitleBgOpacity}" oninput="updateSubtitleDisplaySetting('subtitleBgOpacity', this.value)" style="width:100%;">
         </div>
         <button class="btn btn-ghost" style="margin-top:14px;" onclick="resetSubtitleDisplay()">Reset to Default</button>
+        </div>
       </div>
-      <div class="settings-section">
-        <h3>Content Blur <span style="font-weight:600; color:var(--muted); text-transform:none;">(Beta)</span></h3>
+      <div class="settings-section${settingsSectionClass('contentBlur')}" data-section="contentBlur">
+        <h3 onclick="toggleSettingsSection('contentBlur')"><span class="settings-title-text">Content Blur <span style="font-weight:600; color:var(--muted); text-transform:none;">(Beta)</span></span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
+        <div class="settings-section-body">
         <div class="field">
           <div class="toggle-row">
             <label class="switch">
@@ -4911,9 +5153,11 @@ function renderSettings(){
             <button class="btn btn-ghost" onclick="downloadMedianBlurScript()">Download .js</button>
           </div>
         </div>
+        </div>
       </div>
-      <div class="settings-section">
-        <h3>Playback</h3>
+      <div class="settings-section${settingsSectionClass('playback')}" data-section="playback">
+        <h3 onclick="toggleSettingsSection('playback')"><span class="settings-title-text">Playback</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
+        <div class="settings-section-body">
         <div class="field">
           <label>VidSrc Embed Domain</label>
           <select id="vidsrcDomain" class="select-input" style="width:100%; border-radius:8px;">
@@ -4935,9 +5179,11 @@ function renderSettings(){
             Stops third-party embeds from opening popup tabs or redirecting the page. It can't remove ads shown <em>inside</em> the player itself — that content lives on another site's server, outside what any webpage (including this one) can see or filter; a browser extension like uBlock Origin is the only thing that actually does that. Some ad-supported sources detect this and refuse to play ("Media Unavailable") — if a specific source breaks, turn this off. Doesn't affect direct .m3u8/mp4 sources, since those don't run third-party scripts at all.
           </div>
         </div>
+        </div>
       </div>
-      <div class="settings-section">
-        <h3>TV Schedule</h3>
+      <div class="settings-section${settingsSectionClass('tvSchedule')}" data-section="tvSchedule">
+        <h3 onclick="toggleSettingsSection('tvSchedule')"><span class="settings-title-text">TV Schedule</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
+        <div class="settings-section-body">
         <div class="field">
           <label>Live TV Country</label>
           <input id="scheduleCountryInput" value="${esc(s.scheduleCountry)}" placeholder="US" maxlength="2" style="max-width:100px;">
@@ -4946,25 +5192,31 @@ function renderSettings(){
           </div>
         </div>
         <button class="btn btn-primary" onclick="saveScheduleCountry()">Save</button>
+        </div>
       </div>
-      <div class="settings-section">
-        <h3>Cloud Progress Sync <span style="font-weight:600; color:var(--muted); text-transform:none;">(optional)</span></h3>
+      <div class="settings-section${settingsSectionClass('cloudSync')}" data-section="cloudSync">
+        <h3 onclick="toggleSettingsSection('cloudSync')"><span class="settings-title-text">Cloud Progress Sync <span style="font-weight:600; color:var(--muted); text-transform:none;">(optional)</span></span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
+        <div class="settings-section-body">
         <p class="field-hint" style="margin-bottom:14px;">
           Watch progress always saves to this device's local storage first — that's the source of truth and everything works fully offline. Fill these in to <em>also</em> mirror progress to your own Supabase project (best-effort, fails silently if unreachable). Requires a <code>watch_progress</code> table with an INSERT/UPSERT policy for the anon key. Leave blank to skip this entirely.
         </p>
         <div class="field"><label>Supabase Project URL</label><input id="supabaseUrlInput" value="${esc(s.supabaseUrl)}" placeholder="https://xxxx.supabase.co"></div>
         <div class="field"><label>Supabase Anon Key</label><input id="supabaseKeyInput" value="${esc(s.supabaseKey)}" placeholder="eyJhbGciOi..."></div>
         <button class="btn btn-primary" onclick="saveSupabaseConfig()">Save Cloud Sync Settings</button>
+        </div>
       </div>
-      <div class="settings-section">
-        <h3>Link Health</h3>
+      <div class="settings-section${settingsSectionClass('linkHealth')}" data-section="linkHealth">
+        <h3 onclick="toggleSettingsSection('linkHealth')"><span class="settings-title-text">Link Health</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
+        <div class="settings-section-body">
         <p class="field-hint" style="margin-bottom:14px;">
           Scans every stream URL in your library — movies, episodes, and live channels — to catch sources that have gone fully offline (dead domain, connection refused, timeout). Browsers can't read the actual response from another site, so this can't detect a source that loads but shows a 404 or an "unavailable" page — only ones that don't respond at all. Treat it as a first pass, not a guarantee.
         </p>
         <button class="btn btn-primary" onclick="openLinkHealthCheck()">${ICON.search} Check All Sources</button>
+        </div>
       </div>
-      <div class="settings-section">
-        <h3>Library Metadata</h3>
+      <div class="settings-section${settingsSectionClass('libraryMetadata')}" data-section="libraryMetadata">
+        <h3 onclick="toggleSettingsSection('libraryMetadata')"><span class="settings-title-text">Library Metadata</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
+        <div class="settings-section-body">
         <p class="field-hint" style="margin-bottom:14px;">
           Re-fetches info-page details from TMDB (poster, backdrop, logo, description, tagline, cast, content rating, status, episode titles/thumbnails) for every TV show already in your library — handy after this app's info page gains new fields or styling, so older shows you added don't need to be re-added from scratch. Requires a TMDB API key above. <b>Your stream links (per-episode sources), watch progress, and episode ratings are never touched</b> — only metadata is refreshed.
         </p>
@@ -4973,9 +5225,11 @@ function renderSettings(){
           Same as above, but for movies — re-fetches poster, backdrop, logo, description, tagline, cast, and content rating from TMDB for every movie already in your library. Requires a TMDB API key above. <b>Your stream links, watch progress, and rating are never touched</b> — only metadata is refreshed.
         </p>
         <button class="btn btn-primary" onclick="updateAllMoviesMetadata()">${ICON.restart} Update All Movies Info</button>
+        </div>
       </div>
-      <div class="settings-section">
-        <h3>Sync Between Devices</h3>
+      <div class="settings-section${settingsSectionClass('syncDevices')}" data-section="syncDevices">
+        <h3 onclick="toggleSettingsSection('syncDevices')"><span class="settings-title-text">Sync Between Devices</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
+        <div class="settings-section-body">
         <p class="field-hint" style="margin-bottom:14px;">
           Move your entire library (movies, shows, live channels, progress) from one device to another — phone to Android TV, or any device to any device. No account needed.
         </p>
@@ -4989,25 +5243,32 @@ function renderSettings(){
           <button class="btn btn-ghost" style="width:100%; justify-content:center;" onclick="openRestoreFromCode()">📥 Restore from Code</button>
           <div class="field-hint" style="margin-top:8px;">Paste the code you sent yourself to load your library on this device.</div>
         </div>
+        </div>
       </div>
-      <div class="settings-section">
-        <h3>Backup</h3>
+      <div class="settings-section${settingsSectionClass('backup')}" data-section="backup">
+        <h3 onclick="toggleSettingsSection('backup')"><span class="settings-title-text">Backup</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
+        <div class="settings-section-body">
         <div class="settings-row">
           <button class="btn btn-ghost" onclick="exportLibrary()">Export Library (JSON)</button>
           <button class="btn btn-ghost" onclick="document.getElementById('importFile').click()">Import Library</button>
           <input type="file" id="importFile" accept="application/json" style="display:none" onchange="importLibrary(this.files[0])">
         </div>
+        </div>
       </div>
-      <div class="settings-section">
-        <h3>Help</h3>
+      <div class="settings-section${settingsSectionClass('help')}" data-section="help">
+        <h3 onclick="toggleSettingsSection('help')"><span class="settings-title-text">Help</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
+        <div class="settings-section-body">
         <p class="field-hint" style="margin-bottom:14px;">
           See every keyboard shortcut available while a title is playing (play/pause, seek, subtitles, fullscreen, and more).
         </p>
         <button class="btn btn-ghost" onclick="toggleShortcutsOverlay()">${ICON.help} Keyboard Shortcuts</button>
+        </div>
       </div>
-      <div class="settings-section">
-        <h3>Danger Zone</h3>
+      <div class="settings-section${settingsSectionClass('dangerZone')}" data-section="dangerZone">
+        <h3 onclick="toggleSettingsSection('dangerZone')"><span class="settings-title-text">Danger Zone</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
+        <div class="settings-section-body">
         <button class="btn btn-danger" onclick="clearAllData()">${ICON.trash} Clear All Data</button>
+        </div>
       </div>
     </div>`;
 }
@@ -7399,6 +7660,7 @@ function showPlaybackEndCard(item, next){
   if(!stage || !p || document.getElementById('playerEndCard')) return; // never stack a 2nd one
   const isMovie = item.type === 'movie';
   const bg = item.backdrop || item.poster || '';
+  const autoplay = !isMovie && !!next; // movies have no "next" to autoplay into
 
   const card = document.createElement('div');
   card.id = 'playerEndCard';
@@ -7411,7 +7673,8 @@ function showPlaybackEndCard(item, next){
       ${!isMovie && p.subtitle ? `<div class="player-end-card-sub">${esc(p.subtitle)}</div>` : ''}
       <div class="player-end-card-stars" id="playerEndCardStars">${playerEndCardStarsHtml(item)}</div>
       <div class="player-end-card-actions">
-        ${!isMovie && next ? `<button class="btn btn-primary" onclick="playNextEpisode()">${ICON.play} Next Episode</button>` : ''}
+        ${!isMovie && next ? `<button class="btn btn-primary" id="playerEndCardNextBtn" onclick="playNextEpisode()">${autoplay?`<span class="player-end-card-next-ring" id="playerEndCardNextRing"></span>`:ICON.play} <span id="playerEndCardNextLabel">Next Episode</span></button>` : ''}
+        ${autoplay ? `<button type="button" class="player-end-card-cancel-link" id="playerEndCardCancelBtn" onclick="cancelEndCardAutoplay()">Cancel autoplay</button>` : ''}
         <button class="btn btn-ghost" onclick="closePlayer()">Exit</button>
       </div>
     </div>`;
@@ -7419,6 +7682,44 @@ function showPlaybackEndCard(item, next){
   // Double rAF ensures the initial opacity:0 has actually painted before adding .visible, so the
   // browser always animates the fade-in instead of occasionally skipping straight to it.
   requestAnimationFrame(()=> requestAnimationFrame(()=> card.classList.add('visible')));
+  if(autoplay) startEndCardAutoplay(8);
+}
+// Ticks the Next Episode button's ring/label down from AUTOPLAY_SECONDS and calls playNextEpisode()
+// once it reaches zero — cancelEndCardAutoplay() (Cancel link) or manually clicking Next Episode /
+// Exit all stop this first (the latter two via cleanupPlayerTimers(), which clears _endCardTimer
+// same as every other player interval). Uses a real elapsed-time comparison rather than just
+// decrementing an integer each tick, so the countdown can't drift even if the tab is backgrounded.
+function startEndCardAutoplay(seconds){
+  const p = state.player;
+  if(!p) return;
+  const startedAt = Date.now();
+  const totalMs = seconds*1000;
+  clearInterval(p._endCardTimer);
+  p._endCardTimer = setInterval(()=>{
+    const elapsed = Date.now()-startedAt;
+    const pct = Math.min(100, (elapsed/totalMs)*100);
+    const remaining = Math.max(0, Math.ceil((totalMs-elapsed)/1000));
+    const ring = document.getElementById('playerEndCardNextRing');
+    const label = document.getElementById('playerEndCardNextLabel');
+    if(ring) ring.style.setProperty('--pct', pct.toFixed(1));
+    if(label) label.textContent = remaining>0 ? `Next Episode (${remaining})` : 'Next Episode';
+    if(elapsed>=totalMs){
+      clearInterval(p._endCardTimer);
+      playNextEpisode();
+    }
+  }, 100);
+}
+// Stops the autoplay countdown without leaving the player — the Next Episode button reverts to a
+// plain manual button (ring/countdown removed) instead of disappearing, since the next episode is
+// still one tap away, just no longer automatic.
+function cancelEndCardAutoplay(){
+  if(state.player) clearInterval(state.player._endCardTimer);
+  const ring = document.getElementById('playerEndCardNextRing');
+  const label = document.getElementById('playerEndCardNextLabel');
+  const cancelBtn = document.getElementById('playerEndCardCancelBtn');
+  if(ring) ring.outerHTML = ICON.play;
+  if(label) label.textContent = 'Next Episode';
+  if(cancelBtn) cancelBtn.remove();
 }
 // ---------- Optional Supabase progress sync ----------
 // Purely additive and best-effort: localStorage (saveLib, above) is always the real source of
@@ -7545,6 +7846,7 @@ function cleanupPlayerTimers(){
     clearInterval(state.player._interval);
     clearInterval(state.player._watchTimer);
     clearInterval(state.player._blurInterval);
+    clearInterval(state.player._endCardTimer);
     state.player.playbackState = 'stopped';
     if(state.player._hls){ try{ state.player._hls.destroy(); }catch(e){} state.player._hls = null; }
   }
