@@ -300,21 +300,21 @@ a{color:inherit; text-decoration:none;}
   mask-image:linear-gradient(to bottom, transparent 0%, rgba(0,0,0,.2) 30%, rgba(0,0,0,.6) 50%, #000 70%);
 }
 .featured-bg-blob.a{
-  width:56%; height:120%; background:radial-gradient(circle, rgba(61,219,217,.32) 0%, rgba(61,219,217,.13) 45%, transparent 72%);
+  width:56%; height:120%; background:radial-gradient(circle, rgba(61,219,217,.4) 0%, rgba(61,219,217,.16) 45%, transparent 72%);
   animation:featuredBlobA 9s ease-in-out infinite;
 }
 .featured-bg-blob.b{
-  width:42%; height:104%; background:radial-gradient(circle, rgba(120,235,220,.24) 0%, rgba(61,219,217,.09) 50%, transparent 75%);
+  width:42%; height:104%; background:radial-gradient(circle, rgba(120,235,220,.3) 0%, rgba(61,219,217,.11) 50%, transparent 75%);
   animation:featuredBlobB 11s ease-in-out infinite; animation-delay:-3.5s;
 }
 /* Huge outline (not filled) type behind the card — the "visual identity" of this section. Fill is
-   transparent with a thin cyan stroke rather than a solid cyan block, kept very low-opacity (8–12%)
-   so it reads as an ambient watermark, not competing text. */
+   transparent with a semi-opaque cyan stroke (not a low-opacity block), matching the reference
+   mockup — visible as a bold watermark, not a barely-there hint. */
 .featured-bg-text span{
   position:relative; font-family:var(--featured-font); font-weight:700; text-transform:uppercase;
   font-size:clamp(80px, 18vw, 260px); letter-spacing:.02em; line-height:1;
-  color:transparent; -webkit-text-stroke:1.5px var(--highlight); text-stroke:1.5px var(--highlight);
-  opacity:.1; white-space:nowrap; animation:featuredTextGlow 4.5s ease-in-out infinite;
+  color:transparent; -webkit-text-stroke:2px rgba(61,219,217,.85); text-stroke:2px rgba(61,219,217,.85);
+  white-space:nowrap; animation:featuredTextGlow 4.5s ease-in-out infinite;
 }
 /* Outer wrapper is deliberately NOT clipped (overflow:visible) so the artwork can bleed above the
    card's top edge. .featured-card-inner below is the piece that actually gets the rounded corners
@@ -373,7 +373,7 @@ a{color:inherit; text-decoration:none;}
 /* Sparkly "New Movie / New Series" pill, top-left — an animated light sweep behind the label, echoing
    the giant type's cyan glow at a much smaller, informational scale. */
 .featured-new-badge{
-  position:absolute; left:20px; top:18px; z-index:2; display:flex; align-items:center; gap:5px;
+  position:absolute; left:20px; top:18px; z-index:3; display:flex; align-items:center; gap:5px;
   background:rgba(5,7,10,.6); color:var(--highlight); font-size:11px; font-weight:800; letter-spacing:.08em;
   text-transform:uppercase; padding:6px 14px; border-radius:20px; border:1px solid rgba(61,219,217,.4);
   overflow:hidden; pointer-events:none;
@@ -386,9 +386,12 @@ a{color:inherit; text-decoration:none;}
   animation:featuredShine 5s ease-in-out infinite;
 }
 /* Bounded width keeps title/meta/buttons hugging the lower-left corner like a Netflix/Apple TV hero
-   card, instead of stretching edge-to-edge across the whole card. */
+   card, instead of stretching edge-to-edge across the whole card. max-height + overflow:hidden is a
+   hard backstop: no matter how tall a title's logo/description/meta happen to render, this block can
+   never grow past ~72% of the card's height and collide with the badge pinned near the top. */
 .featured-content{
   position:absolute; left:0; right:0; bottom:0; z-index:2; padding:20px 24px 22px; max-width:62%;
+  max-height:72%; overflow:hidden;
   pointer-events:auto; transition:opacity 380ms ease, transform 380ms ease;
 }
 .featured-logo{max-width:260px; max-height:60px; width:auto; height:auto; object-fit:contain; display:block; margin-bottom:12px; filter:drop-shadow(0 2px 10px rgba(0,0,0,.5));}
@@ -427,6 +430,15 @@ a{color:inherit; text-decoration:none;}
   .featured-actions .btn span, .featured-actions .btn{font-size:12.5px;}
   .featured-new-badge{left:14px; top:12px; padding:5px 11px; font-size:10px;}
   .featured-indicators{right:16px; bottom:16px;}
+}
+@media (max-width:480px){
+  /* Extra-small phones: drop the description and shrink the logo further so the whole stack
+     (logo/title + meta + buttons) stays well clear of the badge even with a tall real-world logo
+     image, rather than depending on .featured-content's overflow-hidden clip as the only backstop. */
+  .featured-desc{display:none;}
+  .featured-logo{max-width:150px; max-height:34px; margin-bottom:8px;}
+  .featured-meta{margin-bottom:10px; font-size:11px;}
+  .featured-content{padding:14px 16px 16px;}
 }
 @media (prefers-reduced-motion:reduce){
   .featured-art-layer, .featured-content{transition:none;}
