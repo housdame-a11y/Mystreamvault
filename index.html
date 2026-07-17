@@ -255,34 +255,41 @@ a{color:inherit; text-decoration:none;}
    If this reads as an awkward crop for a given title's artwork, turn off "Featured Artwork Bleed"
    in Settings (state.settings.featuredArtworkBleed) — the card then simply shows the artwork
    contained cleanly inside its bounds, no escape, no cutout, still a clean result either way. */
-:root{ --featured-escape:12%; }
-.featured-row{position:relative; padding:clamp(90px,13vw,148px) 0 40px;}
+:root{ --featured-escape:10%; }
+.featured-row{position:relative; padding:clamp(100px,15vw,168px) 0 40px;}
 .featured-bg-text{
   position:absolute; left:0; right:0; top:0; height:calc(100% - 40px); z-index:0;
   display:flex; align-items:flex-end; justify-content:center;
-  pointer-events:none; overflow:hidden; padding:0 24px 6px;
+  pointer-events:none; overflow:hidden; padding:0 12px 8px;
 }
+/* Huge outline (not filled) type behind the card — the "visual identity" of this section. Fill is
+   transparent with a thin cyan stroke rather than a solid cyan block, kept very low-opacity (8–12%)
+   so it reads as an ambient watermark, not competing text. Reduced letter-spacing + wider clamp range
+   vs. before so a full word comfortably spans most of the row's width instead of just peeking out. */
 .featured-bg-text span{
   font-family:var(--display-font); font-weight:900; text-transform:uppercase;
-  font-size:clamp(40px, 9vw, 128px); letter-spacing:.13em; line-height:1;
-  color:var(--highlight); opacity:.22;
-  text-shadow:0 0 46px rgba(61,219,217,.5), 0 0 90px rgba(61,219,217,.25);
+  font-size:clamp(56px, 13vw, 200px); letter-spacing:.04em; line-height:1;
+  color:transparent; -webkit-text-stroke:1.5px var(--highlight); text-stroke:1.5px var(--highlight);
+  opacity:.1;
+  text-shadow:0 0 60px rgba(61,219,217,.55), 0 0 110px rgba(61,219,217,.3);
   white-space:nowrap;
 }
 /* Outer wrapper is deliberately NOT clipped (overflow:visible) so the artwork can bleed above the
    card's top edge. .featured-card-inner below is the piece that actually gets the rounded corners
    and clips the scrim/UI to the card's real bounds. */
 .featured-card{
-  position:relative; z-index:1; max-width:1040px; margin:0 auto; aspect-ratio:16/8;
+  position:relative; z-index:1; max-width:1040px; margin:0 auto; aspect-ratio:16/9;
   overflow:visible; cursor:pointer; isolation:isolate;
 }
 .featured-art{position:absolute; left:0; right:0; bottom:0; top:calc(-1 * var(--featured-escape)); z-index:0;}
 .featured-art-layer{position:absolute; inset:0; opacity:0; transition:opacity 420ms cubic-bezier(.4,0,.2,1);}
 .featured-art-layer.active{opacity:1;}
-/* The single continuous image. object-position is biased toward the top of the source frame so the
-   region that escapes upward is more likely to contain heads/shoulders rather than empty backdrop. */
+/* The single continuous image, contained (not zoomed past what cover requires) so the backdrop's
+   full composition survives. object-position is biased only slightly toward the top of the source
+   frame — just enough that a vertical crop favors heads/shoulders over empty sky/set — without the
+   aggressive crop a portrait-shaped container used to force. */
 .featured-art-img{
-  width:100%; height:100%; object-fit:cover; object-position:center 18%; display:block;
+  width:100%; height:100%; object-fit:cover; object-position:center 22%; display:block;
   filter:drop-shadow(0 16px 26px rgba(0,0,0,.45));
 }
 /* Rounds only the bottom two corners (the card's real corners) — the top of the image is the
@@ -302,12 +309,14 @@ a{color:inherit; text-decoration:none;}
 }
 .featured-scrim{
   position:absolute; inset:0; z-index:1;
-  background:linear-gradient(0deg, rgba(4,5,8,.92) 0%, rgba(4,5,8,.55) 42%, transparent 72%),
-             linear-gradient(90deg, rgba(4,5,8,.55) 0%, transparent 45%);
+  background:linear-gradient(0deg, rgba(4,5,8,.94) 0%, rgba(4,5,8,.6) 38%, transparent 70%),
+             linear-gradient(90deg, rgba(4,5,8,.6) 0%, transparent 50%);
   pointer-events:none;
 }
+/* Bounded width keeps title/meta/buttons hugging the lower-left corner like a Netflix/Apple TV hero
+   card, instead of stretching edge-to-edge across the whole card. */
 .featured-content{
-  position:absolute; left:0; right:0; bottom:0; z-index:2; padding:26px 30px 30px;
+  position:absolute; left:0; right:0; bottom:0; z-index:2; padding:24px 28px 26px; max-width:62%;
   pointer-events:auto; transition:opacity 380ms ease, transform 380ms ease;
 }
 .featured-type-badge{
@@ -330,19 +339,22 @@ a{color:inherit; text-decoration:none;}
 }
 .featured-dot.active{background:var(--highlight); transform:scale(1.3); box-shadow:0 0 8px rgba(61,219,217,.7);}
 @media (max-width:860px){
-  .featured-row{padding:clamp(64px,20vw,96px) 0 28px;}
-  .featured-card{aspect-ratio:4/5; margin:0 16px; max-width:none;}
+  .featured-row{padding:clamp(72px,24vw,108px) 0 28px;}
+  /* Was aspect-ratio:4/5 (portrait) — the actual bug behind the "looks like a poster" complaint.
+     4/3 stays unambiguously landscape while giving a little extra height for stacked mobile text. */
+  .featured-card{aspect-ratio:4/3; margin:0 16px; max-width:none;}
   .featured-card-inner{border-radius:12px;}
   .featured-card.bleed-on .featured-art-img{clip-path:inset(0 round 0 0 12px 12px);}
   .featured-card.bleed-off .featured-art-img{clip-path:inset(0 round 12px);}
-  .featured-content{padding:20px 18px 22px;}
+  .featured-bg-text span{font-size:clamp(40px, 15vw, 96px); letter-spacing:.03em;}
+  .featured-content{padding:18px 18px 20px; max-width:82%;}
   .featured-actions .btn span, .featured-actions .btn{font-size:12.5px;}
   .featured-indicators{right:16px; bottom:16px;}
 }
 @media (prefers-reduced-motion:reduce){
   .featured-art-layer, .featured-content{transition:none;}
 }
-body.tv-mode .featured-card{aspect-ratio:16/6;}
+body.tv-mode .featured-card{aspect-ratio:16/9;}
 body.tv-mode .featured-title{font-size:clamp(26px,3vw,40px);}
 
 /* ---------- Rows / Cards ---------- */
