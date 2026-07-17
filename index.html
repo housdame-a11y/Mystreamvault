@@ -120,6 +120,27 @@ a{color:inherit; text-decoration:none;}
   .btn-icon-label{width:38px; padding:0;}
   .btn-icon-label-text{display:none;}
 }
+/* Detail-page "more actions" dropdown — replaces the old lone Mark-as-Watched icon (movies) and the
+   separate Watchlist/Favorite/Collection icon row (both types) with a single chevron trigger next to
+   Trailer. Only one detail page is ever on screen at a time, so #detailActionDropdown is a singleton
+   like #subtitlePanel/#notificationsPanel elsewhere in this app. */
+.detail-action-menu{position:relative; display:inline-flex;}
+.detail-action-dropdown{
+  position:absolute; top:calc(100% + 8px); right:0; min-width:212px; background:var(--surface);
+  border:1px solid #232837; border-radius:12px; box-shadow:0 20px 50px rgba(0,0,0,.5); padding:6px;
+  z-index:20; opacity:0; transform:translateY(-6px) scale(.97); pointer-events:none;
+  transition:opacity .18s ease, transform .18s ease;
+}
+.detail-action-dropdown.open{opacity:1; transform:translateY(0) scale(1); pointer-events:auto;}
+.detail-action-dropdown button{
+  display:flex; align-items:center; gap:10px; width:100%; padding:10px 12px; border-radius:8px;
+  background:none; border:none; color:var(--text); font-size:13.5px; font-weight:600; text-align:left;
+  cursor:pointer; transition:background var(--transition); font-family:inherit;
+}
+.detail-action-dropdown button:hover{background:#161923;}
+.detail-action-dropdown button svg{width:16px; height:16px; flex-shrink:0; color:var(--muted);}
+.detail-action-dropdown button[data-fav-id].is-fav svg{color:#ff6b81;}
+@media (max-width:480px){ .detail-action-dropdown{right:auto; left:0;} }
 .notif-badge{
   position:absolute; top:-4px; right:-4px; min-width:16px; height:16px; padding:0 3px; border-radius:8px;
   background:#ff6b81; color:#1a0508; font-size:9.5px; font-weight:800; line-height:16px; text-align:center;
@@ -621,13 +642,16 @@ a{color:inherit; text-decoration:none;}
 .wpb-remaining{font-size:12.5px; color:var(--muted); font-weight:600; white-space:nowrap;}
 @media (max-width:860px){ .watch-progress-banner{margin-left:16px; margin-right:16px;} }
 .season-select-row{display:flex; flex-direction:column; gap:14px; margin:30px 32px 16px 32px;}
-.season-chip-wrap{display:flex; flex-direction:column; gap:14px; animation:seasonBlockIn .28s ease;}
+.season-chip-wrap{display:flex; flex-direction:column; gap:14px; animation:seasonBlockIn .22s cubic-bezier(.16,1,.3,1);}
 /* Crossfade between the season-chip grid and the season-overview box — they're mutually exclusive
    (only one exists in the DOM at a time), so the "fade" is faked in two steps: setDetailSeason /
    closeDetailSeason add .season-block-leaving to whichever is currently showing, wait out this
    transition, then swap the actual DOM (re-render) — the incoming block then plays seasonBlockIn on
-   mount for its half of the crossfade. See setDetailSeason/closeDetailSeason for the JS side. */
-.season-block-leaving{opacity:0 !important; transform:translateY(-6px); transition:opacity .16s ease, transform .16s ease; pointer-events:none;}
+   mount for its half of the crossfade. See setDetailSeason/closeDetailSeason for the JS side.
+   Durations here are deliberately short (120ms out, 220ms in) and matched by the JS setTimeout delay —
+   long enough to read as a fade, short enough that the two halves feel like one continuous swap rather
+   than two separate sequential animations. */
+.season-block-leaving{opacity:0 !important; transform:translateY(-6px); transition:opacity .12s ease, transform .12s ease; pointer-events:none;}
 @keyframes seasonBlockIn{
   from{opacity:0; transform:translateY(6px);}
   to{opacity:1; transform:translateY(0);}
@@ -670,7 +694,7 @@ a{color:inherit; text-decoration:none;}
 .season-overview-panel{
   display:flex; gap:18px; align-items:flex-start; background:var(--surface); border:1px solid #1a1d26;
   border-radius:12px; padding:28px; position:relative; box-sizing:border-box;
-  animation:seasonBlockIn .28s ease;
+  animation:seasonBlockIn .22s cubic-bezier(.16,1,.3,1);
 }
 .season-overview-dismiss{position:absolute; top:12px; right:12px; width:30px; height:30px;}
 .season-overview-poster{width:64px; aspect-ratio:2/3; border-radius:8px; overflow:hidden; flex-shrink:0; background:var(--surface2);}
@@ -801,8 +825,18 @@ a{color:inherit; text-decoration:none;}
 @media (max-width:860px){ .modal.modal-episode-info{max-width:100%;} }
 .trailer-modal-head{display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 20px; border-bottom:1px solid #1a1d26;}
 .trailer-modal-head h2{font-size:15.5px; font-weight:800; font-family:var(--display-font);}
-.trailer-frame-wrap{position:relative; width:100%; aspect-ratio:16/9; background:#000;}
-.trailer-frame-wrap iframe{position:absolute; inset:0; width:100%; height:100%; border:0;}
+/* Shimmering placeholder (same treatment as .detail-backdrop/.detail-poster) behind the trailer
+   iframe until the YouTube embed actually finishes loading — otherwise there's a flash of plain black
+   while the embed's own document spins up. .loaded is added by the iframe's onload handler in
+   openTrailerModal. */
+.trailer-frame-wrap{
+  position:relative; width:100%; aspect-ratio:16/9;
+  background:linear-gradient(100deg,#12141c 0%,#1c1f2b 40%,#12141c 80%); background-size:220% 100%;
+  animation:skeletonShimmer 1.7s ease-in-out infinite;
+}
+.trailer-frame-wrap.iframe-loaded{animation:none; background:#000;}
+.trailer-frame-wrap iframe{position:absolute; inset:0; width:100%; height:100%; border:0; opacity:0; transition:opacity .4s ease;}
+.trailer-frame-wrap iframe.loaded{opacity:1;}
 @media (max-width:860px){ .modal.modal-video{max-width:100%;} }
 .modal-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; padding-bottom:18px; border-bottom:1px solid #1a1d26;}
 .modal-head h2{font-size:19px; font-weight:800; font-family:var(--display-font);}
@@ -1018,6 +1052,42 @@ kbd.key{
   font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11.5px; font-weight:700; color:var(--text);
 }
 .shortcut-keys .plus{color:var(--muted); font-size:11px;}
+
+/* ---------- Pre-playback subtitle prompt ----------
+   Shown the first time a title/episode is played (before any player exists): "Would you like to
+   add a subtitle?" over that title's backdrop. A dedicated overlay (not the generic modal system)
+   for the same reason as .shortcuts-overlay above — this can be triggered mid-playback too (Next
+   Episode), where modalOverlay's z:100 would render invisibly behind the open player (z:200). */
+.subtitle-prompt-overlay{
+  position:fixed; inset:0; background:rgba(4,5,8,.78); backdrop-filter:blur(10px); z-index:220;
+  display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none;
+  transition:opacity var(--transition); padding:20px;
+}
+.subtitle-prompt-overlay.open{opacity:1; pointer-events:auto;}
+.subtitle-prompt-modal{
+  position:relative; background:var(--surface); border:1px solid #1e2330; border-radius:16px;
+  width:100%; max-width:440px; max-height:88vh; overflow:hidden; transform:translateY(16px) scale(.98);
+  transition:transform var(--transition); box-shadow:0 30px 80px rgba(0,0,0,.55);
+}
+.subtitle-prompt-overlay.open .subtitle-prompt-modal{transform:translateY(0) scale(1);}
+.subtitle-prompt-bg{
+  position:relative; min-height:440px; max-height:88vh; overflow-y:auto; display:flex; flex-direction:column;
+  justify-content:flex-end; background-size:cover; background-position:center center; background-color:#12141c;
+}
+.subtitle-prompt-bg::before{
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(180deg, rgba(5,6,9,.3) 0%, rgba(5,6,9,.55) 38%, rgba(5,6,9,.97) 82%);
+}
+.subtitle-prompt-close{position:absolute; top:14px; right:14px; z-index:2; background:rgba(10,11,16,.55); border-color:rgba(255,255,255,.15);}
+.subtitle-prompt-close:hover{background:rgba(10,11,16,.9);}
+.subtitle-prompt-content{position:relative; z-index:1; padding:28px 26px 26px; display:flex; flex-direction:column; gap:12px;}
+.subtitle-prompt-eyebrow{font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--highlight);}
+.subtitle-prompt-title{font-size:21px; font-weight:800; font-family:var(--display-font); color:#fff; line-height:1.25;}
+.subtitle-prompt-episode{font-size:12.5px; color:#8fa5a3; margin-top:-8px;}
+.subtitle-prompt-question{font-size:13.5px; color:#c7d5d3; line-height:1.5;}
+.subtitle-prompt-actions{display:flex; gap:10px; margin-top:6px;}
+.subtitle-prompt-actions .btn{flex:1; justify-content:center; padding:13px; font-size:14.5px;}
+@media (max-width:480px){ .subtitle-prompt-bg{min-height:380px;} }
 .content-blurred{filter:blur(32px) saturate(70%); transition:filter .3s ease; cursor:pointer;}
 .content-blurred:hover{filter:blur(18px) saturate(70%);}
 .content-blur-revealed{filter:none;}
@@ -1691,6 +1761,7 @@ body.tv-mode .main { padding-bottom: 52px; } /* room for D-pad hint bar */
 
 <div class="overlay" id="modalOverlay"><div class="modal" id="modalBody"></div></div>
 <div class="shortcuts-overlay" id="shortcutsOverlay"><div class="shortcuts-modal" id="shortcutsModal"></div></div>
+<div class="subtitle-prompt-overlay" id="subtitlePromptOverlay"><div class="subtitle-prompt-modal" id="subtitlePromptModal"></div></div>
 <div class="player-overlay" id="playerOverlay"></div>
 <div id="toast"></div>
 
@@ -1724,6 +1795,7 @@ const ICON = {
   tv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="m8 2 4 4 4-4M8 20h8"/></svg>',
   chevronLeft:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>',
   chevronRight:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>',
+  chevronDown:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
   antenna:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10a8 8 0 0 1 16 0"/><path d="M7 10a5 5 0 0 1 10 0"/><circle cx="12" cy="10" r="1.5" fill="currentColor" stroke="none"/><path d="M12 11.5V21M9 21h6"/></svg>',
   schedule:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M12 14v3l2 1.5"/><circle cx="12" cy="16" r="4.5"/></svg>',
   expand:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/></svg>',
@@ -2041,7 +2113,10 @@ function applyDetailPosterGlow(item){
     // .my-rating-star are siblings/descendants under pageRoot, not nested inside the backdrop itself,
     // so the custom property needs to live on their common ancestor to cascade to all of them.
     const root = document.getElementById('pageRoot');
-    if(root) root.style.setProperty('--poster-glow', color);
+    if(root){
+      root.style.setProperty('--poster-glow', color);
+      root.dataset.glowItemId = item.id; // lets renderDetail() tell "same title, re-render" apart from "new title, navigate"
+    }
   });
 }
 function posterEl(item, cls){
@@ -2837,7 +2912,7 @@ async function openTrailerModal(id){
       <button class="btn-icon" onclick="closeModal()">${ICON.close}</button>
     </div>
     <div class="trailer-frame-wrap">
-      <iframe src="https://www.youtube.com/embed/${item.trailerKey}?autoplay=1&rel=0&modestbranding=1" title="${esc(item.title)} trailer" allow="autoplay; encrypted-media; fullscreen" allowfullscreen frameborder="0"></iframe>
+      <iframe src="https://www.youtube.com/embed/${item.trailerKey}?autoplay=1&rel=0&modestbranding=1" title="${esc(item.title)} trailer" allow="autoplay; encrypted-media; fullscreen" allowfullscreen frameborder="0" onload="this.classList.add('loaded'); this.closest('.trailer-frame-wrap').classList.add('iframe-loaded')"></iframe>
     </div>
   `);
   document.getElementById('modalBody').classList.add('modal-video');
@@ -3034,7 +3109,7 @@ function quickPlay(id){
   const item = getItem(id);
   if(!item) return;
   if(item.type==='movie'){
-    openPlayer(item, null, null, item.sources||[]);
+    requestPlayback(item, null, null, item.sources||[]);
   } else {
     // find first unwatched episode, else first episode
     const flat = [];
@@ -3044,7 +3119,7 @@ function quickPlay(id){
       const p = (item.progress||{})[key];
       return !p || !p.watched;
     }) || flat[0];
-    if(target) openPlayer(item, target.s, target.e, target.e.sources||[]);
+    if(target) requestPlayback(item, target.s, target.e.number, target.e.sources||[]);
     else toast('No episodes added yet');
   }
 }
@@ -3763,19 +3838,65 @@ function applyChannelsJsonImport(){
 /* =========================================================
    DETAIL
 ========================================================= */
-// Movie-only "primary actions" row — Play, Trailer, Mark Watched — rendered directly under the
-// tagline so the most important actions are visible immediately, instead of buried below the
-// synopsis/cast. Play is styled to stand out (detail-play-btn) since it's the main action; Trailer
-// and the watched-toggle are secondary ghost/icon buttons beside it.
+// Movie-only "primary actions" row — Play, Trailer, and the actions dropdown — rendered directly
+// under the tagline so the most important actions are visible immediately, instead of buried below
+// the synopsis/cast. Play is styled to stand out (detail-play-btn) since it's the main action;
+// Trailer and the dropdown trigger are secondary ghost/icon buttons beside it.
 function moviePrimaryActionsHtml(item){
   const watched = isFullyWatched(item);
   const hasTrailer = item.trailerKey || (!item.trailerChecked && state.settings.tmdb);
   return `<div class="detail-primary-actions">
     <button class="btn btn-primary detail-play-btn" onclick="quickPlay('${item.id}')">${ICON.play} ${isStarted(item)&&!watched?'Resume':'Play'}</button>
     ${hasTrailer ? `<button class="btn btn-ghost" onclick="openTrailerModal('${item.id}')">${ICON.play} Trailer</button>` : ''}
-    <button class="btn btn-ghost btn-icon-only" title="${watched?'Mark as Unwatched':'Mark as Watched'}" onclick="toggleMovieWatched('${item.id}')">${watched?ICON.close:ICON.check}</button>
+    ${detailActionMenuHtml(item)}
   </div>`;
 }
+// TV-show counterpart to moviePrimaryActionsHtml — same look/position (right under the tagline), but a
+// series has no single file to "quick play": pressing it instead scrolls down to the seasons row so the
+// person can pick a season/episode, since that's the actual next step for playback on a TV show page.
+function seriesPrimaryActionsHtml(item){
+  return `<div class="detail-primary-actions">
+    <button class="btn btn-primary detail-play-btn" onclick="scrollToSeasons()">${ICON.play} Play</button>
+  </div>`;
+}
+// Smooth-scrolls the detail page down to the seasons row. Used by the TV show Play button above.
+// .season-select-row is always rendered for a series (even with zero seasons, it just shows a
+// "No seasons added yet" message inside), so this selector is safe without extra guarding.
+function scrollToSeasons(){
+  const el = document.querySelector('.season-select-row');
+  if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+}
+// Shared "more actions" dropdown for the detail page — sits next to Trailer for both movies (in the
+// primary-actions row above) and TV shows (in the detail-actions row below), replacing what used to
+// be a scattered lone Mark-as-Watched icon plus separate Watchlist/Favorite/Collection buttons.
+// isFullyWatched()/toggleMovieWatched() vs toggleSeriesWatched() already branch on item.type, so this
+// one function covers both.
+function detailActionMenuHtml(item){
+  const watched = isFullyWatched(item);
+  const watchedFn = item.type==='movie' ? `toggleMovieWatched('${item.id}')` : `toggleSeriesWatched('${item.id}')`;
+  return `<div class="detail-action-menu">
+    <button class="btn btn-ghost btn-icon-only" title="More actions" onclick="toggleDetailActionMenu()">${ICON.chevronDown}</button>
+    <div class="detail-action-dropdown" id="detailActionDropdown">
+      <button onclick="${watchedFn}; closeDetailActionMenu();">${watched?ICON.close:ICON.check}<span class="btn-icon-label-text">${watched?'Mark as Unwatched':'Mark as Watched'}</span></button>
+      <button data-fav-id="${item.id}" class="${item.favorite?'is-fav':''}" onclick="toggleFavorite('${item.id}'); closeDetailActionMenu();">${heartSvg(!!item.favorite)}<span class="btn-icon-label-text">${item.favorite?'Remove from Favorites':'Add to Favorites'}</span></button>
+      <button onclick="closeDetailActionMenu(); openAddToCollection('${item.id}');">${ICON.bookmark}<span class="btn-icon-label-text">Add to Collection</span></button>
+      <button onclick="toggleWatchlist('${item.id}'); closeDetailActionMenu();">${ICON.watchlist}<span class="btn-icon-label-text">${item.watchlist?'Remove from Watchlist':'Add to Watchlist'}</span></button>
+    </div>
+  </div>`;
+}
+function toggleDetailActionMenu(){
+  const dd = document.getElementById('detailActionDropdown');
+  if(dd) dd.classList.toggle('open');
+}
+function closeDetailActionMenu(){
+  const dd = document.getElementById('detailActionDropdown');
+  if(dd) dd.classList.remove('open');
+}
+document.addEventListener('click', e=>{
+  const dd = document.getElementById('detailActionDropdown');
+  if(!dd || !dd.classList.contains('open')) return;
+  if(!e.target.closest('.detail-action-menu')) closeDetailActionMenu();
+});
 function renderDetail(id){
   const item = getItem(id);
   if(!item) return `<div class="page">${emptyState('Title not found','It may have been removed.')}</div>`;
@@ -3783,15 +3904,19 @@ function renderDetail(id){
   // #pageRoot persists across route changes (only its innerHTML is replaced), so a color extracted for
   // the previous title would otherwise linger until the new one resolves. Clear it up front so every
   // --poster-glow consumer falls back to its own default the instant a new title starts rendering.
+  // Guarded by glowItemId: renderDetail() also runs for same-item re-renders (season switch, Show
+  // Episodes, marking watched, etc. all go through updateTvSeasonArea/full re-render) — clearing the
+  // glow on every one of those caused a visible flash-off-then-back-on even though the title, and
+  // therefore the correct glow color, never actually changed.
   const pageRootForGlow = document.getElementById('pageRoot');
-  if(pageRootForGlow) pageRootForGlow.style.removeProperty('--poster-glow');
+  if(pageRootForGlow && pageRootForGlow.dataset.glowItemId !== item.id){
+    pageRootForGlow.style.removeProperty('--poster-glow');
+  }
 
   let body = '';
   if(item.type==='movie'){
-    const preSub = preloadedSubtitles[preselectSubtitleKey(item.id, null, null)];
-    body = `<div class="detail-actions" style="margin-top:6px;">
-      <button class="btn btn-ghost" title="${preSub?('Subtitle: '+esc(preSub.label)):'Pick a SubDL subtitle before you press Play'}" onclick="openSubtitlePreselectModal('${item.id}', null, null)">${preSub?ICON.check+' Subtitle Selected':ICON.subtitles+' Add Subtitle'}</button>
-    </div>`;
+    // Subtitles are no longer picked ahead of time here — pressing Play now asks "Would you like
+    // to add a subtitle?" over the backdrop (see PRE-PLAYBACK SUBTITLE PROMPT / requestPlayback).
   } else {
     const seasons = item.seasons||[];
     const activeIdx = state.detailSeason!=null ? Math.min(state.detailSeason, Math.max(seasons.length-1,0)) : null;
@@ -3879,7 +4004,7 @@ function renderDetail(id){
             const airDateValid = airDateObj && !isNaN(airDateObj);
             const isUnaired = airDateValid && airDateObj > new Date();
             const airDateStr = airDateValid ? airDateObj.toLocaleDateString(undefined,{month:'short', day:'numeric', year:'numeric'}) : '';
-            return `<div class="episode-card ${isUnaired?'is-unaired':''} ${isNextUp?'is-next-up':''}" onclick="openEpisodeInfoModal('${item.id}', ${active.number}, ${ep.number})">
+            return `<div class="episode-card ${isUnaired?'is-unaired':''} ${isNextUp?'is-next-up':''}" onclick="openEpisodeInfoModal('${item.id}', ${active.number}, ${ep.number}, event)">
               <div class="ep-thumb">
                 ${ep.thumbnail?`<img src="${esc(ep.thumbnail)}" alt="" loading="lazy" onload="this.classList.add('loaded')" onerror="this.outerHTML='<div class=&quot;ep-num&quot;>${ep.number}</div>'">`:`<div class="ep-num">${ep.number}</div>`}
                 ${pct>0?`<div class="ep-progress"><div style="width:${pct}%"></div></div>`:''}
@@ -3913,7 +4038,7 @@ function renderDetail(id){
         <div class="detail-title-wrap">
           ${item.logo ? `<img class="detail-logo" src="${esc(item.logo)}" alt="${esc(item.title)}" ${contentBlurImgAttrs()} onerror="this.replaceWith(Object.assign(document.createElement('h2'),{textContent:'${esc(item.title).replace(/'/g,"\\'")}'}))">` : `<h2>${esc(item.title)}</h2>`}
           ${item.tagline ? `<p class="detail-tagline">${esc(item.tagline)}</p>` : ''}
-          ${item.type==='movie' ? moviePrimaryActionsHtml(item) : ''}
+          ${item.type==='movie' ? moviePrimaryActionsHtml(item) : seriesPrimaryActionsHtml(item)}
         </div>
       </div>
       <div class="detail-info">
@@ -3926,15 +4051,15 @@ function renderDetail(id){
         ${item.awards ? `<div class="detail-awards">${ICON.award} ${esc(item.awards)}</div>` : ''}
         ${castRowHtml(item)}
         <div class="detail-actions">
-          ${(item.type!=='movie' && (item.trailerKey || (!item.trailerChecked && state.settings.tmdb))) ? `<button class="btn btn-ghost" onclick="openTrailerModal('${item.id}')">${ICON.play} Watch Trailer</button>` : ''}
-          <button class="btn-icon ${item.watchlist?'is-active':''} btn-icon-label" title="${item.watchlist?'Remove from Watchlist':'Add to Watchlist'}" onclick="toggleWatchlist('${item.id}')">${ICON.watchlist}<span class="btn-icon-label-text">${item.watchlist?'Watchlisted':'Watchlist'}</span></button>
-          <button class="btn-icon ${item.favorite?'is-fav':''} btn-icon-label" data-fav-id="${item.id}" title="${item.favorite?'Remove from Favorites':'Add to Favorites'}" onclick="toggleFavorite('${item.id}')">${heartSvg(!!item.favorite)}<span class="btn-icon-label-text">${item.favorite?'Favorited':'Favorite'}</span></button>
-          <button class="btn-icon" title="Add to Collection" onclick="openAddToCollection('${item.id}')">${ICON.bookmark}</button>
+          ${item.type!=='movie' ? `
+          ${(item.trailerKey || (!item.trailerChecked && state.settings.tmdb)) ? `<button class="btn btn-ghost" onclick="openTrailerModal('${item.id}')">${ICON.play} Watch Trailer</button>` : ''}
+          ${detailActionMenuHtml(item)}
+          ` : ''}
         </div>
       </div>
     </div>
     <div class="page">
-      ${body}
+      <div id="tvSeasonArea">${body}</div>
       ${similarLibraryItems.length ? rowHtml('More Like This', similarLibraryItems) : ''}
       <div id="tmdbSimilarRow"></div>
     </div>
@@ -4154,6 +4279,25 @@ function quickAddFromTmdb(tmdbId, type){
     toast('Metadata fetched from TMDB');
   }).catch(()=> toast('Could not fetch details for that title — add it manually below'));
 }
+// Re-renders just the season chips/overview + episode-list area instead of the whole detail page.
+// renderDetail() still recomputes everything (cast, similar titles, etc.) since it's one big function,
+// but we only take the #tvSeasonArea slice of its output and swap that in. This is what stops a season
+// click's fade from bleeding into "More Like This"/the similar row below: those live in .page, which
+// has its own mount fadeIn animation — replacing the ENTIRE #pageRoot (as before) remounted .page every
+// time and replayed that animation on everything inside it, not just the season area that actually
+// changed. Falls back to a full re-render if the area isn't found (e.g. on a movie page).
+function updateTvSeasonArea(){
+  const area = document.getElementById('tvSeasonArea');
+  const html = renderDetail(state.routeParam);
+  if(!area){
+    document.getElementById('pageRoot').innerHTML = html;
+    return;
+  }
+  const temp = document.createElement('div');
+  temp.innerHTML = html;
+  const newArea = temp.querySelector('#tvSeasonArea');
+  if(newArea) area.innerHTML = newArea.innerHTML;
+}
 function setDetailSeason(i){
   const doSwitch = ()=>{
     state.detailSeason=i;
@@ -4166,7 +4310,7 @@ function setDetailSeason(i){
       const season = (item.seasons||[])[i];
       if(season && season.number!=null) history.replaceState(null, '', '#detail/'+state.routeParam+'/'+season.number);
     }
-    document.getElementById('pageRoot').innerHTML = renderDetail(state.routeParam);
+    updateTvSeasonArea();
     if(item) loadTmdbSimilarRow(item);
   };
   // Crossfade: fade the season-chip grid out first, THEN swap the DOM to the overview box (which
@@ -4175,7 +4319,7 @@ function setDetailSeason(i){
   const chipRow = document.getElementById('seasonChipRow');
   if(chipRow){
     chipRow.classList.add('season-block-leaving');
-    setTimeout(doSwitch, 160);
+    setTimeout(doSwitch, 120);
   } else {
     doSwitch();
   }
@@ -4188,19 +4332,66 @@ function closeDetailSeason(){
     state.detailSeason = null;
     state.detailEpisodesOpen = false;
     if(state.routeParam) history.replaceState(null, '', '#detail/'+state.routeParam);
-    document.getElementById('pageRoot').innerHTML = renderDetail(state.routeParam);
+    updateTvSeasonArea();
   };
   const box = document.getElementById('seasonOverviewBox');
   if(box){
     box.classList.add('season-block-leaving');
-    setTimeout(doClose, 160);
+    setTimeout(doClose, 120);
   } else {
     doClose();
   }
 }
+// Expands/collapses the episode list with a real accordion slide (height 0 → content height) instead
+// of the list just popping into existence at full height, plus a staggered rise-and-fade on each
+// episode-card so they cascade in one after another rather than all appearing at once.
 function toggleDetailEpisodesVisible(){
-  state.detailEpisodesOpen = !state.detailEpisodesOpen;
-  document.getElementById('pageRoot').innerHTML = renderDetail(state.routeParam);
+  const opening = !state.detailEpisodesOpen;
+  if(!opening){
+    // Closing: the markup only renders episode-card content while detailEpisodesOpen is true, so we
+    // have to animate the shrink BEFORE flipping that flag — otherwise the content (and the height
+    // we'd be animating from) is already gone by the time updateTvSeasonArea() re-renders.
+    const listEl = document.querySelector('.episode-list');
+    if(listEl){
+      listEl.style.height = listEl.scrollHeight+'px';
+      listEl.style.overflow = 'hidden';
+      requestAnimationFrame(()=>{
+        listEl.style.transition = 'height .3s ease';
+        listEl.style.height = '0px';
+      });
+      setTimeout(()=>{ state.detailEpisodesOpen = false; updateTvSeasonArea(); }, 300);
+      return;
+    }
+    state.detailEpisodesOpen = false;
+    updateTvSeasonArea();
+    return;
+  }
+  state.detailEpisodesOpen = true;
+  updateTvSeasonArea();
+  // innerHTML above is synchronous, but the browser needs a frame to lay out the new .episode-list
+  // content before its scrollHeight can be measured, hence the rAF instead of animating inline.
+  requestAnimationFrame(()=>{
+    const listEl = document.querySelector('.episode-list');
+    if(listEl){
+      const target = listEl.scrollHeight;
+      listEl.style.overflow = 'hidden';
+      listEl.style.height = '0px';
+      listEl.offsetHeight; // force reflow so the 0px actually applies before animating to target
+      listEl.style.transition = 'height .32s ease';
+      listEl.style.height = target+'px';
+      listEl.querySelectorAll('.episode-card').forEach((card, i)=>{
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(6px)';
+        card.style.transition = 'opacity .28s ease, transform .28s ease';
+        setTimeout(()=>{ card.style.opacity = '1'; card.style.transform = 'translateY(0)'; }, 60 + i*40);
+      });
+      // Drop the inline height/overflow once settled so a later re-render (e.g. marking an episode
+      // watched) isn't stuck animating from a stale pixel height.
+      setTimeout(()=>{ listEl.style.height=''; listEl.style.overflow=''; listEl.style.transition=''; }, 400);
+    }
+    // Only scroll down when the list is being opened — hiding it shouldn't yank the page anywhere.
+    if(listEl) listEl.scrollIntoView({behavior:'smooth', block:'start'});
+  });
 }
 function toggleMovieWatched(id){
   const item = getItem(id);
@@ -4213,6 +4404,33 @@ function toggleMovieWatched(id){
   saveLib();
   document.getElementById('pageRoot').innerHTML = renderDetail(id);
   toast(watched?'Marked as unwatched':'Marked as watched');
+}
+// Whole-show counterpart to toggleMovieWatched, reached from the same "Mark as Watched" dropdown
+// item on a TV show's detail page. Same all-or-nothing pattern as markSeasonWatched, just applied
+// across every season instead of one — direction is "toWatched" unless isFullyWatched() already
+// says every aired episode is done, in which case it clears everything back to unwatched. Skips
+// unaired episodes so this can never mark something not yet out as watched.
+function toggleSeriesWatched(id){
+  const item = getItem(id);
+  if(!item || item.type!=='series') return;
+  const seasons = item.seasons||[];
+  item.progress = item.progress || {};
+  const allWatched = isFullyWatched(item);
+  seasons.forEach(s=>{
+    (s.episodes||[]).forEach(e=>{
+      const airDateObj = e.airDate ? new Date(e.airDate+'T00:00:00') : null;
+      if(airDateObj && !isNaN(airDateObj) && airDateObj > new Date()) return; // skip unaired
+      const key = 's'+s.number+'e'+e.number;
+      const cur = item.progress[key];
+      item.progress[key] = allWatched
+        ? {timestamp:0, duration:(cur&&cur.duration)||0, watched:false}
+        : {timestamp:(cur&&cur.duration)||1, duration:(cur&&cur.duration)||1, watched:true};
+    });
+  });
+  item.lastWatched = new Date().toISOString();
+  saveLib();
+  document.getElementById('pageRoot').innerHTML = renderDetail(id);
+  toast(allWatched?'Marked as unwatched':'Marked as watched');
 }
 function toggleEpisodeWatched(itemId, seasonNum, epNum){
   const item = getItem(itemId);
@@ -4286,10 +4504,22 @@ function findPlayerEpisode(item, seasonNum, epNum){
   return season && (season.episodes||[]).find(e=>e.number===epNum);
 }
 /* ---------- Episode info modal (opened by clicking an episode card, instead of playing directly) ---------- */
-function openEpisodeInfoModal(itemId, seasonNum, epNum){
+// evt is only passed when opened by clicking an episode-card directly (not from the prev/next nav
+// buttons inside an already-open modal, nor from the deep-link setTimeout on page load) — that's what
+// lets the modal thumbnail visually "grow" out of the exact card that was clicked instead of just
+// appearing from nowhere, while every other entry point still opens the modal normally.
+function openEpisodeInfoModal(itemId, seasonNum, epNum, evt){
   const item = getItem(itemId);
   const ep = item && findPlayerEpisode(item, seasonNum, epNum);
   if(!item || !ep) return;
+  let originRect = null;
+  if(evt && evt.currentTarget){
+    const cardThumb = evt.currentTarget.querySelector('.ep-thumb');
+    if(cardThumb){
+      const r = cardThumb.getBoundingClientRect();
+      if(r.width>0 && r.height>0) originRect = r;
+    }
+  }
   openModal(episodeInfoModalHtml(itemId, seasonNum, epNum));
   const modalBody = document.getElementById('modalBody');
   modalBody.classList.add('modal-episode-info');
@@ -4303,6 +4533,31 @@ function openEpisodeInfoModal(itemId, seasonNum, epNum){
   modalBody.dataset.epKey = epKey;
   modalBody.style.removeProperty('--episode-glow');
   applyEpisodeThumbGlow(epKey, ep.thumbnail);
+  // FLIP: measure where the thumbnail ends up (after the overlay/modal have opened), then paint it
+  // starting at the clicked card's position/size and animate it into place. Runs a frame after open
+  // so the modal has actually laid out — otherwise the "target" rect would still reflect the
+  // pre-open (scaled-down) modal position.
+  if(originRect){
+    requestAnimationFrame(()=>{
+      const thumbEl = modalBody.querySelector('.episode-modal-thumb');
+      if(!thumbEl) return;
+      const targetRect = thumbEl.getBoundingClientRect();
+      if(!targetRect.width || !targetRect.height) return;
+      const dx = originRect.left - targetRect.left;
+      const dy = originRect.top - targetRect.top;
+      const sx = originRect.width / targetRect.width;
+      const sy = originRect.height / targetRect.height;
+      thumbEl.style.transformOrigin = 'top left';
+      thumbEl.style.transition = 'none';
+      thumbEl.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+      thumbEl.offsetHeight; // force reflow so the starting transform actually applies before animating
+      requestAnimationFrame(()=>{
+        thumbEl.style.transition = 'transform .32s cubic-bezier(.16,1,.3,1)';
+        thumbEl.style.transform = 'none';
+      });
+      setTimeout(()=>{ thumbEl.style.transition=''; thumbEl.style.transform=''; thumbEl.style.transformOrigin=''; }, 360);
+    });
+  }
 }
 // Same dominant-color extraction the detail page uses for --poster-glow, just pointed at the episode
 // thumbnail and scoped to the modal instead of #pageRoot. epKey is stamped at open time and re-checked
@@ -4329,7 +4584,6 @@ function episodeInfoModalHtml(itemId, seasonNum, epNum){
   const sourceCount = sources.length;
   const prev = getPrevEpisode(item, seasonNum, epNum);
   const next = getNextEpisode(item, seasonNum, epNum);
-  const preSub = preloadedSubtitles[preselectSubtitleKey(itemId, seasonNum, epNum)];
   // Air date badge: only worth showing once we know it, and "Airs <date>" only makes sense while
   // that date is still ahead of today — a past air date is implied by the episode simply being here.
   const airDateObj = ep.airDate ? new Date(ep.airDate+'T00:00:00') : null;
@@ -4365,7 +4619,6 @@ function episodeInfoModalHtml(itemId, seasonNum, epNum){
             ${sources.map((src,i)=>`<button type="button" class="btn btn-ghost episode-modal-source-btn" onclick="playEpisodeFromModal('${itemId}', ${seasonNum}, ${ep.number}, ${i})">${ICON.play} ${esc(src.label||'Source '+(i+1))}</button>`).join('')}
           </div>
         ` : `<button class="btn btn-primary" ${sourceCount?'':'disabled style="opacity:.5; cursor:not-allowed;"'} onclick="playEpisodeFromModal('${itemId}', ${seasonNum}, ${ep.number}, 0)">${ICON.play} ${canResume?`Continue from ${formatResumeTime(p.timestamp)}`:'Play Episode'}</button>`}
-        <button class="btn btn-ghost" title="${preSub?('Subtitle: '+esc(preSub.label)):'Pick a SubDL subtitle before you press Play'}" onclick="openSubtitlePreselectModal('${itemId}', ${seasonNum}, ${ep.number})">${preSub?ICON.check+' Subtitle Selected':ICON.subtitles+' Add Subtitle'}</button>
         <button class="btn btn-ghost btn-icon-only" title="${watched?'Mark as Unwatched':(next?'Mark as Watched & Go to Next':'Mark as Watched')}" onclick="toggleEpisodeWatchedInModal('${itemId}', ${seasonNum}, ${ep.number})">${watched?ICON.close:ICON.check}</button>
       </div>
     </div>
@@ -4382,7 +4635,7 @@ function playEpisodeFromModal(itemId, seasonNum, epNum, sourceIdx){
   const sources = ep.sources || [];
   const ordered = sourceIdx>0 ? [sources[sourceIdx], ...sources.slice(0,sourceIdx), ...sources.slice(sourceIdx+1)] : sources;
   closeModal();
-  openPlayer(item, seasonNum, epNum, ordered);
+  requestPlayback(item, seasonNum, epNum, ordered);
 }
 // Same star row as episodeMiniStarsHtml on the card, but wired to refresh the open modal in place
 // (setEpisodeRating already repaints the detail page behind it; the modal is a separate DOM subtree
@@ -5328,9 +5581,22 @@ function closeModal(){
     history.replaceState(null, '', '#detail/'+state.routeParam+(season && season.number!=null ? '/'+season.number : ''));
   }
   document.getElementById('modalOverlay').classList.remove('open');
+  // Removing .open only fades the overlay out visually — the trailer <iframe> underneath (e.g. the
+  // YouTube embed from openTrailerModal) keeps running and its audio keeps playing in the background
+  // unless we actually tear it down. Blanking the src stops playback immediately; clearing the whole
+  // body once the fade-out finishes removes the now-dead iframe node entirely.
+  if(modalBody){
+    modalBody.querySelectorAll('iframe').forEach(f=> f.src = 'about:blank');
+    setTimeout(()=>{
+      if(!document.getElementById('modalOverlay').classList.contains('open')) modalBody.innerHTML = '';
+    }, 260);
+  }
 }
 document.getElementById('modalOverlay').addEventListener('click', e=>{
   if(e.target.id==='modalOverlay') closeModal();
+});
+document.getElementById('subtitlePromptOverlay').addEventListener('click', e=>{
+  if(e.target.id==='subtitlePromptOverlay') cancelSubtitlePrompt();
 });
 
 /* =========================================================
@@ -6479,7 +6745,7 @@ function playNextEpisode(){
   const next = getNextEpisode(item, p.seasonNum, p.epNum);
   if(!next){ toast('No more episodes'); return; }
   cleanupPlayerTimers();
-  openPlayer(item, next.seasonNum, next.ep.number, next.ep.sources||[]);
+  requestPlayback(item, next.seasonNum, next.ep.number, next.ep.sources||[]);
 }
 
 function openPlayer(item, seasonNum, epNum, sources){
@@ -7304,6 +7570,7 @@ function isPlayerAutoHideSuspended(){
   if(brightPanel && brightPanel.classList.contains('open')) return true;
   if(document.getElementById('modalOverlay')?.classList.contains('open')) return true;
   if(document.getElementById('shortcutsOverlay')?.classList.contains('open')) return true;
+  if(document.getElementById('subtitlePromptOverlay')?.classList.contains('open')) return true;
   return false;
 }
 function scheduleHideControls(){
@@ -7379,6 +7646,8 @@ let subtitleTrackUrl = null; // current blob: URL backing the active <track> (vi
 let preloadedSubtitles = {}; // key (see preselectSubtitleKey) -> {cues, label, langCode}
 let preselectSubtitleCtx = null; // {itemId, seasonNum, epNum} for whichever preselect modal is open
 let preselectSubtitleResults = [];
+let subtitleDecisionMade = {}; // key (see preselectSubtitleKey) -> true once the user has answered the play-time subtitle prompt with "No" (a "Yes" answer is instead recorded implicitly by preloadedSubtitles already having an entry) — either way, requestPlayback() won't ask again this session
+let subtitlePromptCtx = null; // {itemId, seasonNum, epNum, sources} for whichever pre-playback subtitle prompt is currently open
 
 /* ---- Subtitle display customization (Settings -> Subtitle Display) ----
    Drives both the SubDL overlay (.player-subtitle-overlay span, for embedded/iframe sources) and
@@ -7791,68 +8060,119 @@ function turnOffSubtitles(){
 }
 
 /* =========================================================
-   PRE-PLAYBACK SUBTITLE SELECTION (SubDL)
+   PRE-PLAYBACK SUBTITLE PROMPT (SubDL)
    ---------------------------------------------------------
-   Same SubDL search/download/parse pipeline as the in-player panel above (searchSubtitles /
-   useSubtitleResult), just pointed at a title+episode BEFORE a player exists yet. The result lands
-   in preloadedSubtitles, keyed by preselectSubtitleKey — openPlayer() checks that map and, if a
-   match exists, seeds state.player.subtitleCues before renderPlayer() ever runs, so the subtitle is
-   already attached the instant playback starts instead of needing the in-player panel afterward.
+   Pressing Play (movie or episode) for the first time no longer plays immediately — requestPlayback()
+   is the gate every play path (quickPlay, playEpisodeFromModal, playNextEpisode) now goes through. If
+   this itemId/season/episode has never been decided, it opens a dedicated overlay (subtitlePromptCtx)
+   over the title's backdrop asking "Would you like to add a subtitle?":
+     No  -> playWithoutSubtitles(): remembers the decision in subtitleDecisionMade and plays immediately.
+     Yes -> showSubtitlePromptSearch(): swaps to the same SubDL search/download/parse pipeline as the
+            in-player panel above (searchSubtitles / useSubtitleResult), just pointed at the title before
+            a player exists. A picked result lands in preloadedSubtitles, keyed by preselectSubtitleKey,
+            then playback starts — openPlayer() checks that map and, if a match exists, seeds
+            state.player.subtitleCues before renderPlayer() ever runs, so the subtitle is already
+            attached the instant playback starts.
+   Once a key has an answer (either preloadedSubtitles or subtitleDecisionMade), requestPlayback() skips
+   straight to openPlayer() next time — the prompt is genuinely "first time only" per title/episode.
 ========================================================= */
 function preselectSubtitleKey(itemId, seasonNum, epNum){
   return seasonNum!=null ? `${itemId}::s${seasonNum}e${epNum}` : `${itemId}::movie`;
 }
-function openSubtitlePreselectModal(itemId, seasonNum, epNum){
-  const item = getItem(itemId);
-  if(!item) return;
-  preselectSubtitleCtx = {itemId, seasonNum, epNum};
-  preselectSubtitleResults = [];
-  openModal(subtitlePreselectModalHtml(item, seasonNum, epNum));
-}
-// Returns to wherever the preselect modal was opened FROM — the episode-info modal if this was
-// launched from there, otherwise just closes (movie detail page has no modal underneath it) and
-// repaints the detail page so its "Add Subtitle" button reflects the new selection.
-function closePreselectSubtitleModal(){
-  const ctx = preselectSubtitleCtx;
-  if(ctx && ctx.seasonNum!=null){
-    openEpisodeInfoModal(ctx.itemId, ctx.seasonNum, ctx.epNum);
-  } else {
-    closeModal();
-    if(ctx && state.route==='detail' && state.routeParam===ctx.itemId){
-      document.getElementById('pageRoot').innerHTML = renderDetail(ctx.itemId);
-    }
+// The single entry point every Play button/action should call instead of openPlayer() directly.
+function requestPlayback(item, seasonNum, epNum, sources){
+  sources = sources || [];
+  if(!sources.length){ toast('No sources available'); return; }
+  const key = preselectSubtitleKey(item.id, seasonNum, epNum);
+  if(preloadedSubtitles[key] || subtitleDecisionMade[key]){
+    openPlayer(item, seasonNum, epNum, sources);
+    return;
   }
+  subtitlePromptCtx = {itemId:item.id, seasonNum, epNum, sources};
+  document.getElementById('subtitlePromptModal').innerHTML = subtitlePromptQuestionHtml(item, seasonNum, epNum);
+  document.getElementById('subtitlePromptOverlay').classList.add('open');
 }
-function subtitlePreselectModalHtml(item, seasonNum, epNum){
-  const hasKey = !!(state.settings.subdl||'').trim();
-  const existing = preloadedSubtitles[preselectSubtitleKey(item.id, seasonNum, epNum)];
-  const heading = seasonNum!=null ? `Subtitles &middot; S${seasonNum}E${epNum}` : 'Subtitles';
+function subtitlePromptQuestionHtml(item, seasonNum, epNum){
+  const bg = item.backdrop || item.poster || '';
+  const epLabel = seasonNum!=null ? `Season ${seasonNum} · Episode ${epNum}` : '';
   return `
-    <div class="episode-modal-body" style="padding:26px;">
-      <div class="player-subtitle-panel-head" style="margin-bottom:14px;">
-        <b>${heading}</b>
-        <button class="btn-icon" onclick="closePreselectSubtitleModal()">${ICON.close}</button>
-      </div>
-      ${existing ? `<div class="field-hint" style="color:var(--highlight); margin-bottom:12px;">${ICON.check} Selected: ${esc(existing.label)}${existing.langCode?' &middot; '+esc(existing.langCode.toUpperCase()):''}. This loads automatically the moment you press Play.</div>` : `<div class="field-hint" style="margin-bottom:12px;">Search and pick a subtitle now — it'll be attached automatically when playback starts, no need to search again in the player.</div>`}
-      <div class="field" style="margin-bottom:10px;">
-        <input id="preselectSubtitleQuery" placeholder="Movie or show title" value="${esc(item.title||'')}" onkeydown="if(event.key==='Enter'){ event.preventDefault(); searchPreselectSubtitles(); }">
-      </div>
-      <div class="field-row" style="margin-bottom:12px;">
-        <select id="preselectSubtitleLang" class="select-input" style="flex:1; border-radius:8px;">
-          <option value="">Any language</option>
-          ${SUBTITLE_LANGS.map(l=>`<option value="${l.code}">${l.label}</option>`).join('')}
-        </select>
-        <button class="btn btn-primary" style="flex-shrink:0;" onclick="searchPreselectSubtitles()">${ICON.search}</button>
-      </div>
-      <div id="preselectSubtitleResults" class="subtitle-results-list" style="max-height:320px;">
-        ${hasKey ? '' : `<div class="field-hint">Add a free SubDL API key in Settings &rarr; Subtitles to search.</div>`}
-      </div>
-      ${existing ? `<button class="btn btn-ghost" style="width:100%; justify-content:center; margin-top:10px;" onclick="clearPreselectSubtitle()">Remove Selected Subtitle</button>` : ''}
-      <div class="field-hint" style="margin-top:10px;">
-        Powered by <a href="https://subdl.com" target="_blank" rel="noopener">SubDL</a> &mdash; needs a free API key in Settings.
+    <div class="subtitle-prompt-bg" ${bg?`style="background-image:url('${esc(bg)}')"`:''}>
+      <button class="btn-icon subtitle-prompt-close" title="Cancel" onclick="cancelSubtitlePrompt()">${ICON.close}</button>
+      <div class="subtitle-prompt-content">
+        <span class="subtitle-prompt-eyebrow">Before you press play</span>
+        <div class="subtitle-prompt-title">${esc(item.title)}</div>
+        ${epLabel ? `<div class="subtitle-prompt-episode">${esc(epLabel)}</div>` : ''}
+        <div class="subtitle-prompt-question">Would you like to add a subtitle for this ${seasonNum!=null?'episode':'movie'}?</div>
+        <div class="subtitle-prompt-actions">
+          <button class="btn btn-ghost" onclick="playWithoutSubtitles()">No, just play</button>
+          <button class="btn btn-primary" onclick="showSubtitlePromptSearch()">${ICON.subtitles} Yes, add subtitle</button>
+        </div>
       </div>
     </div>
   `;
+}
+function subtitlePromptSearchHtml(item, seasonNum, epNum){
+  const bg = item.backdrop || item.poster || '';
+  const hasKey = !!(state.settings.subdl||'').trim();
+  const heading = seasonNum!=null ? `Subtitles &middot; S${seasonNum}E${epNum}` : 'Subtitles';
+  return `
+    <div class="subtitle-prompt-bg" ${bg?`style="background-image:url('${esc(bg)}')"`:''}>
+      <button class="btn-icon subtitle-prompt-close" title="Cancel" onclick="cancelSubtitlePrompt()">${ICON.close}</button>
+      <div class="subtitle-prompt-content">
+        <span class="subtitle-prompt-eyebrow">${esc(item.title)}</span>
+        <div class="subtitle-prompt-title" style="font-size:17px;">${heading}</div>
+        ${hasKey ? '' : `<div class="field-hint">Add a free SubDL API key in Settings &rarr; Subtitles to search.</div>`}
+        <div class="field" style="margin-bottom:0;">
+          <input id="preselectSubtitleQuery" placeholder="Movie or show title" value="${esc(item.title||'')}" onkeydown="if(event.key==='Enter'){ event.preventDefault(); searchPreselectSubtitles(); }">
+        </div>
+        <div class="field-row" style="margin-bottom:0;">
+          <select id="preselectSubtitleLang" class="select-input" style="flex:1; border-radius:8px;">
+            <option value="">Any language</option>
+            ${SUBTITLE_LANGS.map(l=>`<option value="${l.code}">${l.label}</option>`).join('')}
+          </select>
+          <button class="btn btn-primary" style="flex-shrink:0;" onclick="searchPreselectSubtitles()">${ICON.search}</button>
+        </div>
+        <div id="preselectSubtitleResults" class="subtitle-results-list" style="max-height:200px;"></div>
+        <button class="btn btn-ghost" style="width:100%; justify-content:center;" onclick="playWithoutSubtitles()">Play without subtitles</button>
+      </div>
+    </div>
+  `;
+}
+// "Yes" was chosen on the question step — swap the same overlay's content to the search UI. Reuses
+// preselectSubtitleCtx/preselectSubtitleResults (and every search/download function below) exactly
+// as before; only what happens once a subtitle is picked (or skipped) has changed, see below.
+function showSubtitlePromptSearch(){
+  const ctx = subtitlePromptCtx;
+  if(!ctx) return;
+  const item = getItem(ctx.itemId);
+  if(!item) return;
+  preselectSubtitleCtx = {itemId: ctx.itemId, seasonNum: ctx.seasonNum, epNum: ctx.epNum};
+  preselectSubtitleResults = [];
+  document.getElementById('subtitlePromptModal').innerHTML = subtitlePromptSearchHtml(item, ctx.seasonNum, ctx.epNum);
+}
+// "No" on the question step, or "Play without subtitles" from the search step — either way, remember
+// this key needs no further asking and start playback right away with no subtitle attached.
+function playWithoutSubtitles(){
+  const ctx = subtitlePromptCtx;
+  if(!ctx) return;
+  subtitleDecisionMade[preselectSubtitleKey(ctx.itemId, ctx.seasonNum, ctx.epNum)] = true;
+  finishSubtitlePromptAndPlay();
+}
+// The overlay's own close (X) button, backdrop click, or Escape — backs out without playing anything
+// and without recording a decision, so the next Play press asks again from a clean slate.
+function cancelSubtitlePrompt(){
+  document.getElementById('subtitlePromptOverlay').classList.remove('open');
+  subtitlePromptCtx = null;
+  preselectSubtitleCtx = null;
+}
+function finishSubtitlePromptAndPlay(){
+  const ctx = subtitlePromptCtx;
+  if(!ctx) return;
+  const item = getItem(ctx.itemId);
+  document.getElementById('subtitlePromptOverlay').classList.remove('open');
+  subtitlePromptCtx = null;
+  preselectSubtitleCtx = null;
+  if(item) openPlayer(item, ctx.seasonNum, ctx.epNum, ctx.sources);
 }
 async function searchPreselectSubtitles(){
   const resultsEl = document.getElementById('preselectSubtitleResults');
@@ -7930,18 +8250,10 @@ async function usePreselectSubtitleResult(i){
     }
     const key = preselectSubtitleKey(ctx.itemId, ctx.seasonNum, ctx.epNum);
     preloadedSubtitles[key] = { cues: parseSrtCues(srtText), label: r.label, langCode: r.lang };
-    toast('Subtitle ready — it will load automatically when you press Play');
-    closePreselectSubtitleModal();
+    finishSubtitlePromptAndPlay();
   }catch(e){
     toast('Subtitle error: '+(e.message||'could not load file'));
   }
-}
-function clearPreselectSubtitle(){
-  const ctx = preselectSubtitleCtx;
-  if(!ctx) return;
-  delete preloadedSubtitles[preselectSubtitleKey(ctx.itemId, ctx.seasonNum, ctx.epNum)];
-  toast('Subtitle selection removed');
-  closePreselectSubtitleModal();
 }
 
 /* =========================================================
@@ -8872,6 +9184,10 @@ window.addEventListener('focus', handleAppForeground);
    GLOBAL KEYS
 ========================================================= */
 document.addEventListener('keydown', e=>{
+  if(document.getElementById('subtitlePromptOverlay').classList.contains('open')){
+    if(e.key==='Escape') cancelSubtitlePrompt();
+    return;
+  }
   if(e.key==='Escape'){
     if(document.getElementById('shortcutsOverlay').classList.contains('open')){ closeShortcutsOverlay(); return; }
     if(document.getElementById('playerOverlay').classList.contains('open')) closePlayer();
@@ -8964,6 +9280,7 @@ document.addEventListener('keydown', e=>{
 
   // Back button (Escape or AndroidTV back = Escape in WebView)
   if(e.key === 'Escape' || e.key === 'GoBack'){
+    if(document.getElementById('subtitlePromptOverlay').classList.contains('open')){ cancelSubtitlePrompt(); return; }
     if(document.getElementById('playerOverlay').classList.contains('open')){ closePlayer(); return; }
     if(document.getElementById('modalOverlay').classList.contains('open')){ closeModal(); return; }
     if(state.route !== 'home'){ history.back(); return; }
