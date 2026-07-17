@@ -256,7 +256,7 @@ a{color:inherit; text-decoration:none;}
    in Settings (state.settings.featuredArtworkBleed) — the card then simply shows the artwork
    contained cleanly inside its bounds, no escape, no cutout, still a clean result either way. */
 :root{ --featured-escape:10%; }
-.featured-row{position:relative; padding:clamp(100px,15vw,168px) 0 40px;}
+.featured-row{position:relative; padding:clamp(120px,18vw,208px) 0 40px;}
 .featured-bg-text{
   position:absolute; left:0; right:0; top:0; height:calc(100% - 40px); z-index:0;
   display:flex; align-items:flex-end; justify-content:center;
@@ -264,14 +264,13 @@ a{color:inherit; text-decoration:none;}
 }
 /* Huge outline (not filled) type behind the card — the "visual identity" of this section. Fill is
    transparent with a thin cyan stroke rather than a solid cyan block, kept very low-opacity (8–12%)
-   so it reads as an ambient watermark, not competing text. Reduced letter-spacing + wider clamp range
-   vs. before so a full word comfortably spans most of the row's width instead of just peeking out. */
+   so it reads as an ambient watermark, not competing text. */
 .featured-bg-text span{
   font-family:var(--display-font); font-weight:900; text-transform:uppercase;
-  font-size:clamp(56px, 13vw, 200px); letter-spacing:.04em; line-height:1;
+  font-size:clamp(80px, 18vw, 260px); letter-spacing:.03em; line-height:1;
   color:transparent; -webkit-text-stroke:1.5px var(--highlight); text-stroke:1.5px var(--highlight);
   opacity:.1;
-  text-shadow:0 0 60px rgba(61,219,217,.55), 0 0 110px rgba(61,219,217,.3);
+  text-shadow:0 0 70px rgba(61,219,217,.55), 0 0 130px rgba(61,219,217,.3);
   white-space:nowrap;
 }
 /* Outer wrapper is deliberately NOT clipped (overflow:visible) so the artwork can bleed above the
@@ -300,9 +299,23 @@ a{color:inherit; text-decoration:none;}
   mask-image:linear-gradient(to bottom, transparent 0%, #000 calc(var(--featured-escape) + 3%), #000 100%);
 }
 /* Bleed disabled (Settings toggle, or as a manual per-title fallback): artwork stays fully inside
-   the card, no escape, no mask — a clean, ordinary cover image. */
+   the card, no escape, no mask — a clean, ordinary cover image. Also forced whenever a custom
+   Featured Cutout is set (.has-cutout below) — the cutout becomes the one and only breakout element,
+   so the backdrop itself never bleeds too. That avoids ever stacking two escaping images. */
 .featured-card.bleed-off .featured-art{top:0;}
 .featured-card.bleed-off .featured-art-img{clip-path:inset(0 round var(--radius));}
+.featured-card.has-cutout .featured-art{top:0;}
+.featured-card.has-cutout .featured-art-img{clip-path:inset(0 round var(--radius));}
+/* Custom cutout: a transparent PNG (subject only, no background) supplied per-title in the Add/Edit
+   Title form (Featured Cutout URL). Anchored to the card's bottom-center and sized taller than the
+   card so the top of it (head/shoulders) pokes above the card into the giant-typography zone — real
+   artwork standing in for the old heuristic backdrop-crop escape. One <img>, never duplicated. Sits
+   above the scrim (so the subject itself doesn't get dimmed) but below the text/button content. */
+.featured-cutout{
+  position:absolute; left:50%; bottom:0; transform:translateX(-50%); height:128%; max-width:56%;
+  z-index:1; display:flex; align-items:flex-end; justify-content:center; pointer-events:none;
+}
+.featured-cutout img{height:100%; width:auto; max-width:100%; object-fit:contain; display:block; pointer-events:auto; filter:drop-shadow(0 18px 34px rgba(0,0,0,.55));}
 .featured-card-inner{
   position:absolute; inset:0; z-index:1; border-radius:var(--radius); overflow:hidden;
   box-shadow:0 24px 60px rgba(0,0,0,.5); pointer-events:none;
@@ -339,14 +352,16 @@ a{color:inherit; text-decoration:none;}
 }
 .featured-dot.active{background:var(--highlight); transform:scale(1.3); box-shadow:0 0 8px rgba(61,219,217,.7);}
 @media (max-width:860px){
-  .featured-row{padding:clamp(72px,24vw,108px) 0 28px;}
+  .featured-row{padding:clamp(88px,28vw,132px) 0 28px;}
   /* Was aspect-ratio:4/5 (portrait) — the actual bug behind the "looks like a poster" complaint.
      4/3 stays unambiguously landscape while giving a little extra height for stacked mobile text. */
   .featured-card{aspect-ratio:4/3; margin:0 16px; max-width:none;}
   .featured-card-inner{border-radius:12px;}
   .featured-card.bleed-on .featured-art-img{clip-path:inset(0 round 0 0 12px 12px);}
-  .featured-card.bleed-off .featured-art-img{clip-path:inset(0 round 12px);}
-  .featured-bg-text span{font-size:clamp(40px, 15vw, 96px); letter-spacing:.03em;}
+  .featured-card.bleed-off .featured-art-img,
+  .featured-card.has-cutout .featured-art-img{clip-path:inset(0 round 12px);}
+  .featured-bg-text span{font-size:clamp(48px, 19vw, 120px); letter-spacing:.02em;}
+  .featured-cutout{height:122%; max-width:70%;}
   .featured-content{padding:18px 18px 20px; max-width:82%;}
   .featured-actions .btn span, .featured-actions .btn{font-size:12.5px;}
   .featured-indicators{right:16px; bottom:16px;}
@@ -2826,11 +2841,12 @@ function featuredReleaseHtml(item){
   if(item.genre && item.genre.length) metaBits.push(esc(item.genre.slice(0,2).join(', ')));
   state.featuredItem = item;
   state.featuredIndex = 0;
-  const bleedClass = state.settings.featuredArtworkBleed ? 'bleed-on' : 'bleed-off';
+  const cutoutClass = item.featuredCutout ? 'has-cutout' : '';
+  const bleedClass = cutoutClass ? '' : (state.settings.featuredArtworkBleed ? 'bleed-on' : 'bleed-off');
   return `
     <div class="row featured-row">
       <div class="featured-bg-text"><span>${esc(bgLabel)}</span></div>
-      <div class="featured-card ${bleedClass}" id="featuredCard" onclick="featuredCardClick(event,'${item.id}')" onmouseenter="stopFeaturedAutoplay()" onmouseleave="startFeaturedAutoplay()">
+      <div class="featured-card ${bleedClass} ${cutoutClass}" id="featuredCard" onclick="featuredCardClick(event,'${item.id}')" onmouseenter="stopFeaturedAutoplay()" onmouseleave="startFeaturedAutoplay()">
         <div class="featured-art">
           ${banners.map((url,i)=>`
             <div class="featured-art-layer${i===0?' active':''}" data-idx="${i}">
@@ -2840,6 +2856,7 @@ function featuredReleaseHtml(item){
         <div class="featured-card-inner">
           <div class="featured-scrim"></div>
         </div>
+        ${item.featuredCutout ? `<div class="featured-cutout"><img src="${esc(item.featuredCutout)}" alt="" draggable="false" ${contentBlurImgAttrs()}></div>` : ''}
         <div class="featured-content" id="featuredContent">
           <span class="featured-type-badge">${item.type==='series'?'Series':'Movie'}</span>
           <h2 class="featured-title">${esc(item.title)}</h2>
@@ -3847,8 +3864,8 @@ async function loadTmdbTopListGrid(mediaType){
   // Titles the user removed from this list (see removeFromTmdbTop100 / SETTINGS > TMDB Top 100) are
   // filtered out here, and we keep pulling further TMDB pages past the usual 5 until we've backfilled
   // up to 100 titles again — so a removal always results in the next-best-ranked replacement, not a
-  // shorter list.
-  const excludedIds = new Set((state.settings.tmdbTop100Excluded[mediaType]||[]).map(x=>x.id));
+  // shorter list. Only the bare TMDB id is kept for this — no title/poster is retained anywhere.
+  const excludedIds = new Set(state.settings.tmdbTop100Excluded[mediaType]||[]);
   try{
     const results = [];
     const seen = new Set();
@@ -3884,7 +3901,7 @@ function tmdbTopListCardHtml(tmdbItem, mediaType){
     <div class="card" onclick="quickAddFromTmdb(${tmdbItem.id}, '${mediaType}')" title="Add to your library">
       ${poster ? `<img src="${esc(poster)}" alt="" loading="lazy" ${contentBlurImgAttrs()}>` : fallbackHtml(title)}
       <span class="card-badge">${mediaType==='tv'?'Series':'Movie'}</span>
-      <button type="button" class="card-remove" title="Remove from Top 100" onclick="event.stopPropagation(); removeFromTmdbTop100('${mediaType}', ${tmdbItem.id}, '${titleJs}', '${esc(year||'')}', '${esc(tmdbItem.poster_path||'')}')">${ICON.close}</button>
+      <button type="button" class="card-remove" title="Remove from Top 100" onclick="event.stopPropagation(); removeFromTmdbTop100('${mediaType}', ${tmdbItem.id}, '${titleJs}')">${ICON.close}</button>
       <div class="card-overlay">
         <div class="card-play" style="background:var(--highlight);">${ICON.plus}</div>
         <div class="card-title">${esc(title)}</div>
@@ -3892,14 +3909,17 @@ function tmdbTopListCardHtml(tmdbItem, mediaType){
       </div>
     </div>`;
 }
-// Removes a title from the live TMDB Top 100 Shows/Movies list. Persisted to settings (not just this
-// session) and mirrored in Settings > TMDB Top 100. This is permanent — there's no restore.
-function removeFromTmdbTop100(mediaType, id, title, year, posterPath){
+// Removes a title from the live TMDB Top 100 Shows/Movies list. Only the bare TMDB id is persisted to
+// settings (state.settings.tmdbTop100Excluded) — no title, poster, or year is stored or shown anywhere
+// in Settings, since the id alone is all that's needed to keep filtering it out of the list. `title`
+// is only used for the confirmation toast and is never written to settings. This is permanent — there's
+// no restore.
+function removeFromTmdbTop100(mediaType, id, title){
   if(!state.settings.tmdbTop100Excluded) state.settings.tmdbTop100Excluded = {movie:[], tv:[]};
   const list = state.settings.tmdbTop100Excluded[mediaType] || (state.settings.tmdbTop100Excluded[mediaType]=[]);
-  if(!list.some(x=>x.id===id)) list.push({id, title, year, poster_path:posterPath});
+  if(!list.includes(id)) list.push(id);
   saveSettings();
-  toast(`Removed "${title}" — replaced automatically`);
+  toast(title ? `Removed "${title}" — replaced automatically` : 'Removed — replaced automatically');
   loadTmdbTopListGrid(mediaType);
 }
 // Settings > TMDB Top 100 search box — lets a title be removed directly from Settings by searching
@@ -3924,7 +3944,7 @@ async function searchTmdbTop100Exclude(mediaType){
     const results = (data.results||[]).filter(r=>r.poster_path).slice(0,8);
     if(container!==document.getElementById('tmdbTop100SearchResults_'+mediaType)) return; // stale response
     if(!results.length){ container.innerHTML = `<div class="manage-lib-empty">No results for "${esc(query)}".</div>`; return; }
-    const excludedIds = new Set((state.settings.tmdbTop100Excluded[mediaType]||[]).map(x=>x.id));
+    const excludedIds = new Set(state.settings.tmdbTop100Excluded[mediaType]||[]);
     container.innerHTML = `<div class="manage-lib-rows">${results.map(r=>{
       const title = mediaType==='tv' ? r.name : r.title;
       const year = ((mediaType==='tv' ? r.first_air_date : r.release_date)||'').split('-')[0];
@@ -3938,7 +3958,7 @@ async function searchTmdbTop100Exclude(mediaType){
           <div class="manage-lib-meta">${esc(year||'')}</div>
         </div>
         <div class="manage-lib-actions">
-          <button type="button" class="btn btn-ghost" ${already?'disabled':''} onclick="removeFromTmdbTop100SettingsSearch('${mediaType}', ${r.id}, '${titleJs}', '${esc(year||'')}', '${esc(r.poster_path||'')}')">${already?'Removed':'Remove'}</button>
+          <button type="button" class="btn btn-ghost" ${already?'disabled':''} onclick="removeFromTmdbTop100SettingsSearch('${mediaType}', ${r.id}, '${titleJs}')">${already?'Removed':'Remove'}</button>
         </div>
       </div>`;
     }).join('')}</div>`;
@@ -3948,31 +3968,15 @@ async function searchTmdbTop100Exclude(mediaType){
 }
 // Wraps removeFromTmdbTop100 for the Settings search box specifically: re-runs the search so the
 // "Remove" button on the just-removed result immediately flips to "Removed", and patches the count
-// label + removed-rows list directly (not a full router() re-render, which would wipe out whatever
-// the user was typing in the search box).
-function removeFromTmdbTop100SettingsSearch(mediaType, id, title, year, posterPath){
-  removeFromTmdbTop100(mediaType, id, title, year, posterPath);
+// label directly (not a full router() re-render, which would wipe out whatever the user was typing
+// in the search box). There's no removed-titles list to keep in sync — Settings only ever shows a
+// count, never the names of removed titles.
+function removeFromTmdbTop100SettingsSearch(mediaType, id, title){
+  removeFromTmdbTop100(mediaType, id, title);
   searchTmdbTop100Exclude(mediaType);
   const count = (state.settings.tmdbTop100Excluded[mediaType]||[]).length;
   const countEl = document.getElementById('tmdbTop100Count_'+mediaType);
   if(countEl) countEl.textContent = `${mediaType==='movie'?'Movies':'Shows'} (${count} removed)`;
-  const rowsEl = document.getElementById('tmdbTop100Rows_'+mediaType);
-  if(rowsEl) rowsEl.innerHTML = tmdbTop100SettingsRowsHtml(mediaType);
-}
-// Renders the Settings > TMDB Top 100 rows for one media type, reusing the Manage Library row markup.
-function tmdbTop100SettingsRowsHtml(mediaType){
-  const list = state.settings.tmdbTop100Excluded[mediaType]||[];
-  if(!list.length) return `<div class="manage-lib-empty">Nothing removed from ${mediaType==='movie'?'Top 100 Movies':'Top 100 Shows'}.</div>`;
-  return list.map(x=>{
-    const poster = x.poster_path ? `https://image.tmdb.org/t/p/w92${x.poster_path}` : '';
-    return `<div class="manage-lib-row">
-      <div class="manage-lib-poster">${poster ? `<img src="${esc(poster)}" alt="" loading="lazy" onload="this.classList.add('loaded')">` : fallbackHtml(x.title||'')}</div>
-      <div class="manage-lib-info">
-        <div class="manage-lib-title">${esc(x.title||'Untitled')}</div>
-        <div class="manage-lib-meta">${esc(x.year||'')}</div>
-      </div>
-    </div>`;
-  }).join('');
 }
 function createCollection(){
   const name = prompt('Collection name:');
@@ -5321,7 +5325,7 @@ function renderSettings(){
             <span class="toggle-row-label">${s.featuredArtworkBleed?'On':'Off'}</span>
           </div>
           <div class="field-hint">
-            The Home/Movies/TV "Featured Release" card lets its artwork bleed slightly above the card's top edge for a layered look. If that reads as an awkward crop for a particular title's artwork, turn this off — the card falls back to showing the artwork cleanly contained inside its bounds, no escape.
+            The Home/Movies/TV "Featured Release" card lets its artwork bleed slightly above the card's top edge for a layered look. If that reads as an awkward crop for a particular title's artwork, turn this off — the card falls back to showing the artwork cleanly contained inside its bounds, no escape. For full control per-title, add a Featured Cutout URL on that title's edit page (a transparent PNG with the subject cut out) — it replaces this automatic effect entirely for that title, on or off.
           </div>
         </div>
         </div>
@@ -5340,7 +5344,6 @@ function renderSettings(){
           <button type="button" class="btn btn-ghost" onclick="searchTmdbTop100Exclude('movie')">Search</button>
         </div>
         <div id="tmdbTop100SearchResults_movie"></div>
-        <div class="manage-lib-rows" id="tmdbTop100Rows_movie">${tmdbTop100SettingsRowsHtml('movie')}</div>
         <div class="settings-row" style="margin:18px 0 8px; justify-content:space-between; align-items:center;">
           <span class="toggle-row-label" id="tmdbTop100Count_tv">Shows (${(state.settings.tmdbTop100Excluded.tv||[]).length} removed)</span>
         </div>
@@ -5349,7 +5352,6 @@ function renderSettings(){
           <button type="button" class="btn btn-ghost" onclick="searchTmdbTop100Exclude('tv')">Search</button>
         </div>
         <div id="tmdbTop100SearchResults_tv"></div>
-        <div class="manage-lib-rows" id="tmdbTop100Rows_tv">${tmdbTop100SettingsRowsHtml('tv')}</div>
         </div>
       </div>
       <div class="settings-section${settingsSectionClass('subtitles')}" data-section="subtitles">
@@ -6314,6 +6316,11 @@ function renderEditModal(item){
       <textarea id="f_panoramic" rows="4" placeholder="https://... (one URL per line, up to 6)">${esc(d.panoramicBanner!==undefined ? d.panoramicBanner : getPanoramicBanners(item).join('\n'))}</textarea>
       <div class="field-hint">Wide, cinematic artwork (like a Netflix/Disney+/Prime Video hero banner) — one URL per line, up to 6. When this title is the most recently added one, these banners appear as a scrollable row of cards under Continue Watching on Home, and the title is left out of the Recently Added row until a newer title takes its place. Leave blank and the row simply won't show for this title.</div>
     </div>
+    <div class="field">
+      <label>Featured Cutout URL <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional)</span></label>
+      <input id="f_cutout" value="${esc(fv('featuredCutout'))}" placeholder="https://... transparent PNG, subject only, no background">
+      <div class="field-hint">A transparent PNG with just the subject cut out (no background) — head/shoulders/upper body works best. When set, this image breaks out above the Featured hero card on Home instead of the automatic backdrop-crop effect, for a real cinematic cutout rather than a heuristic guess. Leave blank to keep the automatic effect. You can come back and add or change this any time from this same edit form.</div>
+    </div>
     <div class="field"><label>Logo URL <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional, shown on the detail page instead of text title)</span></label><input id="f_logo" value="${esc(fv('logo'))}" placeholder="https://..."></div>
     <div class="field"><label>Description</label><textarea id="f_desc" placeholder="Synopsis...">${esc(fv('desc','description'))}</textarea></div>
     <div class="field"><label>Awards <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional)</span></label><input id="f_awards" value="${esc(fv('awards'))}" placeholder="e.g. Won 4 Oscars"></div>
@@ -7147,6 +7154,7 @@ function saveEditModal(){
     poster: document.getElementById('f_poster').value.trim(),
     backdrop: document.getElementById('f_backdrop').value.trim(),
     panoramicBanners: document.getElementById('f_panoramic') ? document.getElementById('f_panoramic').value.split('\n').map(s=>s.trim()).filter(Boolean).slice(0,6) : [],
+    featuredCutout: document.getElementById('f_cutout') ? document.getElementById('f_cutout').value.trim() : '',
     logo: document.getElementById('f_logo') ? document.getElementById('f_logo').value.trim() : '',
     description: document.getElementById('f_desc').value.trim(),
     rating: document.getElementById('f_rating').value.trim(),
