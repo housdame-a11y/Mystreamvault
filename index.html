@@ -261,7 +261,7 @@ a{color:inherit; text-decoration:none;}
    contained cleanly inside its bounds, no escape, no cutout, still a clean result either way. A
    per-title "Featured Cutout URL" (a real transparent-PNG subject cutout, see the Add/Edit form)
    overrides all of this with actual custom artwork instead of a heuristic. */
-:root{ --featured-escape:10%; --featured-radius:14px; --featured-font:'Oswald','Inter Tight',sans-serif; }
+:root{ --featured-escape:10%; --featured-radius:14px; --featured-font:'Oswald','Inter Tight',sans-serif; --featured-top-gap:clamp(120px,18vw,208px); }
 @keyframes featuredRingPulse{
   0%,100%{box-shadow:0 24px 70px rgba(0,0,0,.55), 0 0 0 1px rgba(61,219,217,.28), 0 0 30px rgba(61,219,217,.14);}
   50%{box-shadow:0 24px 70px rgba(0,0,0,.55), 0 0 0 1px rgba(61,219,217,.42), 0 0 46px rgba(61,219,217,.22);}
@@ -285,9 +285,16 @@ a{color:inherit; text-decoration:none;}
 }
 @keyframes featuredShine{0%{transform:translateX(-140%) rotate(20deg);}100%{transform:translateX(240%) rotate(20deg);}}
 
-.featured-row{position:relative; padding:clamp(120px,18vw,208px) 0 40px;}
+.featured-row{position:relative; padding:var(--featured-top-gap) 0 40px;}
+/* BUGFIX: this box used to be height:calc(100% - 40px) — i.e. almost the entire row, right down to
+   the card's own bottom edge. Combined with align-items:flex-end, that put the actual text baseline
+   at the BOTTOM of the card's own footprint instead of in the reserved gap above it, so the giant
+   "New Movie/New Series" watermark rendered fully hidden behind the (higher z-index, opaque) card —
+   invisible even though the markup was correct. Sizing this to the same reserved gap the row's own
+   padding-top uses (plus a little overlap so the blob glow can still bleed a few px into the card's
+   top edge, exactly like the mockup) keeps the text where it's actually meant to be seen. */
 .featured-bg-text{
-  position:absolute; left:0; right:0; top:0; height:calc(100% - 40px); z-index:0;
+  position:absolute; left:0; right:0; top:0; height:calc(var(--featured-top-gap) + 56px); z-index:0;
   display:flex; align-items:flex-end; justify-content:center;
   pointer-events:none; overflow:hidden; padding:0 12px 8px;
 }
@@ -417,10 +424,11 @@ a{color:inherit; text-decoration:none;}
 }
 .featured-dot.active{background:var(--highlight); transform:scale(1.3); box-shadow:0 0 8px rgba(61,219,217,.7);}
 @media (max-width:860px){
-  .featured-row{padding:clamp(88px,28vw,132px) 0 28px;}
+  .featured-row{--featured-top-gap:clamp(88px,28vw,132px); padding:var(--featured-top-gap) 0 28px;}
   /* Was aspect-ratio:4/5 (portrait) — the actual bug behind the "looks like a poster" complaint.
      4/3 stays unambiguously landscape while giving a little extra height for stacked mobile text. */
   .featured-card{aspect-ratio:4/3; margin:0 16px; max-width:none; --featured-radius:12px;}
+  .featured-bg-text{height:calc(var(--featured-top-gap) + 34px);}
   .featured-bg-text span{font-size:clamp(48px, 19vw, 120px); letter-spacing:.01em;}
   .featured-cutout{height:122%; max-width:70%;}
   .featured-content{padding:16px 18px 18px; max-width:82%;}
