@@ -240,61 +240,91 @@ a{color:inherit; text-decoration:none;}
   .hero-nav-btn{display:none;}
 }
 
-/* ---------- Panoramic Cards (wide card variants of the same title, up to 6 in a
-   horizontally-scrollable row, plain artwork with no text overlay). Sized ~40% smaller than the
-   original pass, and given a soft glowing "this is the newest add" treatment: an ambient blurred
-   glow sits behind the whole row, and each card carries a slow-pulsing highlight ring — no badge
-   text needed, it just reads as "freshly lit up". ---------- */
-.panoramic-row{position:relative; padding:52px 0;}
-.panoramic-row::before{
-  content:''; position:absolute; left:16px; right:16px; top:36px; bottom:36px; z-index:0;
-  background:radial-gradient(ellipse at center, rgba(61,219,217,.16) 0%, rgba(61,219,217,.05) 45%, transparent 75%);
-  filter:blur(22px); pointer-events:none; animation:panoramicAmbientGlow 3.6s ease-in-out infinite;
-}
-/* Big glowing "NEW SHOW"/"NEW MOVIE" wordmark sitting behind the panoramic cards — replaces the
-   old "Just Added · Title" caption line. Transparent fill + thin colored stroke + soft text-shadow
-   reads as a lit-up neon sign; the row gets extra top/bottom padding (above) so the mark has real
-   room to sit tall behind the (much shorter) card strip instead of being squeezed to card height.
-   z-index sits between the ambient glow (0) and the cards (1). */
-.panoramic-bg-text{
+/* ---------- Featured Release (redesign of the old multi-banner "panoramic row"): ONE featured
+   card for the most-recently-added title with curated banner art, cycled via dot indicators
+   instead of a scrollable strip of separate cards. A giant low-opacity "NEW SHOW"/"NEW MOVIE"
+   wordmark sits behind it as a design element, not a caption.
+
+   ARTWORK LAYERING NOTE: true per-pixel foreground/background subject separation would need an
+   image-segmentation model (like rembg) running against the actual artwork, which isn't something
+   this static client-side app can do — no bundled segmentation model and no server round-trip for
+   it. Instead, .featured-art-bleed duplicates the top slice of the *same, unaltered* backdrop image
+   into a second layer that sits above the card edge and feathers into it via a mask gradient. It
+   never invents or regenerates pixels — same TMDB artwork, just re-cropped and re-positioned — and
+   reads as a layered/3D bleed rather than a real cutout. */
+.featured-row{position:relative; padding:64px 0 40px;}
+.featured-bg-text{
   position:absolute; inset:0; z-index:0; display:flex; align-items:center; justify-content:center;
-  pointer-events:none; overflow:hidden; padding:0 32px;
+  pointer-events:none; overflow:hidden; padding:0 24px; transition:opacity 380ms ease;
 }
-.panoramic-bg-text span{
+.featured-bg-text span{
   font-family:var(--display-font); font-weight:900; text-transform:uppercase;
-  font-size:clamp(36px, 7.5vw, 92px); letter-spacing:.04em; line-height:1;
-  color:transparent; -webkit-text-stroke:1.5px rgba(61,219,217,.55);
-  text-shadow:0 0 18px rgba(61,219,217,.55), 0 0 40px rgba(61,219,217,.3);
-  white-space:nowrap; animation:panoramicAmbientGlow 3.6s ease-in-out infinite;
+  font-size:clamp(52px, 12vw, 168px); letter-spacing:.14em; line-height:1;
+  color:var(--highlight); opacity:.1;
+  text-shadow:0 0 46px rgba(61,219,217,.5), 0 0 90px rgba(61,219,217,.25);
+  white-space:nowrap;
 }
+.featured-card{
+  position:relative; z-index:1; max-width:1040px; margin:0 auto; aspect-ratio:16/8;
+  border-radius:var(--radius); overflow:hidden; cursor:pointer; isolation:isolate;
+  box-shadow:0 24px 60px rgba(0,0,0,.5);
+}
+.featured-art{position:absolute; inset:0;}
+.featured-art-layer{position:absolute; inset:0; opacity:0; transition:opacity 420ms cubic-bezier(.4,0,.2,1);}
+.featured-art-layer.active{opacity:1;}
+.featured-art-base{width:100%; height:100%; object-fit:cover; object-position:center 32%; display:block;}
+/* The "bleed" duplicate — same background-image URL as the base <img> above, cropped to its top
+   slice, sitting partly above the card's own top edge and feathering down into it. */
+.featured-art-bleed{
+  position:absolute; left:6%; right:6%; top:-14%; height:38%;
+  background-size:cover; background-position:center top; border-radius:16px 16px 0 0;
+  -webkit-mask-image:linear-gradient(to bottom, black 45%, transparent 96%);
+  mask-image:linear-gradient(to bottom, black 45%, transparent 96%);
+  filter:drop-shadow(0 14px 22px rgba(0,0,0,.5));
+  transition:transform 420ms cubic-bezier(.4,0,.2,1);
+  pointer-events:none;
+}
+.featured-scrim{
+  position:absolute; inset:0; z-index:1;
+  background:linear-gradient(0deg, rgba(4,5,8,.92) 0%, rgba(4,5,8,.55) 42%, transparent 72%),
+             linear-gradient(90deg, rgba(4,5,8,.55) 0%, transparent 45%);
+  pointer-events:none;
+}
+.featured-content{
+  position:absolute; left:0; right:0; bottom:0; z-index:2; padding:26px 30px 30px;
+  transition:opacity 380ms ease, transform 380ms ease;
+}
+.featured-type-badge{
+  display:inline-block; background:rgba(8,9,13,.6); backdrop-filter:blur(4px);
+  color:var(--highlight); font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.08em;
+  padding:4px 10px; border-radius:20px; border:1px solid rgba(61,219,217,.3); margin-bottom:10px;
+}
+.featured-title{
+  font-family:var(--display-font); font-size:clamp(22px, 3.4vw, 34px); font-weight:800;
+  letter-spacing:.1px; margin-bottom:8px; text-shadow:0 2px 12px rgba(0,0,0,.5);
+}
+.featured-meta{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;}
+.featured-actions{display:flex; gap:10px;}
+.featured-indicators{
+  position:absolute; right:22px; bottom:22px; z-index:2; display:flex; gap:6px;
+}
+.featured-dot{
+  width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,.35);
+  border:none; transition:background var(--transition), transform var(--transition); padding:0;
+}
+.featured-dot.active{background:var(--highlight); transform:scale(1.3); box-shadow:0 0 8px rgba(61,219,217,.7);}
 @media (max-width:860px){
-  .panoramic-row{padding:36px 0;}
-  .panoramic-bg-text span{ font-size:clamp(24px,11vw,52px);}
-}
-.panoramic-row .row-track{position:relative; z-index:1;}
-.row-track .panoramic-card{
-  flex:0 0 204px; width:204px; aspect-ratio:32/9; max-height:252px; min-height:84px;
-  box-shadow:0 0 0 1.5px rgba(61,219,217,.5), 0 0 18px 1px rgba(61,219,217,.3);
-  animation:panoramicCardGlow 3.6s ease-in-out infinite;
-}
-.panoramic-card img{object-position:center 30%;}
-@keyframes panoramicAmbientGlow{
-  0%,100%{opacity:.55;}
-  50%{opacity:1;}
-}
-@keyframes panoramicCardGlow{
-  0%,100%{box-shadow:0 0 0 1.5px rgba(61,219,217,.4), 0 0 14px 1px rgba(61,219,217,.22);}
-  50%{box-shadow:0 0 0 1.5px rgba(61,219,217,.85), 0 0 24px 4px rgba(61,219,217,.5);}
+  .featured-row{padding:44px 0 28px;}
+  .featured-card{aspect-ratio:4/5; border-radius:12px; margin:0 16px; max-width:none;}
+  .featured-content{padding:20px 18px 22px;}
+  .featured-actions .btn span, .featured-actions .btn{font-size:12.5px;}
+  .featured-indicators{right:16px; bottom:16px;}
 }
 @media (prefers-reduced-motion:reduce){
-  .panoramic-row::before, .panoramic-bg-text span, .row-track .panoramic-card{animation:none;}
+  .featured-art-layer, .featured-content, .featured-bg-text span{transition:none;}
 }
-@media (hover:hover) and (pointer:fine){
-  .row-track .panoramic-card:hover{animation-play-state:paused;}
-}
-@media (max-width:860px){
-  .row-track .panoramic-card{flex-basis:47vw; width:47vw; aspect-ratio:16/9;}
-}
+body.tv-mode .featured-card{aspect-ratio:16/6;}
+body.tv-mode .featured-title{font-size:clamp(26px,3vw,40px);}
 
 /* ---------- Rows / Cards ---------- */
 .row{margin:38px 0; text-align:left;}
@@ -1959,8 +1989,13 @@ function loadSettings(){
     if(!/^#[0-9a-fA-F]{6}$/.test(s.subtitleBgColor||'')) s.subtitleBgColor = '#000000';
     if(typeof s.subtitleBgOpacity !== 'number' || isNaN(s.subtitleBgOpacity)) s.subtitleBgOpacity = 72;
     s.subtitleBgOpacity = Math.min(100, Math.max(0, s.subtitleBgOpacity));
+    // Titles removed from the TMDB Top 100 Shows/Movies collections (see COLLECTIONS section below) —
+    // kept per media type so the grid can filter them out and backfill from later pages automatically.
+    if(!s.tmdbTop100Excluded || typeof s.tmdbTop100Excluded !== 'object') s.tmdbTop100Excluded = {};
+    if(!Array.isArray(s.tmdbTop100Excluded.movie)) s.tmdbTop100Excluded.movie = [];
+    if(!Array.isArray(s.tmdbTop100Excluded.tv)) s.tmdbTop100Excluded.tv = [];
     return s;
-  }catch(e){ return {omdb:'',tmdb:'',subdl:'',vidsrcDomain:'vidsrc-embed.su', blockPopupAds:false, contentBlur:false, contentBlurLevel:'moderate', contentBlurModelUrl:'', scheduleCountry:'US', recentSearches:[], supabaseUrl:'', supabaseKey:'', playerBrightness:1, subtitleSize:'medium', subtitleColor:'#ffffff', subtitleBgColor:'#000000', subtitleBgOpacity:72}; }
+  }catch(e){ return {omdb:'',tmdb:'',subdl:'',vidsrcDomain:'vidsrc-embed.su', blockPopupAds:false, contentBlur:false, contentBlurLevel:'moderate', contentBlurModelUrl:'', scheduleCountry:'US', recentSearches:[], supabaseUrl:'', supabaseKey:'', playerBrightness:1, subtitleSize:'medium', subtitleColor:'#ffffff', subtitleBgColor:'#000000', subtitleBgOpacity:72, tmdbTop100Excluded:{movie:[],tv:[]}}; }
 }
 function saveSettings(){ localStorage.setItem(SET_KEY, JSON.stringify(state.settings)); }
 
@@ -2500,6 +2535,7 @@ function router(){
     if(epNumParam!=null && !isNaN(parseInt(epNumParam,10))) state.detailDeepLinkEpisode = parseInt(epNumParam,10);
   }
   stopHeroAutoplay();
+  stopFeaturedAutoplay();
   clearAllCardHoverTimers();
   stopMyShowsCountdown();
   renderShell();
@@ -2542,6 +2578,7 @@ function router(){
     default: root.innerHTML = renderHome();
   }
   startHeroAutoplay();
+  startFeaturedAutoplay();
   window.scrollTo({top:0});
 }
 window.addEventListener('hashchange', router);
@@ -2604,7 +2641,7 @@ function renderHome(){
   if(newSeasonHome.length) rows += cappedRowHtml('New Season Available', newSeasonHome, 'newseasonall');
   const bingeNowHome = getBingeNowItems(items);
   if(bingeNowHome.length) rows += cappedRowHtml('Binge Now', bingeNowHome, 'bingeall');
-  rows += panoramicBannerHtml(panoramicItem);
+  rows += featuredReleaseHtml(panoramicItem);
   if(favorites.length) rows += rowHtml('Favorites', favorites);
   const becauseYouLiked = getBecauseYouLikedRow(items);
   if(becauseYouLiked) rows += rowHtml(`Because You Liked "${becauseYouLiked.seed.title}"`, becauseYouLiked.items);
@@ -2642,7 +2679,7 @@ function renderTypePage(type){
     const bingeNowSeries = getBingeNowItems(items);
     if(bingeNowSeries.length) rows += cappedRowHtml('Binge Now', bingeNowSeries, 'bingeall');
   }
-  rows += panoramicBannerHtml(panoramicItem);
+  rows += featuredReleaseHtml(panoramicItem);
   rows += rowHtml('Recently Added', recentlyAddedRowItems.slice(0, GENRE_ROW_CAP));
   allGenres().forEach(g=>{
     const inGenre = recentlyAdded.filter(i=>(i.genre||[]).includes(g));
@@ -2731,30 +2768,81 @@ function hasManualPanoramicBanners(item){
   return false;
 }
 
-/* ---- Panoramic Row: up to 6 wide, panoramic-aspect cards for the same most-recently-added
-   title, living in their own horizontally-scrollable row (same row/card mechanics as the rest
-   of the app). Only rendered when that title has at least one Panoramic Banner URL set — if it
-   doesn't, the row is simply absent (it doesn't fall back to an older title), and it reappears
-   the moment a Panoramic Banner URL is added to that title. Plain art only — no per-card title,
-   genre, or Play / More Info buttons; like any other card, the whole thing is just clickable
-   through to the detail page. A big glowing "NEW SHOW"/"NEW MOVIE" wordmark sits behind the cards
-   instead of a text caption — reads as signage rather than a label, and needs no title/date since
-   it's always the newest addition of that type. ---- */
-function panoramicBannerHtml(item){
+/* ---- Featured Release: the "Just Added" redesign. One featured card for the most-recently-added
+   title with curated banner art (getPanoramicBanners), cycled through via dot indicators rather than
+   shown as separate scrollable cards. Absent entirely if that title has no banner art — never falls
+   back to an older title. See the CSS block above for the artwork-layering approach/limits. ---- */
+function featuredReleaseHtml(item){
   const banners = getPanoramicBanners(item);
   if(!banners.length) return '';
   const bgLabel = item.type==='movie' ? 'New Movie' : 'New Show';
+  const metaBits = [];
+  if(item.type==='movie'){
+    if(item.runtime) metaBits.push(esc(item.runtime));
+  } else {
+    const seasonCount = (item.seasons||[]).length;
+    if(seasonCount) metaBits.push(`${seasonCount} Season${seasonCount===1?'':'s'}`);
+  }
+  if(item.genre && item.genre.length) metaBits.push(esc(item.genre.slice(0,2).join(', ')));
+  state.featuredItem = item;
+  state.featuredIndex = 0;
   return `
-    <div class="row panoramic-row">
-      <div class="panoramic-bg-text"><span>${esc(bgLabel)}</span></div>
-      <div class="row-track">
-        ${banners.map(url => `
-        <div class="card panoramic-card" onclick="location.hash='detail/${item.id}'">
-          <img src="${esc(url)}" alt="${esc(item.title)}" draggable="false" ${contentBlurImgAttrs()}>
-          <span class="card-shine"></span>
-        </div>`).join('')}
+    <div class="row featured-row">
+      <div class="featured-bg-text"><span>${esc(bgLabel)}</span></div>
+      <div class="featured-card" id="featuredCard" onclick="featuredCardClick(event,'${item.id}')" onmouseenter="stopFeaturedAutoplay()" onmouseleave="startFeaturedAutoplay()">
+        <div class="featured-art">
+          ${banners.map((url,i)=>`
+            <div class="featured-art-layer${i===0?' active':''}" data-idx="${i}">
+              <img class="featured-art-base" src="${esc(url)}" alt="${esc(item.title)}" draggable="false" ${contentBlurImgAttrs()}>
+              <div class="featured-art-bleed" style="background-image:url('${esc(url)}')"></div>
+            </div>`).join('')}
+        </div>
+        <div class="featured-scrim"></div>
+        <div class="featured-content" id="featuredContent">
+          <span class="featured-type-badge">${item.type==='series'?'Series':'Movie'}</span>
+          <h2 class="featured-title">${esc(item.title)}</h2>
+          ${metaBits.length ? `<div class="featured-meta">${metaBits.map(m=>`<span class="tag">${m}</span>`).join('')}</div>` : ''}
+          <div class="featured-actions">
+            <button class="btn btn-primary" onclick="event.stopPropagation(); quickPlay('${item.id}')">${ICON.play} Play</button>
+            <button class="btn btn-ghost" onclick="event.stopPropagation(); toggleWatchlist('${item.id}'); featuredWatchlistBtnSync('${item.id}')">${item.watchlist?ICON.check:ICON.plus} ${item.watchlist?'On Watchlist':'Add'}</button>
+          </div>
+        </div>
+        ${banners.length>1 ? `<div class="featured-indicators">${banners.map((_,i)=>`<button type="button" class="featured-dot${i===0?' active':''}" title="Slide ${i+1}" onclick="event.stopPropagation(); setFeaturedSlide(${i})"></button>`).join('')}</div>` : ''}
       </div>
     </div>`;
+}
+let featuredAutoplayTimer = null;
+function stopFeaturedAutoplay(){ clearInterval(featuredAutoplayTimer); featuredAutoplayTimer = null; }
+function startFeaturedAutoplay(){
+  stopFeaturedAutoplay();
+  const banners = state.featuredItem ? getPanoramicBanners(state.featuredItem) : [];
+  if(banners.length<2) return;
+  featuredAutoplayTimer = setInterval(()=> setFeaturedSlide(((state.featuredIndex||0)+1) % banners.length), 5500);
+}
+// Crossfades art layers + slides/fades the content and dot indicators — the 380-420ms transitions
+// live in CSS (see .featured-art-layer / .featured-content), this just toggles the classes.
+function setFeaturedSlide(i){
+  const card = document.getElementById('featuredCard');
+  if(!card) return;
+  state.featuredIndex = i;
+  card.querySelectorAll('.featured-art-layer').forEach(el=> el.classList.toggle('active', +el.dataset.idx===i));
+  card.querySelectorAll('.featured-dot').forEach((el,idx)=> el.classList.toggle('active', idx===i));
+  const content = document.getElementById('featuredContent');
+  if(content){
+    content.style.opacity = '0'; content.style.transform = 'translateY(6px)';
+    setTimeout(()=>{ content.style.opacity = ''; content.style.transform = ''; }, 40);
+  }
+  startFeaturedAutoplay();
+}
+function featuredCardClick(e, id){ location.hash = 'detail/'+id; }
+// Keeps the featured card's own Add/Watchlist button in sync immediately after a click, without a
+// full re-render (which would also restart the art carousel).
+function featuredWatchlistBtnSync(id){
+  const item = getItem(id);
+  const card = document.getElementById('featuredCard');
+  if(!item || !card) return;
+  const btn = card.querySelector('.featured-actions .btn-ghost');
+  if(btn) btn.innerHTML = `${item.watchlist?ICON.check:ICON.plus} ${item.watchlist?'On Watchlist':'Add'}`;
 }
 
 /* ---- Hero carousel ---- */
@@ -3714,21 +3802,95 @@ async function loadTmdbTopListGrid(mediaType){
   const container = document.getElementById('tmdbTopListGrid');
   if(!container || !state.settings.tmdb) return;
   const endpoint = mediaType==='movie' ? 'movie' : 'tv';
+  // Titles the user removed from this list (see removeFromTmdbTop100 / SETTINGS > TMDB Top 100) are
+  // filtered out here, and we keep pulling further TMDB pages past the usual 5 until we've backfilled
+  // up to 100 titles again — so a removal always results in the next-best-ranked replacement, not a
+  // shorter list.
+  const excludedIds = new Set((state.settings.tmdbTop100Excluded[mediaType]||[]).map(x=>x.id));
   try{
-    const pageNums = Array.from({length:TMDB_TOP_LIST_PAGES}, (_,i)=> i+1);
-    const pages = await Promise.all(pageNums.map(p=>
-      fetch(`https://api.themoviedb.org/3/${endpoint}/top_rated?api_key=${encodeURIComponent(state.settings.tmdb)}&page=${p}`).then(r=>r.json())
-    ));
-    const results = pages
-      .flatMap(d=> d.results||[])
-      .filter(r=>r.poster_path)
-      .slice(0,100);
+    const results = [];
+    const seen = new Set();
+    const MAX_PAGES = 20; // headroom: 5 pages normally covers it, more only kick in to replace removals
+    for(let page=1; page<=MAX_PAGES && results.length<100; page++){
+      const data = await fetch(`https://api.themoviedb.org/3/${endpoint}/top_rated?api_key=${encodeURIComponent(state.settings.tmdb)}&page=${page}`).then(r=>r.json());
+      const pageResults = data.results || [];
+      if(!pageResults.length) break; // TMDB ran out of pages
+      for(const r of pageResults){
+        if(!r.poster_path || excludedIds.has(r.id) || seen.has(r.id)) continue;
+        seen.add(r.id);
+        results.push(r);
+        if(results.length>=100) break;
+      }
+    }
     if(!container.isConnected || container.dataset.mediaType!==mediaType) return;
     if(!results.length){ container.innerHTML = emptyState('Nothing to show', 'TMDB did not return any results just now.'); return; }
-    container.innerHTML = `<div class="grid-3col">${results.map(r=>externalSimilarCardHtml(r,mediaType)).join('')}</div>`;
+    container.innerHTML = `<div class="grid-3col">${results.map(r=>tmdbTopListCardHtml(r,mediaType)).join('')}</div>`;
   }catch(e){
     if(container.isConnected) container.innerHTML = emptyState('Could not load Top 100', 'Check your connection or TMDB API key and try again.');
   }
+}
+// Same visual as externalSimilarCardHtml() but with a hover "remove" button (reusing the .card-remove
+// pattern from Continue Watching) so a title can be taken out of the Top 100 list directly. Removing
+// one records it in state.settings.tmdbTop100Excluded and reloads the grid, which pulls the next
+// best-ranked, not-yet-excluded title in from later TMDB pages — an automatic replacement.
+function tmdbTopListCardHtml(tmdbItem, mediaType){
+  const title = mediaType==='tv' ? tmdbItem.name : tmdbItem.title;
+  const year = ((mediaType==='tv' ? tmdbItem.first_air_date : tmdbItem.release_date)||'').split('-')[0];
+  const poster = tmdbItem.poster_path ? `https://image.tmdb.org/t/p/w342${tmdbItem.poster_path}` : '';
+  const titleJs = esc(title).replace(/'/g,"&#39;");
+  return `
+    <div class="card" onclick="quickAddFromTmdb(${tmdbItem.id}, '${mediaType}')" title="Add to your library">
+      ${poster ? `<img src="${esc(poster)}" alt="" loading="lazy" ${contentBlurImgAttrs()}>` : fallbackHtml(title)}
+      <span class="card-badge">${mediaType==='tv'?'Series':'Movie'}</span>
+      <button type="button" class="card-remove" title="Remove from Top 100" onclick="event.stopPropagation(); removeFromTmdbTop100('${mediaType}', ${tmdbItem.id}, '${titleJs}', '${esc(year||'')}', '${esc(tmdbItem.poster_path||'')}')">${ICON.close}</button>
+      <div class="card-overlay">
+        <div class="card-play" style="background:var(--highlight);">${ICON.plus}</div>
+        <div class="card-title">${esc(title)}</div>
+        <div class="card-meta">${esc(year||'')}${year?' • ':''}Add to library</div>
+      </div>
+    </div>`;
+}
+// Removes a title from the live TMDB Top 100 Shows/Movies list. Persisted to settings (not just this
+// session) and mirrored in Settings > TMDB Top 100, where it can be restored individually or in bulk.
+function removeFromTmdbTop100(mediaType, id, title, year, posterPath){
+  if(!state.settings.tmdbTop100Excluded) state.settings.tmdbTop100Excluded = {movie:[], tv:[]};
+  const list = state.settings.tmdbTop100Excluded[mediaType] || (state.settings.tmdbTop100Excluded[mediaType]=[]);
+  if(!list.some(x=>x.id===id)) list.push({id, title, year, poster_path:posterPath});
+  saveSettings();
+  toast(`Removed "${title}" — replaced automatically`);
+  loadTmdbTopListGrid(mediaType);
+}
+// Settings > TMDB Top 100 "Restore" action — puts a previously-removed title back into contention the
+// next time that Top 100 list loads.
+function restoreTmdbTop100Item(mediaType, id){
+  const list = state.settings.tmdbTop100Excluded[mediaType]||[];
+  state.settings.tmdbTop100Excluded[mediaType] = list.filter(x=>x.id!==id);
+  saveSettings(); router(); toast('Restored to Top 100');
+}
+function restoreAllTmdbTop100(mediaType){
+  const list = state.settings.tmdbTop100Excluded[mediaType]||[];
+  if(!list.length) return;
+  if(!confirm(`Restore all ${list.length} removed ${mediaType==='movie'?'movies':'shows'}?`)) return;
+  state.settings.tmdbTop100Excluded[mediaType] = [];
+  saveSettings(); router(); toast('Restored all');
+}
+// Renders the Settings > TMDB Top 100 rows for one media type, reusing the Manage Library row markup.
+function tmdbTop100SettingsRowsHtml(mediaType){
+  const list = state.settings.tmdbTop100Excluded[mediaType]||[];
+  if(!list.length) return `<div class="manage-lib-empty">Nothing removed from ${mediaType==='movie'?'Top 100 Movies':'Top 100 Shows'}.</div>`;
+  return list.map(x=>{
+    const poster = x.poster_path ? `https://image.tmdb.org/t/p/w92${x.poster_path}` : '';
+    return `<div class="manage-lib-row">
+      <div class="manage-lib-poster">${poster ? `<img src="${esc(poster)}" alt="" loading="lazy" onload="this.classList.add('loaded')">` : fallbackHtml(x.title||'')}</div>
+      <div class="manage-lib-info">
+        <div class="manage-lib-title">${esc(x.title||'Untitled')}</div>
+        <div class="manage-lib-meta">${esc(x.year||'')}</div>
+      </div>
+      <div class="manage-lib-actions">
+        <button type="button" class="btn btn-ghost" onclick="restoreTmdbTop100Item('${mediaType}', ${x.id})">${ICON.restart} Restore</button>
+      </div>
+    </div>`;
+  }).join('');
 }
 function createCollection(){
   const name = prompt('Collection name:');
@@ -5063,6 +5225,24 @@ function renderSettings(){
         <div class="manage-lib-rows" id="manageLibResults">
           <div class="manage-lib-empty">Start typing a title to find it.</div>
         </div>
+        </div>
+      </div>
+      <div class="settings-section${settingsSectionClass('tmdbTop100')}" data-section="tmdbTop100">
+        <h3 onclick="toggleSettingsSection('tmdbTop100')"><span class="settings-title-text">TMDB Top 100</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
+        <div class="settings-section-body">
+        <p class="field-hint" style="margin-bottom:14px;">
+          Titles removed from the <a href="#collections/top100movies">TMDB Top 100 Movies</a> or <a href="#collections/top100shows">TMDB Top 100 Shows</a> collections (hover a card there and tap the ✕) show up here. Removing one always pulls in the next best-ranked title to fill its spot — restore a title below to send it back into contention.
+        </p>
+        <div class="settings-row" style="margin-bottom:8px; justify-content:space-between; align-items:center;">
+          <span class="toggle-row-label">Movies (${(state.settings.tmdbTop100Excluded.movie||[]).length} removed)</span>
+          <button class="btn btn-ghost" onclick="restoreAllTmdbTop100('movie')">Restore All</button>
+        </div>
+        <div class="manage-lib-rows">${tmdbTop100SettingsRowsHtml('movie')}</div>
+        <div class="settings-row" style="margin:18px 0 8px; justify-content:space-between; align-items:center;">
+          <span class="toggle-row-label">Shows (${(state.settings.tmdbTop100Excluded.tv||[]).length} removed)</span>
+          <button class="btn btn-ghost" onclick="restoreAllTmdbTop100('tv')">Restore All</button>
+        </div>
+        <div class="manage-lib-rows">${tmdbTop100SettingsRowsHtml('tv')}</div>
         </div>
       </div>
       <div class="settings-section${settingsSectionClass('subtitles')}" data-section="subtitles">
