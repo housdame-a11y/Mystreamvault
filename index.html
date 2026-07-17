@@ -247,21 +247,19 @@ a{color:inherit; text-decoration:none;}
    on the card itself, an animated sparkle "New Movie/New Series" badge, an optional title logo image
    (falls back to styled text), a dot-separated meta row, and a short description line.
 
-   ARTWORK NOTE: true per-pixel foreground/background subject separation would need an actual
-   image-segmentation model (e.g. rembg) run against the artwork, which this static client-side app
-   has no way to do (no bundled model, no server round-trip). So this does NOT attempt a real cutout,
-   and — critically — does NOT duplicate the artwork into a second copy either. Each banner is a
-   SINGLE <img> (.featured-art-img) sized taller than the card and shifted up by --featured-escape,
-   so the same continuous picture simply continues past the card's top edge instead of stopping at
-   it. The card-inner wrapper clips/rounds only the bottom of that image (where the real card
-   boundary is); the escaping sliver above it fades out via a mask gradient instead of a hard edge.
-   Because it's one element, one URL, one paint, there is no seam and nothing is shown twice.
-   If this reads as an awkward crop for a given title's artwork, turn off "Featured Artwork Bleed"
-   in Settings (state.settings.featuredArtworkBleed) — the card then simply shows the artwork
-   contained cleanly inside its bounds, no escape, no cutout, still a clean result either way. A
-   per-title "Featured Cutout URL" (a real transparent-PNG subject cutout, see the Add/Edit form)
-   overrides all of this with actual custom artwork instead of a heuristic. */
-:root{ --featured-escape:10%; --featured-radius:14px; --featured-font:'Oswald','Inter Tight',sans-serif; --featured-top-gap:clamp(120px,18vw,208px); }
+   ARTWORK NOTE: an earlier version of this card tried to bleed the real backdrop photo up past the
+   card's top edge (masked only on the top/bottom edge) to fill the reserved typography zone. That
+   heuristic is gone now — real photographic content only fades cleanly on a mask along one axis, so
+   its left/right edges stayed hard vertical cuts, which read as a floating rectangle stamped over the
+   glow text instead of blending into it (exactly the "backdrop is getting outside the card" problem).
+   The reference mockup never bled real artwork above the card at all — both of its states keep the
+   photo fully contained inside the card, with only the blurred blob-glow + outline text living above
+   it. Artwork is now always clipped to the card's own rounded bounds; the "Featured Artwork Bleed"
+   setting is kept (for any saved user preference) but no longer changes anything visually, since both
+   states now render the same clean, fully-contained result. A per-title "Featured Cutout URL" (a real
+   transparent-PNG subject cutout) still overrides this with actual custom artwork that pokes above the
+   card intentionally, since that's real segmented art, not a hard photo rectangle. */
+:root{ --featured-radius:14px; --featured-font:'Oswald','Inter Tight',sans-serif; --featured-top-gap:clamp(120px,18vw,208px); }
 @keyframes featuredRingPulse{
   0%,100%{box-shadow:0 24px 70px rgba(0,0,0,.55), 0 0 0 1px rgba(61,219,217,.28), 0 0 30px rgba(61,219,217,.14);}
   50%{box-shadow:0 24px 70px rgba(0,0,0,.55), 0 0 0 1px rgba(61,219,217,.42), 0 0 46px rgba(61,219,217,.22);}
@@ -286,18 +284,6 @@ a{color:inherit; text-decoration:none;}
 @keyframes featuredShine{0%{transform:translateX(-140%) rotate(20deg);}100%{transform:translateX(240%) rotate(20deg);}}
 
 .featured-row{position:relative; padding:var(--featured-top-gap) 0 40px;}
-/* BUGFIX: this box used to be height:calc(100% - 40px) — i.e. almost the entire row, right down to
-   the card's own bottom edge. Combined with align-items:flex-end, that put the actual text baseline
-   at the BOTTOM of the card's own footprint instead of in the reserved gap above it, so the giant
-   "New Movie/New Series" watermark rendered fully hidden behind the (higher z-index, opaque) card —
-   invisible even though the markup was correct. Sizing this to the same reserved gap the row's own
-   padding-top uses (plus a little overlap so the blob glow can still bleed a few px into the card's
-   top edge, exactly like the mockup) keeps the text where it's actually meant to be seen. */
-.featured-bg-text{
-  position:absolute; left:0; right:0; top:0; height:calc(var(--featured-top-gap) + 56px); z-index:0;
-  display:flex; align-items:flex-end; justify-content:center;
-  pointer-events:none; overflow:hidden; padding:0 12px 8px;
-}
 /* Two blurred, slowly-morphing organic blobs behind the giant type — an ambient aurora-glow instead
    of a flat box-shadow. Masked to fade out toward the bottom so they melt into the card rather than
    ending in a hard edge. */
@@ -314,14 +300,28 @@ a{color:inherit; text-decoration:none;}
   width:42%; height:104%; background:radial-gradient(circle, rgba(120,235,220,.3) 0%, rgba(61,219,217,.11) 50%, transparent 75%);
   animation:featuredBlobB 11s ease-in-out infinite; animation-delay:-3.5s;
 }
-/* Huge outline (not filled) type behind the card — the "visual identity" of this section. Fill is
-   transparent with a semi-opaque cyan stroke (not a low-opacity block), matching the reference
-   mockup — visible as a bold watermark, not a barely-there hint. */
-.featured-bg-text span{
+/* ONE instance of the giant outline type, living INSIDE the card (not as a separate box that sits
+   before it) so it can paint over the card's own artwork/scrim as a translucent watermark — visible
+   continuously from the reserved gap above the card all the way down through it to the card's bottom
+   edge, instead of stopping at the top like before. top:calc(-1 * gap) extends the box upward by the
+   same reserved space .featured-row already sets aside via padding-top; bottom:0 anchors it to the
+   card's own bottom edge, so align-items:flex-end plants the text's baseline exactly there. transform:
+   scaleY stretches the glyphs taller without widening them (so letters don't blow out past the card's
+   width) — a real "stretched watermark" rather than just a bigger font. z-index sits above the
+   scrim/artwork (1) but below the actual title/buttons/badge (2/3), and is inserted before them in the
+   markup, so real UI content always paints on top and stays readable. mix-blend-mode:screen keeps it
+   reading as a light glass-like overlay rather than a solid block stamped over the actors' faces. */
+.featured-watermark{
+  position:absolute; left:0; right:0; bottom:0; top:calc(-1 * var(--featured-top-gap)); z-index:2;
+  display:flex; align-items:flex-end; justify-content:center;
+  pointer-events:none; overflow:hidden; padding:0 12px 4%; mix-blend-mode:screen;
+}
+.featured-watermark span{
   position:relative; font-family:var(--featured-font); font-weight:700; text-transform:uppercase;
-  font-size:clamp(80px, 18vw, 260px); letter-spacing:.02em; line-height:1;
-  color:transparent; -webkit-text-stroke:2px rgba(61,219,217,.85); text-stroke:2px rgba(61,219,217,.85);
-  white-space:nowrap; animation:featuredTextGlow 4.5s ease-in-out infinite;
+  font-size:clamp(70px, 15vw, 220px); letter-spacing:.02em; line-height:1;
+  color:transparent; -webkit-text-stroke:2px rgba(61,219,217,.7); text-stroke:2px rgba(61,219,217,.7);
+  white-space:nowrap; transform:scaleY(2.6); transform-origin:center bottom;
+  animation:featuredTextGlow 4.5s ease-in-out infinite;
 }
 /* Outer wrapper is deliberately NOT clipped (overflow:visible) so the artwork can bleed above the
    card's top edge. .featured-card-inner below is the piece that actually gets the rounded corners
@@ -331,32 +331,19 @@ a{color:inherit; text-decoration:none;}
   overflow:visible; cursor:pointer; isolation:isolate; border-radius:var(--featured-radius);
   animation:featuredRingPulse 3.2s ease-in-out infinite;
 }
-.featured-art{position:absolute; left:0; right:0; bottom:0; top:calc(-1 * var(--featured-escape)); z-index:0;}
+.featured-art{position:absolute; inset:0; z-index:0;}
 .featured-art-layer{position:absolute; inset:0; opacity:0; transition:opacity 420ms cubic-bezier(.4,0,.2,1);}
 .featured-art-layer.active{opacity:1;}
 /* The single continuous image, contained (not zoomed past what cover requires) so the backdrop's
    full composition survives. object-position is biased only slightly toward the top of the source
    frame — just enough that a vertical crop favors heads/shoulders over empty sky/set — without the
-   aggressive crop a portrait-shaped container used to force. */
+   aggressive crop a portrait-shaped container used to force. Always clipped to the card's own rounded
+   bounds — see the ARTWORK NOTE above for why this no longer bleeds past the card's top edge. */
 .featured-art-img{
   width:100%; height:100%; object-fit:cover; object-position:center 22%; display:block;
+  clip-path:inset(0 round var(--featured-radius));
   filter:drop-shadow(0 16px 26px rgba(0,0,0,.45));
 }
-/* Rounds only the bottom two corners (the card's real corners) — the top of the image is the
-   escaping sliver, which has no "corner" of its own, just the fade below. */
-.featured-card.bleed-on .featured-art-img{
-  clip-path:inset(0 round 0 0 var(--featured-radius) var(--featured-radius));
-  -webkit-mask-image:linear-gradient(to bottom, transparent 0%, #000 calc(var(--featured-escape) + 3%), #000 100%);
-  mask-image:linear-gradient(to bottom, transparent 0%, #000 calc(var(--featured-escape) + 3%), #000 100%);
-}
-/* Bleed disabled (Settings toggle, or as a manual per-title fallback): artwork stays fully inside
-   the card, no escape, no mask — a clean, ordinary cover image. Also forced whenever a custom
-   Featured Cutout is set (.has-cutout below) — the cutout becomes the one and only breakout element,
-   so the backdrop itself never bleeds too. That avoids ever stacking two escaping images. */
-.featured-card.bleed-off .featured-art{top:0;}
-.featured-card.bleed-off .featured-art-img{clip-path:inset(0 round var(--featured-radius));}
-.featured-card.has-cutout .featured-art{top:0;}
-.featured-card.has-cutout .featured-art-img{clip-path:inset(0 round var(--featured-radius));}
 /* Custom cutout: a transparent PNG (subject only, no background) supplied per-title in the Add/Edit
    Title form (Featured Cutout URL). Anchored to the card's bottom-center and sized taller than the
    card so the top of it (head/shoulders) pokes above the card into the giant-typography zone — real
@@ -428,8 +415,7 @@ a{color:inherit; text-decoration:none;}
   /* Was aspect-ratio:4/5 (portrait) — the actual bug behind the "looks like a poster" complaint.
      4/3 stays unambiguously landscape while giving a little extra height for stacked mobile text. */
   .featured-card{aspect-ratio:4/3; margin:0 16px; max-width:none; --featured-radius:12px;}
-  .featured-bg-text{height:calc(var(--featured-top-gap) + 34px);}
-  .featured-bg-text span{font-size:clamp(48px, 19vw, 120px); letter-spacing:.01em;}
+  .featured-watermark span{font-size:clamp(48px, 14vw, 130px); letter-spacing:.01em;}
   .featured-cutout{height:122%; max-width:70%;}
   .featured-content{padding:16px 18px 18px; max-width:82%;}
   .featured-logo{max-width:180px; max-height:44px;}
@@ -450,7 +436,7 @@ a{color:inherit; text-decoration:none;}
 }
 @media (prefers-reduced-motion:reduce){
   .featured-art-layer, .featured-content{transition:none;}
-  .featured-card, .featured-bg-text span, .featured-bg-blob, .featured-new-badge::after{animation:none;}
+  .featured-card, .featured-watermark span, .featured-bg-blob, .featured-new-badge::after{animation:none;}
 }
 body.tv-mode .featured-card{aspect-ratio:16/9;}
 body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
@@ -2935,10 +2921,6 @@ function featuredReleaseHtml(item){
   const titleJsSafe = esc(item.title).replace(/'/g,"&#39;");
   return `
     <div class="row featured-row">
-      <div class="featured-bg-text">
-        <div class="featured-bg-blob a"></div><div class="featured-bg-blob b"></div>
-        <span>${esc(bgLabel)}</span>
-      </div>
       <div class="featured-card ${bleedClass} ${cutoutClass}" id="featuredCard" onclick="featuredCardClick(event,'${item.id}')" onmouseenter="stopFeaturedAutoplay()" onmouseleave="startFeaturedAutoplay()">
         <div class="featured-art">
           ${banners.map((url,i)=>`
@@ -2948,6 +2930,10 @@ function featuredReleaseHtml(item){
         </div>
         <div class="featured-card-inner">
           <div class="featured-scrim"></div>
+        </div>
+        <div class="featured-watermark">
+          <div class="featured-bg-blob a"></div><div class="featured-bg-blob b"></div>
+          <span>${esc(bgLabel)}</span>
         </div>
         ${item.featuredCutout ? `<div class="featured-cutout"><img src="${esc(item.featuredCutout)}" alt="" draggable="false" ${contentBlurImgAttrs()}></div>` : ''}
         <div class="featured-new-badge">${ICON.sparkles}<span>${item.type==='series'?'New Series':'New Movie'}</span></div>
