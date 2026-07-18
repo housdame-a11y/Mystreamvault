@@ -206,7 +206,7 @@ a{color:inherit; text-decoration:none;}
 .hero-track{display:flex; height:100%; transition:transform .65s cubic-bezier(.65,0,.35,1); cursor:grab; touch-action:pan-y;}
 .hero-track.dragging{transition:none; cursor:grabbing;}
 .hero-slide{position:relative; flex:0 0 100%; width:100%; height:100%; display:flex; align-items:flex-end; cursor:pointer;}
-.hero-slide img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.6;}
+.hero-slide > img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.6;}
 .hero-slide::after{
   content:''; position:absolute; inset:0;
   background:linear-gradient(0deg, var(--bg) 2%, rgba(8,9,13,.45) 42%, rgba(8,9,13,.1) 100%),
@@ -214,12 +214,33 @@ a{color:inherit; text-decoration:none;}
 }
 .hero-content{position:relative; z-index:2; padding:44px; max-width:600px;}
 .hero-badge{
+  position:absolute; top:20px; left:20px; z-index:3;
   display:inline-flex; align-items:center; gap:6px; background:var(--highlight-dim); color:var(--highlight);
   font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
-  padding:5px 11px; border-radius:20px; margin-bottom:16px; border:1px solid rgba(61,219,217,.25);
+  padding:5px 11px; border-radius:20px; border:1px solid rgba(61,219,217,.25);
+  backdrop-filter:blur(6px);
+}
+@media (max-width:860px){
+  .hero-badge{top:14px; left:14px;}
 }
 .hero-content h2{font-family:var(--display-font); font-size:44px; font-weight:900; margin-bottom:12px; line-height:1.05; letter-spacing:-.01em; text-shadow:0 4px 24px rgba(0,0,0,.5);}
-.hero-logo{max-width:420px; max-height:130px; width:auto; height:auto; object-fit:contain; display:block; margin-bottom:16px; filter:drop-shadow(0 4px 24px rgba(0,0,0,.5));}
+/* The logo <img> only gets max-width/max-height, no intrinsic size — until it finishes loading, the
+   browser doesn't know how tall it is, so nothing reserves its space. That let the badge/description/
+   buttons render as if there were no logo, then the logo would pop in at full size the instant it
+   loaded, shoving everything below it down — overlapping content, shifting the button row, and (since
+   .hero-carousel clips overflow) sometimes pushing the bottom of the content block out of view
+   entirely. .hero-logo-slot reserves the logo's full max-height up front (matched per breakpoint
+   below) so that space exists from the very first paint, and bottom-aligns the image within it once it
+   does load — no jump, no overlap. */
+.hero-logo-slot{min-height:130px; margin-bottom:16px; display:flex; align-items:flex-end;}
+/* min-width:0 and min-height:0 are essential here, not decorative: as a flex item (child of the
+   flex-display .hero-logo-slot above), this <img> otherwise gets a default automatic minimum size
+   equal to its own intrinsic/natural dimensions — which silently wins over max-width/max-height,
+   letting the logo render at full original size (often hundreds of pixels wide) instead of shrinking
+   to fit. .hero-carousel's overflow:hidden then clips that oversized image, which is what produced
+   the giant, cut-off, misplaced-looking logo. Zeroing out the automatic minimum lets max-width/
+   max-height actually govern the size again. */
+.hero-logo{max-width:420px; max-height:130px; width:auto; height:auto; min-width:0; min-height:0; object-fit:contain; display:block; filter:drop-shadow(0 4px 24px rgba(0,0,0,.5));}
 .hero-content p{color:#c7d5d3; font-size:15px; line-height:1.6; margin-bottom:22px; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;}
 .hero-btns{display:flex; gap:12px;}
 .hero-btns .btn{position:relative; z-index:3;}
@@ -259,60 +280,94 @@ a{color:inherit; text-decoration:none;}
    states now render the same clean, fully-contained result. A per-title "Featured Cutout URL" (a real
    transparent-PNG subject cutout) still overrides this with actual custom artwork that pokes above the
    card intentionally, since that's real segmented art, not a hard photo rectangle. */
-:root{ --featured-radius:14px; --featured-font:'Oswald','Inter Tight',sans-serif; --featured-top-gap:clamp(120px,18vw,208px); }
+:root{ --featured-radius:14px; --featured-font:'Oswald','Inter Tight',sans-serif; --featured-top-gap:clamp(48px,7vw,90px); }
 @keyframes featuredRingPulse{
   0%,100%{box-shadow:0 24px 70px rgba(0,0,0,.55), 0 0 0 1px rgba(61,219,217,.28), 0 0 30px rgba(61,219,217,.14);}
   50%{box-shadow:0 24px 70px rgba(0,0,0,.55), 0 0 0 1px rgba(61,219,217,.42), 0 0 46px rgba(61,219,217,.22);}
 }
-@keyframes featuredTextGlow{
-  0%,100%{text-shadow:0 0 60px rgba(61,219,217,.5), 0 0 110px rgba(61,219,217,.26);}
-  50%{text-shadow:0 0 76px rgba(61,219,217,.62), 0 0 140px rgba(61,219,217,.34);}
+@keyframes featuredShine{
+  0%{transform:translateX(-160%) rotate(20deg);}
+  16%{transform:translateX(240%) rotate(20deg);}
+  100%{transform:translateX(240%) rotate(20deg);}
 }
-@keyframes featuredBlobA{
-  0%{border-radius:42% 58% 65% 35% / 45% 40% 60% 55%; transform:translate(-50%,-50%) rotate(0deg) scale(1);}
-  25%{border-radius:58% 42% 38% 62% / 55% 65% 35% 45%; transform:translate(-46%,-54%) rotate(9deg) scale(1.1);}
-  50%{border-radius:50% 50% 62% 38% / 40% 58% 42% 60%; transform:translate(-54%,-47%) rotate(-6deg) scale(.94);}
-  75%{border-radius:65% 35% 45% 55% / 58% 45% 55% 42%; transform:translate(-48%,-52%) rotate(5deg) scale(1.06);}
-  100%{border-radius:42% 58% 65% 35% / 45% 40% 60% 55%; transform:translate(-50%,-50%) rotate(0deg) scale(1);}
+/* Breathing glow on the cyan panel, same 3.2s cadence as the card's own featuredRingPulse so the
+   panel and the card read as one light source pulsing together rather than two unrelated effects. */
+@keyframes featuredRectPulse{
+  0%,100%{opacity:.88; box-shadow:0 0 46px 8px rgba(61,219,217,.22);}
+  50%{opacity:1; box-shadow:0 0 76px 16px rgba(61,219,217,.4);}
 }
-@keyframes featuredBlobB{
-  0%{border-radius:60% 40% 35% 65% / 50% 60% 40% 50%; transform:translate(-50%,-50%) rotate(0deg) scale(1.05);}
-  33%{border-radius:40% 60% 55% 45% / 62% 38% 62% 38%; transform:translate(-56%,-45%) rotate(-10deg) scale(.9);}
-  66%{border-radius:55% 45% 60% 40% / 42% 55% 45% 58%; transform:translate(-44%,-56%) rotate(7deg) scale(1.12);}
-  100%{border-radius:60% 40% 35% 65% / 50% 60% 40% 50%; transform:translate(-50%,-50%) rotate(0deg) scale(1.05);}
+/* Very slow side-to-side drift — a few px each way — applied separately to line 1 and line 5 (the
+   two actually-visible big lines; lines 2-4 stay hidden) in inverse phase, so the two lines drift
+   apart and back together rather than moving as one static block. Same duration/easing keeps them
+   perfectly mirrored. */
+@keyframes featuredLine1Drift{
+  0%,100%{transform:translateX(-6px);}
+  50%{transform:translateX(6px);}
 }
-@keyframes featuredShine{0%{transform:translateX(-140%) rotate(20deg);}100%{transform:translateX(240%) rotate(20deg);}}
+@keyframes featuredLine2Drift{
+  0%,100%{transform:translateY(-3px) translateX(6px);}
+  50%{transform:translateY(-3px) translateX(-6px);}
+}
 
-.featured-row{position:relative; padding:var(--featured-top-gap) 0 40px;}
+.featured-row{position:relative; padding:var(--featured-top-gap) 0 40px; margin-top:0;}
+/* Giant outline "New Movie / New Show" watermark, repeated 5x (the original + 4 duplicates) in a
+   single vertical stack that sits fully BEHIND the card (z-index:0, same as before, vs. the card's
+   z-index:1) — never in normal document flow, never pushing the card down. All five copies share one
+   flex `gap`, so the spacing between the original and the first duplicate is identical to the spacing
+   between every other pair in the stack. The whole stack is clipped to the row's own bounds so nothing
+   spills out past the top/bottom of the featured section. Only the original (.featured-bg-text) keeps
+   the radial-gradient mask fade; the duplicates (.featured-bg-text-dup) render at full, unfaded
+   opacity. */
+/* Blue panel behind the poster (z-index:0, same layer as the watermark stack, below the card's
+   z-index:1), sized/positioned via JS (positionFeaturedBgRect) to run from 2px below line 1 to 2px
+   above line 5, spanning the row's full width edge-to-edge. Comes before .featured-bg-text-stack in the
+   DOM so the repeated watermark text still renders on top of it. */
+.featured-bg-rect{
+  position:absolute; left:0; right:0; z-index:0; background:#3ddbd9; pointer-events:none;
+  overflow:hidden; animation:featuredRectPulse 3.2s ease-in-out infinite;
+}
+.featured-bg-rect::after{
+  content:''; position:absolute; top:-40%; left:-60%; width:35%; height:180%;
+  background:linear-gradient(120deg, transparent, rgba(255,255,255,.55), transparent);
+  animation:featuredShine 7s ease-in-out infinite; animation-delay:1.5s; pointer-events:none;
+}
+.featured-bg-text-stack{
+  position:absolute; left:0; right:0; top:0; bottom:0; z-index:0; display:flex; flex-direction:column; align-items:center;
+  justify-content:flex-start; gap:0; pointer-events:none; overflow:hidden;
+}
 .featured-bg-text{
-  position:absolute; left:0; right:0; top:0; height:calc(var(--featured-top-gap) + 56px); z-index:0;
-  display:flex; align-items:flex-end; justify-content:center;
-  pointer-events:none; overflow:hidden; padding:0 12px 8px;
+  position:relative; flex-shrink:0; width:100%; height:calc(var(--featured-top-gap) + 40px);
+  display:flex; align-items:flex-end; justify-content:center; overflow:hidden; padding:0 12px;
+  -webkit-mask-image:radial-gradient(ellipse 62% 88% at 50% 68%, #000 40%, rgba(0,0,0,.45) 68%, transparent 100%);
+  mask-image:radial-gradient(ellipse 62% 88% at 50% 68%, #000 40%, rgba(0,0,0,.45) 68%, transparent 100%);
+  animation:featuredLine1Drift 14s ease-in-out infinite;
 }
-/* Two blurred, slowly-morphing organic blobs behind the giant type — an ambient aurora-glow instead
-   of a flat box-shadow. Masked to fade out toward the bottom so they melt into the card rather than
-   ending in a hard edge. */
-.featured-bg-blob{
-  position:absolute; top:52%; left:50%; pointer-events:none; mix-blend-mode:screen; filter:blur(34px);
-  -webkit-mask-image:linear-gradient(to bottom, transparent 0%, rgba(0,0,0,.2) 30%, rgba(0,0,0,.6) 50%, #000 70%);
-  mask-image:linear-gradient(to bottom, transparent 0%, rgba(0,0,0,.2) 30%, rgba(0,0,0,.6) 50%, #000 70%);
+.featured-bg-text-dup{
+  position:relative; flex-shrink:0; width:100%; display:flex; align-items:center; justify-content:center;
+  overflow:hidden; padding:0 12px; margin-top:-0.62em;
 }
-.featured-bg-blob.a{
-  width:56%; height:120%; background:radial-gradient(circle, rgba(61,219,217,.4) 0%, rgba(61,219,217,.16) 45%, transparent 72%);
-  animation:featuredBlobA 9s ease-in-out infinite;
+/* Mirrors the original's fade (which is anchored low, at 50% 68%, so it's solid near its top and
+   fades toward its bottom/edges) — this one is anchored high, at 50% 32%, so it's solid near its
+   bottom and fades toward its top/edges instead. Bookends the stack with matching-but-opposite fades
+   on the first and last lines. */
+.featured-bg-text-dup--last{
+  -webkit-mask-image:radial-gradient(ellipse 62% 88% at 50% 32%, #000 40%, rgba(0,0,0,.45) 68%, transparent 100%);
+  mask-image:radial-gradient(ellipse 62% 88% at 50% 32%, #000 40%, rgba(0,0,0,.45) 68%, transparent 100%);
+  transform:translateY(-3px);
+  animation:featuredLine2Drift 14s ease-in-out infinite;
 }
-.featured-bg-blob.b{
-  width:42%; height:104%; background:radial-gradient(circle, rgba(120,235,220,.3) 0%, rgba(61,219,217,.11) 50%, transparent 75%);
-  animation:featuredBlobB 11s ease-in-out infinite; animation-delay:-3.5s;
-}
-/* Huge outline (not filled) type behind the card — the "visual identity" of this section. Fill is
-   transparent with a semi-opaque cyan stroke (not a low-opacity block), matching the reference
-   mockup — visible as a bold watermark, not a barely-there hint. */
-.featured-bg-text span{
+/* Keeps the exact same box height/position in the stack (so line 1 and line 5 don't shift) while
+   rendering no visible text — used to "remove" lines 2/3/4 without disturbing layout. */
+.featured-bg-text-dup--hidden span{ visibility:hidden; }
+.featured-bg-text span, .featured-bg-text-dup span{
   position:relative; font-family:var(--featured-font); font-weight:700; text-transform:uppercase;
   font-size:clamp(80px, 18vw, 260px); letter-spacing:.02em; line-height:1;
   color:transparent; -webkit-text-stroke:2px rgba(61,219,217,.85); text-stroke:2px rgba(61,219,217,.85);
-  white-space:nowrap; animation:featuredTextGlow 4.5s ease-in-out infinite;
+  white-space:nowrap;
+}
+@media (max-width:860px){
+  .featured-bg-text-stack{gap:0;}
+  .featured-bg-text span, .featured-bg-text-dup span{font-size:clamp(48px, 19vw, 120px); letter-spacing:.01em;}
 }
 /* Outer wrapper is deliberately NOT clipped (overflow:visible) so the artwork can bleed above the
    card's top edge. .featured-card-inner below is the piece that actually gets the rounded corners
@@ -320,7 +375,18 @@ a{color:inherit; text-decoration:none;}
 .featured-card{
   position:relative; z-index:1; max-width:1040px; margin:0 auto; aspect-ratio:16/9;
   overflow:visible; cursor:pointer; isolation:isolate; border-radius:var(--featured-radius);
-  animation:featuredRingPulse 3.2s ease-in-out infinite;
+  animation:featuredRingPulse 3.2s ease-in-out infinite, featuredCardReveal 550ms cubic-bezier(.22,1,.36,1) forwards;
+}
+/* Simple fade+rise entrance (no 3D) when a new featured item mounts, then JS swaps this out for a
+   slow continuous float once it finishes (see the 'animationend' listener near CARD_HOVER_CAPABLE) so
+   the card just gently bobs up and down forever afterward instead of sitting completely still. */
+@keyframes featuredCardReveal{
+  0%{opacity:0; transform:translateY(34px) scale(.97);}
+  100%{opacity:1; transform:translateY(0) scale(1);}
+}
+@keyframes featuredCardFloat{
+  0%,100%{transform:translateY(0);}
+  50%{transform:translateY(-9px);}
 }
 .featured-art{position:absolute; inset:0; z-index:0;}
 .featured-art-layer{position:absolute; inset:0; opacity:0; transition:opacity 420ms cubic-bezier(.4,0,.2,1);}
@@ -344,7 +410,15 @@ a{color:inherit; text-decoration:none;}
   position:absolute; left:50%; bottom:0; transform:translateX(-50%); height:128%; max-width:56%;
   z-index:1; display:flex; align-items:flex-end; justify-content:center; pointer-events:none;
 }
-.featured-cutout img{height:100%; width:auto; max-width:100%; object-fit:contain; display:block; pointer-events:auto; filter:drop-shadow(0 18px 34px rgba(0,0,0,.55));}
+.featured-cutout img{
+  height:100%; width:auto; max-width:100%; object-fit:contain; display:block; pointer-events:auto;
+  filter:drop-shadow(0 18px 34px rgba(0,0,0,.55));
+  animation:featuredCutoutReveal 500ms cubic-bezier(.22,1,.36,1) forwards;
+}
+@keyframes featuredCutoutReveal{
+  0%{opacity:0; transform:translateY(30px) scale(.95);}
+  100%{opacity:1; transform:translateY(0) scale(1);}
+}
 .featured-card-inner{
   position:absolute; inset:0; z-index:1; border-radius:var(--featured-radius); overflow:hidden;
   pointer-events:none;
@@ -354,21 +428,6 @@ a{color:inherit; text-decoration:none;}
   background:linear-gradient(90deg, rgba(3,4,7,.92) 0%, rgba(3,4,7,.55) 45%, transparent 78%),
              linear-gradient(0deg, rgba(3,4,7,.5) 0%, transparent 40%);
   pointer-events:none;
-}
-/* Sparkly "New Movie / New Show" pill, top-left — an animated light sweep behind the label, echoing
-   the giant type's cyan glow at a much smaller, informational scale. */
-.featured-new-badge{
-  position:absolute; left:20px; top:18px; z-index:3; display:flex; align-items:center; gap:5px;
-  background:rgba(5,7,10,.6); color:var(--highlight); font-size:11px; font-weight:800; letter-spacing:.08em;
-  text-transform:uppercase; padding:6px 14px; border-radius:20px; border:1px solid rgba(61,219,217,.4);
-  overflow:hidden; pointer-events:none;
-}
-.featured-new-badge svg{width:13px; height:13px; flex-shrink:0;}
-.featured-new-badge span{position:relative; z-index:1;}
-.featured-new-badge::after{
-  content:''; position:absolute; top:0; left:0; width:30%; height:100%;
-  background:linear-gradient(120deg, transparent, rgba(255,255,255,.35), transparent);
-  animation:featuredShine 5s ease-in-out infinite;
 }
 /* Bounded width keeps title/meta/buttons hugging the lower-left corner like a Netflix/Apple TV hero
    card, instead of stretching edge-to-edge across the whole card. max-height + overflow:hidden is a
@@ -402,11 +461,19 @@ a{color:inherit; text-decoration:none;}
 }
 .featured-dot.active{background:var(--highlight); transform:scale(1.3); box-shadow:0 0 8px rgba(61,219,217,.7);}
 @media (max-width:860px){
-  .featured-row{--featured-top-gap:clamp(88px,28vw,132px); padding:var(--featured-top-gap) 0 28px;}
+  .featured-row{--featured-top-gap:clamp(34px,11vw,56px); padding:var(--featured-top-gap) 0 28px;}
+  /* .featured-row lives inside .page, which has its own left/right padding — so the rect's left:0/
+     right:0 (set on .featured-bg-rect near the top of this file) only reaches the row's own edges,
+     still inset from the actual screen edge by that padding. This "full-bleed" trick re-anchors the
+     rect to the viewport itself instead of its padded parent: left:50% + translateX(-50%) centers a
+     100vw-wide box on the viewport's own center, so it reaches both physical edges regardless of how
+     much padding sits between .featured-row and the screen — exactly what an edge-to-edge phone
+     display needs. Scoped to mobile only; desktop keeps the rect matching the row's own bounds. */
+  .featured-bg-rect{left:50%; right:auto; width:100vw; transform:translateX(-50%);}
   /* Was aspect-ratio:4/5 (portrait) — the actual bug behind the "looks like a poster" complaint.
      4/3 stays unambiguously landscape while giving a little extra height for stacked mobile text. */
   .featured-card{aspect-ratio:4/3; margin:0 16px; max-width:none; --featured-radius:12px;}
-  .featured-bg-text{height:calc(var(--featured-top-gap) + 34px);}
+  .featured-bg-text{height:calc(var(--featured-top-gap) + 22px);}
   .featured-bg-text span{font-size:clamp(48px, 19vw, 120px); letter-spacing:.01em;}
   .featured-cutout{height:122%; max-width:70%;}
   .featured-content{padding:16px 18px 18px; max-width:82%;}
@@ -414,7 +481,6 @@ a{color:inherit; text-decoration:none;}
   .featured-title{font-size:clamp(19px,5vw,26px);}
   .featured-desc{max-width:none; -webkit-line-clamp:2;}
   .featured-actions .btn span, .featured-actions .btn{font-size:12.5px;}
-  .featured-new-badge{left:14px; top:12px; padding:5px 11px; font-size:10px;}
   .featured-indicators{right:16px; bottom:16px;}
 }
 @media (max-width:480px){
@@ -428,16 +494,28 @@ a{color:inherit; text-decoration:none;}
 }
 @media (prefers-reduced-motion:reduce){
   .featured-art-layer, .featured-content{transition:none;}
-  .featured-card, .featured-bg-text span, .featured-bg-blob, .featured-new-badge::after{animation:none;}
+  .featured-card{animation:none;}
+  .featured-bg-rect, .featured-bg-rect::after, .featured-bg-text, .featured-bg-text-dup--last{animation:none;}
+  .featured-cutout img{animation:none;}
 }
 body.tv-mode .featured-card{aspect-ratio:16/9;}
 body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
 
 /* ---------- Rows / Cards ---------- */
 .row{margin:38px 0; text-align:left;}
+/* Cheap visual rhythm break: on a page that can stack Continue Watching, Featured, New Season,
+   Favorites, Because You Liked, Recently Added, several genre rows and Binge Now back to back,
+   every 4th row gets a hairline + extra breathing room so the eye has a place to "reset" on a
+   long scroll instead of every row reading as one continuous, undifferentiated list. */
+.row:nth-of-type(4n){margin-top:54px; padding-top:30px; border-top:1px solid rgba(255,255,255,.06);}
 .row-head{display:flex; align-items:center; justify-content:space-between; padding:0 32px; margin-bottom:16px; text-align:left;}
-.row-head h3{font-size:18px; font-weight:800; font-family:var(--display-font); letter-spacing:.1px; position:relative; padding-left:14px;}
+.row-head h3{font-size:18px; font-weight:800; font-family:var(--display-font); letter-spacing:.1px; position:relative; padding-left:14px; display:flex; align-items:center; gap:8px;}
 .row-head h3::before{content:''; position:absolute; left:0; top:2px; bottom:2px; width:3px; border-radius:2px; background:linear-gradient(180deg, var(--highlight), var(--primary));}
+.row-head-icon{
+  display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; width:22px; height:22px;
+  border-radius:7px; background:var(--highlight-dim); color:var(--highlight); border:1px solid rgba(61,219,217,.25);
+}
+.row-head-icon svg{width:12px; height:12px;}
 .row-track{display:flex; justify-content:flex-start; gap:16px; overflow-x:auto; padding:8px 32px 22px 32px; scroll-behavior:smooth;}
 .row-track::-webkit-scrollbar{display:none;}
 
@@ -584,6 +662,34 @@ body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
 .card:hover .card-play{transform:scale(1.1);}
 .card-title{font-size:12.5px; font-weight:700; line-height:1.3; margin-bottom:2px;}
 .card-meta{font-size:10.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+
+/* ---------- Continue Watching: landscape variant ----------
+   Poster cards (2:3, 190px) work for "browse and discover" rows, but for "what was I watching"
+   a landscape thumbnail reads faster — it's what the title actually looked like on screen, not
+   its poster art. The image lives in .card-landscape-media (its own positioned box, so the
+   existing .card-badge/.card-remove/.card-progress absolute-position rules anchor to the
+   thumbnail rather than the whole tile); title + next-episode meta sit underneath, always
+   visible rather than hover-only, since landscape tiles don't have the vertical room for a
+   convincing overlay treatment. */
+.card.card-landscape{
+  flex:0 0 240px; width:240px; aspect-ratio:auto; display:flex; flex-direction:column;
+  background:none; border:none; border-radius:0; overflow:visible;
+}
+.card-landscape-media{
+  position:relative; aspect-ratio:16/9; border-radius:10px; overflow:hidden;
+  background:var(--surface); border:1px solid #191c26;
+}
+.card-landscape-play{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center; opacity:0;
+  background:linear-gradient(0deg, rgba(5,6,9,.5) 0%, rgba(5,6,9,.05) 60%, transparent 100%);
+  transition:opacity var(--transition);
+}
+.card-landscape:hover .card-landscape-play{opacity:1;}
+.card-landscape-play .card-play{margin-bottom:0;}
+.card-landscape-info{padding-top:9px;}
+@media (max-width:860px){
+  .card.card-landscape{flex:0 0 210px; width:210px;}
+}
 
 .empty-state{
   text-align:center; padding:90px 24px; color:var(--muted);
@@ -1806,7 +1912,8 @@ kbd.key{
   .hero-carousel{margin:14px 16px 0 16px; height:50vh;}
   .hero-content{padding:22px;}
   .hero-content h2{font-size:26px;}
-  .hero-logo{max-width:240px; max-height:78px; margin-bottom:12px;}
+  .hero-logo-slot{min-height:78px; margin-bottom:12px;}
+  .hero-logo{max-width:240px; max-height:78px;}
   .detail-backdrop{margin:14px 16px;}
   .detail-body{padding:0 16px;}
   .row-head, .row-track, .episode-list{padding-left:16px; padding-right:16px;}
@@ -1875,6 +1982,7 @@ body.tv-mode .topbar h1 { font-size: 30px; }
 body.tv-mode .page { padding: 0 48px; }
 body.tv-mode .hero-carousel { margin: 24px 48px 12px 48px; height: 58vh; }
 body.tv-mode .hero-content h2 { font-size: 52px; }
+body.tv-mode .hero-logo-slot { min-height: 156px; }
 body.tv-mode .hero-logo { max-width: 500px; max-height: 156px; }
 body.tv-mode .hero-content p { font-size: 17px; }
 body.tv-mode .hero-btns .btn { padding: 16px 32px; font-size: 16px; }
@@ -2383,6 +2491,16 @@ function posterEl(item, cls){
   }
   return fallbackHtml(item.title);
 }
+// Landscape counterpart to posterEl — prefers the backdrop (what the show/movie actually looks
+// like on screen), falling back to the poster, then the letter tile, so Continue Watching still
+// renders something sensible for titles that were only ever given a poster.
+function backdropEl(item){
+  const src = item.backdrop || item.poster;
+  if(src){
+    return `<img src="${esc(src)}" alt="" loading="lazy" ${contentBlurImgAttrs()} onerror="this.parentElement.innerHTML=fallbackHtml('${esc(item.title).replace(/'/g,"&#39;")}')">`;
+  }
+  return fallbackHtml(item.title);
+}
 function fallbackHtml(title){
   const letter = (title||'?').trim().charAt(0).toUpperCase() || '?';
   return `<div class="poster-fallback">${esc(letter)}</div>`;
@@ -2698,6 +2816,7 @@ function router(){
   }
   startHeroAutoplay();
   startFeaturedAutoplay();
+  setTimeout(positionFeaturedBgRect, 0);
   window.scrollTo({top:0});
 }
 window.addEventListener('hashchange', router);
@@ -2758,10 +2877,10 @@ function renderHome(){
   if(continueWatching.length) rows += rowHtml('Continue Watching', continueWatching, {removable:true});
   rows += featuredReleaseHtml(panoramicItem);
   const newSeasonHome = getNewSeasonItems(items);
-  if(newSeasonHome.length) rows += cappedRowHtml('New Season Available', newSeasonHome, 'newseasonall');
+  if(newSeasonHome.length) rows += cappedRowHtml('New Season Available', newSeasonHome, 'newseasonall', ICON.bell);
   if(favorites.length) rows += rowHtml('Favorites', favorites);
   const becauseYouLiked = getBecauseYouLikedRow(items);
-  if(becauseYouLiked) rows += rowHtml(`Because You Liked "${becauseYouLiked.seed.title}"`, becauseYouLiked.items);
+  if(becauseYouLiked) rows += rowHtml(`Because You Liked "${becauseYouLiked.seed.title}"`, becauseYouLiked.items, {icon: ICON.sparkles});
   rows += rowHtml('Recently Added', recentlyAddedRowItems.slice(0, GENRE_ROW_CAP));
   allGenres().forEach(g=>{
     const inGenre = recentlyAdded.filter(i=>(i.genre||[]).includes(g));
@@ -2795,7 +2914,7 @@ function renderTypePage(type){
   rows += featuredReleaseHtml(panoramicItem);
   if(type==='series'){
     const newSeasonSeries = getNewSeasonItems(items);
-    if(newSeasonSeries.length) rows += cappedRowHtml('New Season Available', newSeasonSeries, 'newseasonall');
+    if(newSeasonSeries.length) rows += cappedRowHtml('New Season Available', newSeasonSeries, 'newseasonall', ICON.bell);
   }
   rows += rowHtml('Recently Added', recentlyAddedRowItems.slice(0, GENRE_ROW_CAP));
   allGenres().forEach(g=>{
@@ -2913,9 +3032,15 @@ function featuredReleaseHtml(item){
   const titleJsSafe = esc(item.title).replace(/'/g,"&#39;");
   return `
     <div class="row featured-row">
-      <div class="featured-bg-text">
-        <div class="featured-bg-blob a"></div><div class="featured-bg-blob b"></div>
-        <span>${esc(bgLabel)}</span>
+      <div class="featured-bg-rect" id="featuredBgRect"></div>
+      <div class="featured-bg-text-stack">
+        <div class="featured-bg-text">
+          <span>${esc(bgLabel)}</span>
+        </div>
+        <div class="featured-bg-text-dup featured-bg-text-dup--hidden"><span>${esc(bgLabel)}</span></div>
+        <div class="featured-bg-text-dup featured-bg-text-dup--hidden"><span>${esc(bgLabel)}</span></div>
+        <div class="featured-bg-text-dup featured-bg-text-dup--hidden"><span>${esc(bgLabel)}</span></div>
+        <div class="featured-bg-text-dup featured-bg-text-dup--last"><span>${esc(bgLabel)}</span></div>
       </div>
       <div class="featured-card ${bleedClass} ${cutoutClass}" id="featuredCard" onclick="featuredCardClick(event,'${item.id}')" onmouseenter="stopFeaturedAutoplay()" onmouseleave="startFeaturedAutoplay()">
         <div class="featured-art">
@@ -2928,7 +3053,6 @@ function featuredReleaseHtml(item){
           <div class="featured-scrim"></div>
         </div>
         ${item.featuredCutout ? `<div class="featured-cutout"><img src="${esc(item.featuredCutout)}" alt="" draggable="false" ${contentBlurImgAttrs()}></div>` : ''}
-        <div class="featured-new-badge">${ICON.sparkles}<span>${esc(bgLabel)}</span></div>
         <div class="featured-content" id="featuredContent">
           ${item.logo
             ? `<img class="featured-logo" src="${esc(item.logo)}" alt="${esc(item.title)}" ${contentBlurImgAttrs()} onerror="this.replaceWith(Object.assign(document.createElement('h2'),{className:'featured-title',textContent:'${titleJsSafe}'}))">`
@@ -2937,7 +3061,7 @@ function featuredReleaseHtml(item){
           ${item.description ? `<p class="featured-desc">${esc(item.description)}</p>` : ''}
           <div class="featured-actions">
             <button class="btn btn-primary" onclick="event.stopPropagation(); quickPlay('${item.id}')">${ICON.play} Play</button>
-            <button class="btn btn-ghost" onclick="event.stopPropagation(); toggleWatchlist('${item.id}'); featuredWatchlistBtnSync('${item.id}')">${item.watchlist?ICON.check:ICON.plus} ${item.watchlist?'On Watchlist':'Add'}</button>
+            <button class="btn btn-ghost" onclick="event.stopPropagation(); openTrailerModal('${item.id}')">${ICON.play} Trailer</button>
           </div>
         </div>
         ${banners.length>1 ? `<div class="featured-indicators">${banners.map((_,i)=>`<button type="button" class="featured-dot${i===0?' active':''}" title="Slide ${i+1}" onclick="event.stopPropagation(); setFeaturedSlide(${i})"></button>`).join('')}</div>` : ''}
@@ -2946,6 +3070,36 @@ function featuredReleaseHtml(item){
 }
 let featuredAutoplayTimer = null;
 function stopFeaturedAutoplay(){ clearInterval(featuredAutoplayTimer); featuredAutoplayTimer = null; }
+/* Positions/sizes .featured-bg-rect so it starts 2px below line 1's bottom edge and ends 2px above
+   line 5's top edge, then insets both edges inward by the SAME amount (5% of that full span each) so
+   the rectangle shrinks 10% total while staying perfectly centered between the two lines — the gap
+   above the rectangle (to line 1) and the gap below it (to line 5) are always equal by construction,
+   since both start from the same symmetric 2px baseline and get the same inset subtracted. Horizontal
+   sizing is handled by CSS (left:0; right:0 — full row width), so this only needs the vertical span.
+   Re-run on render and on resize since line 1/line 5's real pixel positions depend on responsive
+   font-size clamps. */
+function positionFeaturedBgRect(){
+  const rectEl = document.getElementById('featuredBgRect');
+  const row = document.querySelector('.featured-row');
+  if(!rectEl || !row) return;
+  const line1 = row.querySelector('.featured-bg-text span');
+  const line5 = row.querySelector('.featured-bg-text-dup--last span');
+  if(!line1 || !line5) return;
+  const rowRect = row.getBoundingClientRect();
+  const r1 = line1.getBoundingClientRect();
+  const r5 = line5.getBoundingClientRect();
+  const fullTop = (r1.bottom - rowRect.top) + 2;
+  const fullBottom = (r5.top - rowRect.top) - 2;
+  const fullHeight = fullBottom - fullTop;
+  const inset = fullHeight * 0.05; // same inset applied to both edges → gaps stay equal
+  const extraTopInset = fullHeight * 0.06;
+  const extraBottomInset = fullHeight * 0.04;
+  const rectTop = fullTop + inset + extraTopInset;
+  const rectBottom = fullBottom - inset - extraBottomInset;
+  rectEl.style.top = rectTop + 'px';
+  rectEl.style.height = Math.max(0, rectBottom - rectTop) + 'px';
+}
+window.addEventListener('resize', ()=> positionFeaturedBgRect());
 function startFeaturedAutoplay(){
   stopFeaturedAutoplay();
   const banners = state.featuredItem ? getPanoramicBanners(state.featuredItem) : [];
@@ -2968,15 +3122,6 @@ function setFeaturedSlide(i){
   startFeaturedAutoplay();
 }
 function featuredCardClick(e, id){ location.hash = 'detail/'+id; }
-// Keeps the featured card's own Add/Watchlist button in sync immediately after a click, without a
-// full re-render (which would also restart the art carousel).
-function featuredWatchlistBtnSync(id){
-  const item = getItem(id);
-  const card = document.getElementById('featuredCard');
-  if(!item || !card) return;
-  const btn = card.querySelector('.featured-actions .btn-ghost');
-  if(btn) btn.innerHTML = `${item.watchlist?ICON.check:ICON.plus} ${item.watchlist?'On Watchlist':'Add'}`;
-}
 
 /* ---- Hero carousel ---- */
 let heroAutoplayTimer = null;
@@ -3008,10 +3153,10 @@ function heroSlideHtml(item){
   return `
     <div class="hero-slide" onclick="heroSlideClick('${item.id}')">
       ${item.backdrop ? `<img src="${esc(item.backdrop)}" alt="" draggable="false" ${contentBlurImgAttrs()}>` : ''}
+      <span class="hero-badge">${item.type==='series'?'Series':'Movie'}</span>
       <div class="hero-content">
-        <span class="hero-badge">${item.type==='series'?'Series':'Movie'}</span>
         ${item.logo
-          ? `<img class="hero-logo" src="${esc(item.logo)}" alt="${esc(item.title)}" ${contentBlurImgAttrs()} onerror="this.replaceWith(Object.assign(document.createElement('h2'),{textContent:'${titleJsSafe}'}))">`
+          ? `<div class="hero-logo-slot"><img class="hero-logo" src="${esc(item.logo)}" alt="${esc(item.title)}" ${contentBlurImgAttrs()} onerror="const h2=Object.assign(document.createElement('h2'),{textContent:'${titleJsSafe}'}); (this.closest('.hero-logo-slot')||this).replaceWith(h2);"></div>`
           : `<h2>${esc(item.title)}</h2>`}
         <p>${esc(item.description||'No description added yet.')}</p>
         <div class="hero-btns">
@@ -3080,10 +3225,13 @@ function updateHeroTrack(){
 
 function rowHtml(title, items, opts){
   opts = opts || {};
+  const cardsHtml = opts.removable
+    ? items.map(i=>continueWatchingCardHtml(i)).join('')
+    : items.map(i=>cardHtml(i, opts)).join('');
   return `
     <div class="row">
-      <div class="row-head"><h3>${esc(title)}</h3></div>
-      <div class="row-track">${items.map(i=>cardHtml(i, opts)).join('')}</div>
+      <div class="row-head"><h3>${opts.icon ? `<span class="row-head-icon">${opts.icon}</span>` : ''}${esc(title)}</h3></div>
+      <div class="row-track">${cardsHtml}</div>
     </div>`;
 }
 
@@ -3091,7 +3239,7 @@ function rowHtml(title, items, opts){
 // the 10th tile becomes a "See All" card linking to a page with the full list. If there are 10 or
 // fewer titles, they're all shown as-is (no See All tile needed since nothing is hidden).
 const GENRE_ROW_CAP = 10;
-function cappedRowHtml(title, items, seeAllHref){
+function cappedRowHtml(title, items, seeAllHref, icon){
   let cardsHtml;
   if(items.length > GENRE_ROW_CAP){
     const shown = items.slice(0, GENRE_ROW_CAP-1);
@@ -3101,7 +3249,7 @@ function cappedRowHtml(title, items, seeAllHref){
   }
   return `
     <div class="row">
-      <div class="row-head"><h3>${esc(title)}</h3></div>
+      <div class="row-head"><h3>${icon ? `<span class="row-head-icon">${icon}</span>` : ''}${esc(title)}</h3></div>
       <div class="row-track">${cardsHtml}</div>
     </div>`;
 }
@@ -3127,18 +3275,7 @@ function isNew(item){
 function cardHtml(item, opts){
   opts = opts || {};
   const pct = item.type==='movie' ? movieProgressPct(item) : itemProgressPct(item);
-  // On the Continue Watching row specifically (opts.removable is only ever set there), a TV show's
-  // card swaps its normal year/genre meta line for the actual next episode — "S2 · E5 — Title" —
-  // since "what do I watch next" is the whole point of that row, and the generic meta line already
-  // answers a question the person isn't asking once a show is mid-watch.
-  let metaHtml = `${esc(item.year||'')}${item.genre&&item.genre.length?' • '+esc(item.genre[0]):''}`;
-  if(opts.removable && item.type==='series'){
-    const summary = getWatchProgressSummary(item);
-    if(summary && summary.next){
-      const epTitle = summary.next.episode.title;
-      metaHtml = `S${summary.next.season} · E${summary.next.episode.number}${epTitle ? ' — '+esc(epTitle) : ''}`;
-    }
-  }
+  const metaHtml = `${esc(item.year||'')}${item.genre&&item.genre.length?' • '+esc(item.genre[0]):''}`;
   return `
     <div class="card" onclick="location.hash='detail/${item.id}'" onmouseenter="cardHoverStart(event,'${item.id}')" onmouseleave="cardHoverEnd(event,'${item.id}')">
       ${posterEl(item)}
@@ -3147,7 +3284,6 @@ function cardHtml(item, opts){
       ${isNew(item) ? `<span class="card-new">New</span>` : ''}
       ${item.watchlist ? `<span class="card-watchlist-badge" title="On your watchlist">${ICON.watchlist}</span>` : ''}
       <button type="button" class="card-favorite-btn ${item.favorite?'is-fav':''}" data-fav-id="${item.id}" title="${item.favorite?'Remove from Favorites':'Add to Favorites'}" onclick="event.stopPropagation(); toggleFavorite('${item.id}')">${heartSvg(!!item.favorite)}</button>
-      ${opts.removable ? `<button type="button" class="card-remove" title="Remove from Continue Watching" onclick="event.stopPropagation(); removeFromContinueWatching('${item.id}')">${ICON.close}</button>` : ''}
       <div class="card-overlay">
         <div class="card-play" onclick="event.stopPropagation(); quickPlay('${item.id}')">${ICON.play}</div>
         <div class="card-title">${esc(item.title)}</div>
@@ -3172,8 +3308,46 @@ function removeFromContinueWatching(id){
   }});
 }
 
+// Landscape tile used only by the Continue Watching row (see .card-landscape in CSS for why).
+// The onmouseenter/onmouseleave trailer-preview hooks live on .card-landscape-media rather than
+// the outer tile, so a hovered trailer fills just the thumbnail and doesn't stretch under the
+// always-visible title/meta text below it.
+function continueWatchingCardHtml(item){
+  const pct = item.type==='movie' ? movieProgressPct(item) : itemProgressPct(item);
+  let metaHtml = `${esc(item.year||'')}${item.genre&&item.genre.length?' • '+esc(item.genre[0]):''}`;
+  if(item.type==='series'){
+    const summary = getWatchProgressSummary(item);
+    if(summary && summary.next){
+      const epTitle = summary.next.episode.title;
+      metaHtml = `S${summary.next.season} · E${summary.next.episode.number}${epTitle ? ' — '+esc(epTitle) : ''}`;
+    }
+  }
+  return `
+    <div class="card card-landscape" onclick="location.hash='detail/${item.id}'">
+      <div class="card-landscape-media" onmouseenter="cardHoverStart(event,'${item.id}')" onmouseleave="cardHoverEnd(event,'${item.id}')">
+        ${backdropEl(item)}
+        <span class="card-shine"></span>
+        <span class="card-badge">${item.type==='series'?'Series':'Movie'}</span>
+        <button type="button" class="card-remove" title="Remove from Continue Watching" onclick="event.stopPropagation(); removeFromContinueWatching('${item.id}')">${ICON.close}</button>
+        <div class="card-landscape-play" onclick="event.stopPropagation(); quickPlay('${item.id}')"><div class="card-play">${ICON.play}</div></div>
+        ${pct>0 ? `<div class="card-progress"><div style="width:${pct}%"></div></div>` : ''}
+      </div>
+      <div class="card-landscape-info">
+        <div class="card-title">${esc(item.title)}</div>
+        <div class="card-meta">${metaHtml}</div>
+      </div>
+    </div>`;
+}
+
 /* ---- Card tilt (mouse) / tap-shine (touch) ---- */
 const CARD_HOVER_CAPABLE = window.matchMedia('(hover:hover) and (pointer:fine)').matches;
+// Once the Featured Release card's one-shot entrance finishes, swap it for a continuous gentle float
+// so the card keeps quietly moving afterward instead of sitting completely still.
+document.addEventListener('animationend', e=>{
+  if(e.animationName === 'featuredCardReveal' && e.target && e.target.id === 'featuredCard'){
+    e.target.style.animation = 'featuredRingPulse 3.2s ease-in-out infinite, featuredCardFloat 5s ease-in-out infinite';
+  }
+});
 if(CARD_HOVER_CAPABLE){
   document.addEventListener('pointermove', e=>{
     const card = e.target.closest && e.target.closest('.card');
