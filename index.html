@@ -2751,6 +2751,7 @@ function renderShell(){
     ${navHtml}
     <div style="flex:1"></div>
     <button class="btn btn-primary btn-icon-only" style="justify-content:center" title="Add Title" onclick="openEditModal()">${ICON.plus}</button>
+    <button class="btn btn-ghost btn-icon-only" style="justify-content:center" title="Bulk Import from IMDb" onclick="openBulkImdbImport()">${ICON.link}</button>
   `;
   document.getElementById('bottomNav').innerHTML = navHtml;
 
@@ -2758,6 +2759,7 @@ function renderShell(){
   let topActions = '';
   if(['home','movies','series'].includes(state.route)){
     topActions += `<button class="btn btn-primary btn-icon-only" title="Add Title" onclick="openEditModal()">${ICON.plus}</button>`;
+    topActions += `<button class="btn btn-ghost btn-icon-only" title="Bulk Import from IMDb" onclick="openBulkImdbImport()">${ICON.link}</button>`;
   } else if(state.route==='live'){
     topActions += `<button class="btn btn-primary btn-icon-only" title="Add Channel" onclick="openChannelModal()">${ICON.plus}</button>`;
   }
@@ -7211,6 +7213,238 @@ async function importFromImdb(){
   }finally{
     setBtnState('Import', false);
   }
+}
+
+/* =========================================================
+   BULK IMPORT FROM IMDb
+   ---------------------------------------------------------
+   Lets you paste many IMDb links/IDs (or a JSON array/blob containing them) at once. Each one goes
+   through the exact same OMDb + TMDB lookups importFromImdb() uses for a single title — same
+   endpoints, same field derivation, same season/episode shape — just without touching the edit
+   modal's DOM/state.edit* draft, since nothing here is being edited by hand. Streaming links for
+   every item this produces are still generated at playback time from item.imdbId exactly like any
+   title added one at a time (see DYNAMIC STREAMING PROVIDER, below the player section) — nothing
+   about how sources are produced changes for bulk-added titles.
+========================================================= */
+// Headless twin of applyTmdbDetails(): same TMDB endpoints and same field derivation, but returns
+// a plain data object instead of writing into the edit modal's DOM fields / state.edit* draft.
+async function fetchTmdbDetailsHeadless(tmdbId, tmdbType){
+  const key = state.settings.tmdb;
+  const ratingsAppend = tmdbType==='movie' ? 'release_dates' : 'content_ratings';
+  const detailsRes = await fetch(`https://api.themoviedb.org/3/${tmdbType}/${tmdbId}?api_key=${encodeURIComponent(key)}&append_to_response=credits,videos,images,${ratingsAppend}&include_image_language=en,null`);
+  const d = await detailsRes.json();
+  if(d.success===false) throw new Error(d.status_message || 'TMDB lookup failed');
+
+  const title = tmdbType==='movie' ? d.title : d.name;
+  const dateVal = tmdbType==='movie' ? d.release_date : d.first_air_date;
+  const year = dateVal ? dateVal.split('-')[0] : '';
+  const poster = d.poster_path ? `https://image.tmdb.org/t/p/w780${d.poster_path}` : '';
+  const backdrop = d.backdrop_path ? `https://image.tmdb.org/t/p/w1280${d.backdrop_path}` : '';
+  const genre = (d.genres||[]).map(g=>g.name);
+  const rating = d.vote_average ? d.vote_average.toFixed(1) : '';
+  const runtimeMinutes = tmdbType==='movie' ? d.runtime : (d.episode_run_time && d.episode_run_time[0]);
+  const runtime = runtimeMinutes ? `${runtimeMinutes} min` : '';
+  const description = d.overview || '';
+  const tagline = d.tagline || '';
+  const actors = ((d.credits && d.credits.cast) || []).slice(0,10).map(c=>c.name);
+  const cast = ((d.credits && d.credits.cast) || []).slice(0,10).map(c=>({name:c.name, character:c.character||'', photo:c.profile_path?`https://image.tmdb.org/t/p/w185${c.profile_path}`:''}));
+  const director = tmdbType==='movie'
+    ? ((d.credits && d.credits.crew) || []).filter(c=>c.job==='Director').map(c=>c.name).join(', ')
+    : ((d.created_by||[]).map(c=>c.name).join(', '));
+  let contentRating = '';
+  if(tmdbType==='movie' && d.release_dates && d.release_dates.results){
+    const us = d.release_dates.results.find(r=>r.iso_3166_1==='US');
+    const cert = us && (us.release_dates||[]).map(rd=>rd.certification).find(c=>c);
+    if(cert) contentRating = cert;
+  } else if(tmdbType==='tv' && d.content_ratings && d.content_ratings.results){
+    const us = d.content_ratings.results.find(r=>r.iso_3166_1==='US');
+    if(us && us.rating) contentRating = us.rating;
+  }
+  let tvStatus = '', nextEpisodeInfo = null;
+  if(tmdbType==='tv'){
+    tvStatus = d.status || '';
+    if(d.next_episode_to_air){
+      nextEpisodeInfo = {
+        season: d.next_episode_to_air.season_number, episode: d.next_episode_to_air.episode_number,
+        name: d.next_episode_to_air.name || '', airDate: d.next_episode_to_air.air_date || ''
+      };
+    }
+  }
+  const logos = (d.images && d.images.logos) || [];
+  const bestLogo = logos.find(l=>l.iso_639_1==='en') || logos[0];
+  const logo = bestLogo ? `https://image.tmdb.org/t/p/original${bestLogo.file_path}` : '';
+  const videos = ((d.videos && d.videos.results) || []).filter(v=>v.site==='YouTube');
+  const trailerVid = videos.find(v=>v.type==='Trailer' && v.official) || videos.find(v=>v.type==='Trailer') || videos.find(v=>v.type==='Teaser') || videos[0];
+
+  let seasons = [], seasonCount = 0, episodeCount = 0;
+  if(tmdbType==='tv' && Array.isArray(d.seasons)){
+    const realSeasons = d.seasons.filter(s=>s.season_number>0);
+    for(const s of realSeasons){
+      try{
+        const seasonRes = await fetch(`https://api.themoviedb.org/3/tv/${tmdbId}/season/${s.season_number}?api_key=${encodeURIComponent(key)}`);
+        const seasonJson = await seasonRes.json();
+        const episodes = (seasonJson.episodes||[]).map(e=>({
+          number: e.episode_number, title: e.name || `Episode ${e.episode_number}`,
+          thumbnail: e.still_path ? `https://image.tmdb.org/t/p/w300${e.still_path}` : '',
+          overview: e.overview || '', runtime: e.runtime || null, airDate: e.air_date || '',
+          tmdbRating: e.vote_average || 0, myRating: 0, sources: []
+        }));
+        seasons.push({number: s.season_number, poster: seasonJson.poster_path ? `https://image.tmdb.org/t/p/w300${seasonJson.poster_path}` : '', overview: seasonJson.overview || '', episodes});
+        episodeCount += episodes.length;
+      }catch(e){ /* skip a season that fails to load rather than aborting the whole import */ }
+    }
+    seasonCount = seasons.length;
+  }
+
+  return {
+    tmdbId, trailerKey: trailerVid ? trailerVid.key : '', seasons, seasonCount, episodeCount,
+    fields: { title, year, poster, backdrop, logo, genre, rating, runtime, description, tagline, director, contentRating, actors, cast, tvStatus, nextEpisodeInfo }
+  };
+}
+// Headless twin of importFromImdb(): same OMDb + TMDB lookups, same "TMDB first, OMDb fills the
+// gaps" merge order, but builds and returns a plain item payload instead of writing into the edit
+// modal. Throws with a message identifying the IMDb ID on any failure, so the caller can attribute
+// it in the results list.
+async function buildLibraryItemFromImdb(imdbId){
+  const omdbRes = await fetch(`https://www.omdbapi.com/?i=${encodeURIComponent(imdbId)}&plot=full&apikey=${encodeURIComponent(state.settings.omdb)}`);
+  const omdb = await omdbRes.json();
+  if(omdb.Response==='False') throw new Error(`${imdbId}: ${omdb.Error || 'not found on OMDb'}`);
+  const type = omdb.Type==='series' ? 'series' : 'movie';
+  const tmdbType = type==='series' ? 'tv' : 'movie';
+
+  const findRes = await fetch(`https://api.themoviedb.org/3/find/${imdbId}?api_key=${encodeURIComponent(state.settings.tmdb)}&external_source=imdb_id`);
+  const find = await findRes.json();
+  if(find.success===false) throw new Error(`${imdbId}: TMDB error — ${find.status_message||'request failed'}`);
+  const results = tmdbType==='movie' ? find.movie_results : find.tv_results;
+  const tmdbMatch = results && results[0];
+
+  const payload = { type, imdbId, genre:[], actors:[] };
+  let info = null;
+  if(tmdbMatch){
+    info = await fetchTmdbDetailsHeadless(tmdbMatch.id, tmdbType);
+    Object.assign(payload, info.fields);
+    if(type==='series') payload.seasons = info.seasons;
+  } else {
+    if(omdb.Genre) payload.genre = omdb.Genre.split(',').map(g=>g.trim()).filter(Boolean);
+    if(omdb.Actors && omdb.Actors!=='N/A') payload.actors = omdb.Actors.split(',').map(a=>a.trim()).filter(Boolean);
+  }
+
+  // Fill in anything TMDB left blank (or wasn't available at all) using OMDb's data, same as
+  // importFromImdb()'s setIfEmpty pass — and prefer OMDb's IMDb rating either way.
+  const setIfEmpty = (key, val)=>{ if(!payload[key] && val && val!=='N/A') payload[key] = val; };
+  setIfEmpty('title', omdb.Title);
+  setIfEmpty('year', (omdb.Year||'').split('–')[0].split('-')[0]);
+  setIfEmpty('poster', omdb.Poster);
+  setIfEmpty('description', omdb.Plot);
+  setIfEmpty('runtime', omdb.Runtime);
+  if(omdb.imdbRating && omdb.imdbRating!=='N/A') payload.rating = omdb.imdbRating;
+  setIfEmpty('director', omdb.Director);
+  setIfEmpty('contentRating', omdb.Rated);
+  setIfEmpty('awards', omdb.Awards);
+  const omdbRatings = normalizeOmdbRatings(omdb);
+  if(omdbRatings.length) payload.ratings = omdbRatings;
+
+  if(!payload.title) throw new Error(`${imdbId}: no title found on either OMDb or TMDB`);
+  payload.tmdbId = info ? info.tmdbId : null;
+  payload.trailerKey = info ? info.trailerKey : '';
+  payload.trailerChecked = !!(info && info.trailerKey);
+  if(type==='movie') payload.sources = [];
+  else payload.seasons = payload.seasons || [];
+
+  return payload;
+}
+// Pulls every tt-prefixed IMDb ID out of arbitrary pasted text — plain URLs, bare IDs, one per
+// line, comma-separated, or the same IDs sitting inside a JSON array/blob (as either bare strings
+// or as a field on an object). Because the ID itself always has the same tt######## shape no matter
+// which of those formats it's wrapped in, a single regex sweep over the raw text handles all of
+// them at once without needing to first decide whether the input is JSON or plain text.
+function extractImdbIds(raw){
+  const found = (raw.match(/tt\d{6,10}/g) || []);
+  return [...new Set(found)]; // de-dupe, keep first-seen order
+}
+function openBulkImdbImport(){
+  openModal(`
+    <div class="modal-head"><h2>Bulk Import from IMDb</h2><button class="btn-icon" onclick="closeModal()">${ICON.close}</button></div>
+    <div class="field">
+      <label>IMDb Links or IDs</label>
+      <textarea id="bulkImdbInput" rows="10" placeholder="One per line, e.g.&#10;https://www.imdb.com/title/tt0111161/&#10;https://www.imdb.com/title/tt0068646/&#10;tt0071562&#10;&#10;...or paste a JSON array/blob containing them — either works, IDs are pulled out automatically."></textarea>
+      <div class="field-hint">Each one gets the same OMDb + TMDB lookup as importing a single title — title, poster, cast, and for TV shows every season/episode. Streaming links are generated automatically from each title's IMDb ID at playback time, same as always. The <strong>last one in the list becomes the newest</strong> title in your library (top of Recently Added); titles already in your library (matched by IMDb ID) are skipped rather than duplicated.</div>
+    </div>
+    <button class="btn btn-primary" onclick="runBulkImdbImport()">Import All</button>
+  `);
+}
+async function runBulkImdbImport(){
+  if(!state.settings.omdb){ toast('Add your OMDb API key in Settings first'); return; }
+  if(!state.settings.tmdb){ toast('Add your TMDB API key in Settings first — needed for backdrops, logos, and season data'); return; }
+  const raw = document.getElementById('bulkImdbInput').value;
+  const ids = extractImdbIds(raw);
+  if(!ids.length){ toast('No IMDb IDs found — paste links, bare IDs, or JSON containing them'); return; }
+
+  openModal(`
+    <div class="modal-head"><h2>Importing…</h2></div>
+    <div style="text-align:center; padding:36px 0;">
+      <div class="spinner" style="margin:0 auto 18px auto;"></div>
+      <div id="bulkImdbProgressText" style="color:var(--muted); font-size:13px;">Starting…</div>
+    </div>
+  `);
+  const setProgress = (text)=>{ const el=document.getElementById('bulkImdbProgressText'); if(el) el.textContent = text; };
+
+  const existingIds = new Set(state.lib.items.map(i=>i.imdbId).filter(Boolean));
+  const added = [], skipped = [], failed = [];
+  // Sequential, not parallel: keeps this well under OMDb/TMDB rate limits and gives each item a
+  // strictly increasing dateAdded (see below) so "last in the list = newest" is exact, not a race.
+  const baseTime = Date.now();
+  for(let i=0;i<ids.length;i++){
+    const imdbId = ids[i];
+    setProgress(`Importing ${i+1} / ${ids.length}… (${imdbId})`);
+    if(existingIds.has(imdbId)){ skipped.push(imdbId); continue; }
+    try{
+      const payload = await buildLibraryItemFromImdb(imdbId);
+      const item = {
+        id: uuid(), dateAdded: new Date(baseTime + i*1000).toISOString(), lastWatched: null, progress:{},
+        ...payload
+      };
+      state.lib.items.push(item);
+      existingIds.add(imdbId);
+      added.push(item);
+    }catch(e){
+      failed.push({imdbId, message: e.message || 'unknown error'});
+    }
+  }
+  if(added.length) saveLib();
+  renderBulkImdbImportReport(added, skipped, failed);
+}
+function renderBulkImdbImportReport(added, skipped, failed){
+  openModal(`
+    <div class="modal-head"><h2>Import Complete</h2><button class="btn-icon" onclick="closeModal(); router();">${ICON.close}</button></div>
+    <div class="field-hint" style="margin-bottom:16px;">
+      ${added.length} added, ${skipped.length} already in your library, ${failed.length} failed.
+    </div>
+    ${added.length ? `
+      <div style="display:flex; flex-direction:column; gap:6px; max-height:260px; overflow-y:auto; margin-bottom:16px;">
+        ${added.map(it=>`
+          <div class="link-health-row">
+            <div style="min-width:0;">
+              <div class="link-health-title">${esc(it.title)}${it.year?` (${esc(it.year)})`:''}</div>
+              <div class="link-health-url">${it.type==='series' ? 'TV Show' : 'Movie'} · ${esc(it.imdbId)}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+    ` : ''}
+    ${failed.length ? `
+      <div class="field-hint" style="margin-bottom:8px;">Failed:</div>
+      <div style="display:flex; flex-direction:column; gap:6px; max-height:200px; overflow-y:auto;">
+        ${failed.map(f=>`
+          <div class="link-health-row">
+            <div style="min-width:0;">
+              <div class="link-health-title">${esc(f.imdbId)}</div>
+              <div class="link-health-url">${esc(f.message)}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+    ` : ''}
+    <button class="btn btn-primary" style="margin-top:16px;" onclick="closeModal(); router();">Done</button>
+  `);
 }
 
 // Bulk "Update Info" (Settings → Library Metadata): re-pulls TMDB metadata for a TV show you
