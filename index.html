@@ -281,9 +281,17 @@ a{color:inherit; text-decoration:none;}
    transparent-PNG subject cutout) still overrides this with actual custom artwork that pokes above the
    card intentionally, since that's real segmented art, not a hard photo rectangle. */
 :root{ --featured-radius:14px; --featured-font:'Oswald','Inter Tight',sans-serif; --featured-top-gap:clamp(48px,7vw,90px); --cinematic-grade: contrast(1.08) saturate(1.14) brightness(.97); }
+/* PERF NOTE: this used to animate the box-shadow property directly (interpolating its blur/spread
+   values every frame). box-shadow is a paint property, not a compositor one like transform/opacity —
+   animating it forces the browser to repaint the card's shadow on every single frame, forever, for as
+   long as the Home page is mounted. That constant repaint work competes with the browser's scroll
+   compositing right as this section crosses the viewport, which is what caused scrolling to feel
+   noticeably less smooth specifically around the featured card. Fixed by keeping box-shadow itself
+   static and instead animating the *opacity* of a glow layer (see .featured-card::after below) —
+   opacity is compositor-only, so this now costs nothing extra during scroll. */
 @keyframes featuredRingPulse{
-  0%,100%{box-shadow:0 24px 70px rgba(0,0,0,.55), 0 0 0 1px rgba(61,219,217,.28), 0 0 30px rgba(61,219,217,.14);}
-  50%{box-shadow:0 24px 70px rgba(0,0,0,.55), 0 0 0 1px rgba(61,219,217,.42), 0 0 46px rgba(61,219,217,.22);}
+  0%,100%{opacity:.55;}
+  50%{opacity:1;}
 }
 @keyframes featuredShine{
   0%{transform:translateX(-160%) rotate(20deg);}
@@ -291,10 +299,12 @@ a{color:inherit; text-decoration:none;}
   100%{transform:translateX(240%) rotate(20deg);}
 }
 /* Breathing glow on the cyan panel, same 3.2s cadence as the card's own featuredRingPulse so the
-   panel and the card read as one light source pulsing together rather than two unrelated effects. */
+   panel and the card read as one light source pulsing together rather than two unrelated effects.
+   Same PERF NOTE as featuredRingPulse above — box-shadow is now static on .featured-bg-rect (below),
+   only opacity animates here. */
 @keyframes featuredRectPulse{
-  0%,100%{opacity:.88; box-shadow:0 0 46px 8px rgba(61,219,217,.22);}
-  50%{opacity:1; box-shadow:0 0 76px 16px rgba(61,219,217,.4);}
+  0%,100%{opacity:.72;}
+  50%{opacity:1;}
 }
 /* Very slow side-to-side drift — a few px each way — applied separately to line 1 and line 5 (the
    two actually-visible big lines; lines 2-4 stay hidden) in inverse phase, so the two lines drift
@@ -324,7 +334,7 @@ a{color:inherit; text-decoration:none;}
    DOM so the repeated watermark text still renders on top of it. */
 .featured-bg-rect{
   position:absolute; left:0; right:0; z-index:0; background:#3ddbd9; pointer-events:none;
-  overflow:hidden; animation:featuredRectPulse 3.2s ease-in-out infinite;
+  overflow:hidden; box-shadow:0 0 62px 12px rgba(61,219,217,.32); animation:featuredRectPulse 3.2s ease-in-out infinite;
 }
 .featured-bg-rect::after{
   content:''; position:absolute; top:-40%; left:-60%; width:35%; height:180%;
@@ -375,7 +385,17 @@ a{color:inherit; text-decoration:none;}
 .featured-card{
   position:relative; z-index:1; max-width:1040px; margin:0 auto; aspect-ratio:16/9;
   overflow:visible; cursor:pointer; isolation:isolate; border-radius:var(--featured-radius);
-  animation:featuredRingPulse 3.2s ease-in-out infinite, featuredCardReveal 550ms cubic-bezier(.22,1,.36,1) forwards;
+  box-shadow:0 24px 70px rgba(0,0,0,.55), 0 0 0 1px rgba(61,219,217,.35), 0 0 38px rgba(61,219,217,.18);
+  animation:featuredCardReveal 550ms cubic-bezier(.22,1,.36,1) forwards;
+}
+/* Glow ring lives on its own layer so its "breathing" can animate via opacity (compositor-only —
+   see the PERF NOTE on featuredRingPulse near the top of this stylesheet) instead of animating
+   .featured-card's own box-shadow directly, which used to force a full repaint of the card every
+   frame, forever, and was the main cause of scroll feeling less smooth around the featured card. */
+.featured-card::before{
+  content:''; position:absolute; inset:0; z-index:3; border-radius:inherit; pointer-events:none;
+  box-shadow:0 0 0 1px rgba(61,219,217,.42), 0 0 46px rgba(61,219,217,.22);
+  animation:featuredRingPulse 3.2s ease-in-out infinite;
 }
 /* Simple fade+rise entrance (no 3D) when a new featured item mounts, then JS swaps this out for a
    slow continuous float once it finishes (see the 'animationend' listener near CARD_HOVER_CAPABLE) so
@@ -495,6 +515,7 @@ a{color:inherit; text-decoration:none;}
 @media (prefers-reduced-motion:reduce){
   .featured-art-layer, .featured-content{transition:none;}
   .featured-card{animation:none;}
+  .featured-card::before{animation:none;}
   .featured-bg-rect, .featured-bg-rect::after, .featured-bg-text, .featured-bg-text-dup--last{animation:none;}
   .featured-cutout img{animation:none;}
 }
@@ -2191,6 +2212,10 @@ function loadSettings(){
     if(!s.tmdb) s.tmdb = '';
     if(!s.subdl) s.subdl = '';
     if(!s.vidsrcDomain) s.vidsrcDomain = 'vidsrc-embed.su';
+    // Streaming Provider (see DYNAMIC STREAMING PROVIDER section, near VIDSRC_DOMAINS below) — a
+    // bare domain only. No full streaming URL is ever saved; movie/episode embed URLs are built
+    // from this domain + the title's IMDb ID fresh on every playback request.
+    if(!s.streamingProvider) s.streamingProvider = '';
     if(typeof s.blockPopupAds !== 'boolean') s.blockPopupAds = false;
     if(typeof s.contentBlur !== 'boolean') s.contentBlur = false;
     if(!s.contentBlurLevel) s.contentBlurLevel = 'moderate';
@@ -2223,7 +2248,7 @@ function loadSettings(){
     // back to a clean, fully-contained card if the bleed effect looks awkward for a given title.
     if(typeof s.featuredArtworkBleed !== 'boolean') s.featuredArtworkBleed = true;
     return s;
-  }catch(e){ return {omdb:'',tmdb:'',subdl:'',vidsrcDomain:'vidsrc-embed.su', blockPopupAds:false, contentBlur:false, contentBlurLevel:'moderate', contentBlurModelUrl:'', scheduleCountry:'US', recentSearches:[], supabaseUrl:'', supabaseKey:'', playerBrightness:1, subtitleSize:'medium', subtitleColor:'#ffffff', subtitleBgColor:'#000000', subtitleBgOpacity:72, tmdbTop100Excluded:{movie:[],tv:[]}, featuredArtworkBleed:true}; }
+  }catch(e){ return {omdb:'',tmdb:'',subdl:'',vidsrcDomain:'vidsrc-embed.su', streamingProvider:'', blockPopupAds:false, contentBlur:false, contentBlurLevel:'moderate', contentBlurModelUrl:'', scheduleCountry:'US', recentSearches:[], supabaseUrl:'', supabaseKey:'', playerBrightness:1, subtitleSize:'medium', subtitleColor:'#ffffff', subtitleBgColor:'#000000', subtitleBgOpacity:72, tmdbTop100Excluded:{movie:[],tv:[]}, featuredArtworkBleed:true}; }
 }
 function saveSettings(){ localStorage.setItem(SET_KEY, JSON.stringify(state.settings)); }
 
@@ -3349,7 +3374,7 @@ const CARD_HOVER_CAPABLE = window.matchMedia('(hover:hover) and (pointer:fine)')
 // so the card keeps quietly moving afterward instead of sitting completely still.
 document.addEventListener('animationend', e=>{
   if(e.animationName === 'featuredCardReveal' && e.target && e.target.id === 'featuredCard'){
-    e.target.style.animation = 'featuredRingPulse 3.2s ease-in-out infinite, featuredCardFloat 9s ease-in-out infinite';
+    e.target.style.animation = 'featuredCardFloat 9s ease-in-out infinite';
   }
 });
 if(CARD_HOVER_CAPABLE){
@@ -3662,7 +3687,7 @@ function quickPlay(id){
   const item = getItem(id);
   if(!item) return;
   if(item.type==='movie'){
-    requestPlayback(item, null, null, item.sources||[]);
+    requestPlayback(item, null, null, getMovieSources(item));
   } else {
     // find first unwatched episode, else first episode
     const flat = [];
@@ -3672,7 +3697,7 @@ function quickPlay(id){
       const p = (item.progress||{})[key];
       return !p || !p.watched;
     }) || flat[0];
-    if(target) requestPlayback(item, target.s, target.e.number, target.e.sources||[]);
+    if(target) requestPlayback(item, target.s, target.e.number, getEpisodeSources(item, target.e, target.s));
     else toast('No episodes added yet');
   }
 }
@@ -4738,7 +4763,7 @@ function renderDetail(id){
                 <div class="ep-title">${ep.number}. ${esc(ep.title||'Episode '+ep.number)}</div>
                 <div class="ep-overview">${ep.overview ? esc(ep.overview) : 'No synopsis added for this episode.'}</div>
                 <div class="ep-meta-row">
-                  ${isUnaired ? `<span class="ep-airs-pill">${ICON.schedule} Airs ${esc(airDateStr)}</span>` : `<span class="ep-sub">${(ep.sources||[]).length} source${(ep.sources||[]).length===1?'':'s'}</span>`}
+                  ${isUnaired ? `<span class="ep-airs-pill">${ICON.schedule} Airs ${esc(airDateStr)}</span>` : (()=>{ const n = getEpisodeSources(item, ep, active.number).length; return `<span class="ep-sub">${n} source${n===1?'':'s'}</span>`; })()}
                   <div class="ep-mini-stars" onclick="event.stopPropagation()">${episodeMiniStarsHtml(item.id, active.number, ep)}</div>
                 </div>
               </div>
@@ -5299,7 +5324,7 @@ function episodeInfoModalHtml(itemId, seasonNum, epNum){
   const watched = !!(p && p.watched);
   const pct = p && p.duration ? Math.min(100, Math.round((p.timestamp/p.duration)*100)) : 0;
   const canResume = !!(p && !watched && p.timestamp>0);
-  const sources = ep.sources || [];
+  const sources = getEpisodeSources(item, ep, seasonNum);
   const sourceCount = sources.length;
   const prev = getPrevEpisode(item, seasonNum, epNum);
   const next = getNextEpisode(item, seasonNum, epNum);
@@ -5351,7 +5376,7 @@ function playEpisodeFromModal(itemId, seasonNum, epNum, sourceIdx){
   const item = getItem(itemId);
   const ep = item && findPlayerEpisode(item, seasonNum, epNum);
   if(!item || !ep) return;
-  const sources = ep.sources || [];
+  const sources = getEpisodeSources(item, ep, seasonNum);
   const ordered = sourceIdx>0 ? [sources[sourceIdx], ...sources.slice(0,sourceIdx), ...sources.slice(sourceIdx+1)] : sources;
   closeModal();
   requestPlayback(item, seasonNum, epNum, ordered);
@@ -5703,6 +5728,14 @@ function renderSettings(){
         <h3 onclick="toggleSettingsSection('playback')"><span class="settings-title-text">Playback</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
         <div class="settings-section-body">
         <div class="field">
+          <label>Streaming Provider</label>
+          <input id="streamingProviderDomain" placeholder="example.com" value="${esc(s.streamingProvider)}">
+          <div class="field-hint">
+            Enter just the domain of a streaming site (no <code>https://</code>, no path) — e.g. <code>example.com</code>. Once set, every movie and episode with an IMDb ID gets a playable link generated automatically, built fresh each time from this domain, so no full stream URL is ever stored. It's added as the first "Streaming Provider" source alongside any links you've added manually on a title's Sources.
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveStreamingProvider()">Save Streaming Provider</button>
+        <div class="field" style="margin-top:20px;">
           <label>VidSrc Embed Domain</label>
           <select id="vidsrcDomain" class="select-input" style="width:100%; border-radius:8px;">
             ${VIDSRC_DOMAINS.map(d=>`<option value="${d}" ${s.vidsrcDomain===d?'selected':''}>${d}</option>`).join('')}
@@ -5852,6 +5885,13 @@ function resetSubtitleDisplay(){
 function saveVidsrcDomain(){
   state.settings.vidsrcDomain = document.getElementById('vidsrcDomain').value;
   saveSettings(); toast('VidSrc domain saved');
+}
+// Persists only the bare domain (see DYNAMIC STREAMING PROVIDER section) — never a full URL.
+function saveStreamingProvider(){
+  state.settings.streamingProvider = normalizeProviderDomain(document.getElementById('streamingProviderDomain').value);
+  saveSettings();
+  router(); // re-render so the input reflects the normalized (trimmed/scheme-stripped) value
+  toast('Streaming provider saved');
 }
 function toggleFeaturedArtworkBleed(checked){
   state.settings.featuredArtworkBleed = !!checked;
@@ -6524,7 +6564,7 @@ function renderEditModal(item){
         <input id="imdbUrlInput" placeholder="Paste an IMDb URL, e.g. https://www.imdb.com/title/tt0111161/">
         <button type="button" class="btn btn-primary" id="imdbImportBtn" style="flex-shrink:0;" onclick="importFromImdb()">Import</button>
       </div>
-      <div class="field-hint">Pulls title, poster, backdrop, logo, genres, rating, runtime, cast, trailer — and for TV shows, every season and episode — from OMDb + TMDB. Movie/TV type is detected automatically. Stream sources still need to be added below (paste your own links; VidSrc-style and .m3u8 links are recognized automatically).</div>
+      <div class="field-hint">Pulls title, poster, backdrop, logo, genres, rating, runtime, cast, trailer — and for TV shows, every season and episode — from OMDb + TMDB. Movie/TV type is detected automatically. ${normalizeProviderDomain(state.settings.streamingProvider) ? 'Since a Streaming Provider domain is set in Settings, a playable link is generated automatically from this IMDb ID for the movie (or every episode) — no need to paste one. You can still add extra sources below as fallback mirrors.' : 'Set a Streaming Provider domain in Settings &rarr; Playback to auto-generate playable links from this IMDb ID — otherwise, paste your own links below (VidSrc-style and .m3u8 links are recognized automatically).'}</div>
     </div>
     <div class="type-toggle">
       <button class="${state.editType==='movie'?'active':''}" onclick="setEditType('movie')">Movie</button>
@@ -7028,8 +7068,10 @@ async function fetchTmdbByTitle(){
 }
 
 // IMDb Auto Import: paste any IMDb title URL, get metadata + (for TV) full season/episode
-// structure pulled automatically from OMDb + TMDB. Stream sources are left for you to fill in —
-// see the note in the UI for why links aren't auto-generated.
+// structure pulled automatically from OMDb + TMDB. The imdbId captured here (state.editImdbMeta.imdbId,
+// saved onto the item as item.imdbId) is what getMovieSources()/getEpisodeSources() use to generate
+// a playable "Streaming Provider" link at playback time — see the DYNAMIC STREAMING PROVIDER section.
+// Manually pasted sources still work too and are kept as fallbacks after the generated link.
 async function importFromImdb(){
   const raw = document.getElementById('imdbUrlInput').value.trim();
   const idMatch = raw.match(/tt\d{6,10}/);
@@ -7469,6 +7511,45 @@ function saveEditModal(){
 const VIDSRC_DOMAINS = ['vidsrc-embed.ru','vidsrc-embed.su','vidsrcme.su','vsrc.su'];
 const VIDSRC_MATCH = /vidsrc[-a-z]*\.(ru|su|to|me|pro|cc|xyz|net|in|vip)|vsrc\.su/i;
 
+/* =========================================================
+   DYNAMIC STREAMING PROVIDER
+   ---------------------------------------------------------
+   This does NOT change how metadata (title, seasons, episode numbers,
+   titles, overviews, posters, air dates, etc.) is fetched -- that all
+   still comes from importFromImdb()/fetchTmdbEpisode()/refreshLibraryFromTmdb()
+   exactly as before. It only changes how a playable URL is produced.
+   The user sets a bare domain in Settings > Playback > Streaming Provider
+   (state.settings.streamingProvider). No full streaming URL is ever
+   written to storage -- only that domain is persisted (via saveSettings(),
+   same as every other setting). Every time a movie or episode is opened,
+   the embed URL is generated fresh from the saved domain plus the title's
+   IMDb ID (plus season/episode for TV) and handed to the player as a
+   "Streaming Provider" source, ahead of any sources added manually --
+   which keep working exactly as before, as fallbacks.
+========================================================= */
+function normalizeProviderDomain(v){
+  return (v||'').trim().replace(/^https?:\/\//i,'').replace(/\/+$/,'');
+}
+function buildProviderStreamUrl(item, seasonNum, epNum){
+  const domain = normalizeProviderDomain(state.settings.streamingProvider);
+  if(!domain || !item || !item.imdbId) return null;
+  const suffix = 'autoplay=1&controls=false&overlay=false&showTitle=false';
+  if(seasonNum!=null && epNum!=null){
+    return `https://${domain}/embed/tv/${item.imdbId}/${seasonNum}/${epNum}?${suffix}`;
+  }
+  return `https://${domain}/embed/movie/${item.imdbId}?${suffix}`;
+}
+function getMovieSources(item){
+  const auto = buildProviderStreamUrl(item, null, null);
+  const manual = item.sources || [];
+  return auto ? [{label:'Streaming Provider', url:auto}, ...manual] : manual;
+}
+function getEpisodeSources(item, ep, seasonNum){
+  const auto = buildProviderStreamUrl(item, seasonNum, ep.number);
+  const manual = ep.sources || [];
+  return auto ? [{label:'Streaming Provider', url:auto}, ...manual] : manual;
+}
+
 function detectEmbed(url){
   url = url.trim();
   let m;
@@ -7568,7 +7649,7 @@ function playNextEpisode(){
   const next = getNextEpisode(item, p.seasonNum, p.epNum);
   if(!next){ toast('No more episodes'); return; }
   cleanupPlayerTimers();
-  requestPlayback(item, next.seasonNum, next.ep.number, next.ep.sources||[]);
+  requestPlayback(item, next.seasonNum, next.ep.number, getEpisodeSources(item, next.ep, next.seasonNum));
 }
 
 function openPlayer(item, seasonNum, epNum, sources){
