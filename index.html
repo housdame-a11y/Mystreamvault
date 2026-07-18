@@ -1191,6 +1191,15 @@ body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
 .source-row{display:flex; gap:8px; margin-bottom:8px; align-items:center;}
 .source-row input{flex:1;}
 .source-row .rm{width:32px; height:32px; flex-shrink:0; border-radius:6px; background:#3a1218; color:#ff8b93; display:flex; align-items:center; justify-content:center;}
+/* Read-only preview of an auto-generated Streaming Provider source (see getEditAutoSources /
+   autoSourcesPreviewHtml) — same layout as an editable .source-row, but visually muted with a
+   small "Auto" tag instead of a remove button, since these aren't stored and can't be edited here. */
+.source-row-auto input{opacity:.65; cursor:default;}
+.source-row-auto-badge{
+  width:32px; height:32px; flex-shrink:0; border-radius:6px; background:rgba(61,219,217,.14);
+  color:var(--highlight); display:flex; align-items:center; justify-content:center;
+  font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.02em;
+}
 
 .season-block{border:1px solid #1e2330; border-radius:10px; padding:14px; margin-bottom:14px; background:#0c0e14;}
 .season-block-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
@@ -2212,10 +2221,13 @@ function loadSettings(){
     if(!s.tmdb) s.tmdb = '';
     if(!s.subdl) s.subdl = '';
     if(!s.vidsrcDomain) s.vidsrcDomain = 'vidsrc-embed.su';
-    // Streaming Provider (see DYNAMIC STREAMING PROVIDER section, near VIDSRC_DOMAINS below) — a
-    // bare domain only. No full streaming URL is ever saved; movie/episode embed URLs are built
-    // from this domain + the title's IMDb ID fresh on every playback request.
-    if(!s.streamingProvider) s.streamingProvider = '';
+    // Streaming Providers (see DYNAMIC STREAMING PROVIDER section, near VIDSRC_DOMAINS below) — an
+    // ORDERED list of bare domains. No full streaming URL is ever saved; movie/episode embed URLs
+    // are built from each domain + the title's IMDb ID fresh on every playback request. The first
+    // domain becomes "Source 1" on every title, the second "Source 2", and so on. Transparently
+    // migrates the older single-domain `streamingProvider` field from earlier versions.
+    if(!Array.isArray(s.streamingProviders)) s.streamingProviders = s.streamingProvider ? [s.streamingProvider] : [];
+    delete s.streamingProvider;
     if(typeof s.blockPopupAds !== 'boolean') s.blockPopupAds = false;
     if(typeof s.contentBlur !== 'boolean') s.contentBlur = false;
     if(!s.contentBlurLevel) s.contentBlurLevel = 'moderate';
@@ -2248,7 +2260,7 @@ function loadSettings(){
     // back to a clean, fully-contained card if the bleed effect looks awkward for a given title.
     if(typeof s.featuredArtworkBleed !== 'boolean') s.featuredArtworkBleed = true;
     return s;
-  }catch(e){ return {omdb:'',tmdb:'',subdl:'',vidsrcDomain:'vidsrc-embed.su', streamingProvider:'', blockPopupAds:false, contentBlur:false, contentBlurLevel:'moderate', contentBlurModelUrl:'', scheduleCountry:'US', recentSearches:[], supabaseUrl:'', supabaseKey:'', playerBrightness:1, subtitleSize:'medium', subtitleColor:'#ffffff', subtitleBgColor:'#000000', subtitleBgOpacity:72, tmdbTop100Excluded:{movie:[],tv:[]}, featuredArtworkBleed:true}; }
+  }catch(e){ return {omdb:'',tmdb:'',subdl:'',vidsrcDomain:'vidsrc-embed.su', streamingProviders:[], blockPopupAds:false, contentBlur:false, contentBlurLevel:'moderate', contentBlurModelUrl:'', scheduleCountry:'US', recentSearches:[], supabaseUrl:'', supabaseKey:'', playerBrightness:1, subtitleSize:'medium', subtitleColor:'#ffffff', subtitleBgColor:'#000000', subtitleBgOpacity:72, tmdbTop100Excluded:{movie:[],tv:[]}, featuredArtworkBleed:true}; }
 }
 function saveSettings(){ localStorage.setItem(SET_KEY, JSON.stringify(state.settings)); }
 
@@ -5728,13 +5740,14 @@ function renderSettings(){
         <h3 onclick="toggleSettingsSection('playback')"><span class="settings-title-text">Playback</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
         <div class="settings-section-body">
         <div class="field">
-          <label>Streaming Provider</label>
-          <input id="streamingProviderDomain" placeholder="example.com" value="${esc(s.streamingProvider)}">
+          <label>Streaming Providers</label>
+          <div id="streamingProviderRows">${streamingProviderRowsHtml()}</div>
+          <button type="button" class="btn btn-ghost" onclick="addStreamingProviderRow()">${ICON.plus} Add Provider</button>
           <div class="field-hint">
-            Enter just the domain of a streaming site (no <code>https://</code>, no path) — e.g. <code>example.com</code>. Once set, every movie and episode with an IMDb ID gets a playable link generated automatically, built fresh each time from this domain, so no full stream URL is ever stored. It's added as the first "Streaming Provider" source alongside any links you've added manually on a title's Sources.
+            Bare domains only (no <code>https://</code>, no path) — e.g. <code>example.com</code>. Every movie/episode with an IMDb ID gets a playable link generated automatically for each domain here, built fresh each time — nothing is ever stored as a full URL. The first domain becomes "Source 1", the second "Source 2", and so on; they show up (read-only) alongside any sources you add manually when editing a title.
           </div>
         </div>
-        <button class="btn btn-primary" onclick="saveStreamingProvider()">Save Streaming Provider</button>
+        <button class="btn btn-primary" onclick="saveStreamingProviders()">Save Streaming Providers</button>
         <div class="field" style="margin-top:20px;">
           <label>VidSrc Embed Domain</label>
           <select id="vidsrcDomain" class="select-input" style="width:100%; border-radius:8px;">
@@ -5886,12 +5899,42 @@ function saveVidsrcDomain(){
   state.settings.vidsrcDomain = document.getElementById('vidsrcDomain').value;
   saveSettings(); toast('VidSrc domain saved');
 }
-// Persists only the bare domain (see DYNAMIC STREAMING PROVIDER section) — never a full URL.
-function saveStreamingProvider(){
-  state.settings.streamingProvider = normalizeProviderDomain(document.getElementById('streamingProviderDomain').value);
+// Working draft of the domain list while Settings is open, so add/remove rows don't need a full
+// page re-render. Lazily seeded from the saved list (or a single blank row) the first time it's
+// needed, and re-seeded after every save so it always reflects what's actually persisted.
+function ensureProviderDraft(){
+  if(!Array.isArray(state.settingsProviderDraft)){
+    state.settingsProviderDraft = (state.settings.streamingProviders||[]).length ? state.settings.streamingProviders.slice() : [''];
+  }
+}
+function streamingProviderRowsHtml(){
+  ensureProviderDraft();
+  return state.settingsProviderDraft.map((d,i)=>`
+    <div class="source-row">
+      <input placeholder="example.com" value="${esc(d)}" oninput="state.settingsProviderDraft[${i}]=this.value">
+      <button type="button" class="rm" onclick="removeStreamingProviderRow(${i})">${ICON.close}</button>
+    </div>`).join('');
+}
+function addStreamingProviderRow(){
+  ensureProviderDraft();
+  state.settingsProviderDraft.push('');
+  document.getElementById('streamingProviderRows').innerHTML = streamingProviderRowsHtml();
+}
+function removeStreamingProviderRow(i){
+  ensureProviderDraft();
+  state.settingsProviderDraft.splice(i,1);
+  if(!state.settingsProviderDraft.length) state.settingsProviderDraft.push('');
+  document.getElementById('streamingProviderRows').innerHTML = streamingProviderRowsHtml();
+}
+// Persists only the bare domains (see DYNAMIC STREAMING PROVIDER section) — never full URLs.
+// Order is preserved: index 0 becomes "Source 1", index 1 "Source 2", etc.
+function saveStreamingProviders(){
+  ensureProviderDraft();
+  state.settings.streamingProviders = state.settingsProviderDraft.map(normalizeProviderDomain).filter(Boolean);
+  state.settingsProviderDraft = null; // re-seed from the saved list next time Settings renders
   saveSettings();
-  router(); // re-render so the input reflects the normalized (trimmed/scheme-stripped) value
-  toast('Streaming provider saved');
+  router();
+  toast('Streaming providers saved');
 }
 function toggleFeaturedArtworkBleed(checked){
   state.settings.featuredArtworkBleed = !!checked;
@@ -6564,7 +6607,7 @@ function renderEditModal(item){
         <input id="imdbUrlInput" placeholder="Paste an IMDb URL, e.g. https://www.imdb.com/title/tt0111161/">
         <button type="button" class="btn btn-primary" id="imdbImportBtn" style="flex-shrink:0;" onclick="importFromImdb()">Import</button>
       </div>
-      <div class="field-hint">Pulls title, poster, backdrop, logo, genres, rating, runtime, cast, trailer — and for TV shows, every season and episode — from OMDb + TMDB. Movie/TV type is detected automatically. ${normalizeProviderDomain(state.settings.streamingProvider) ? 'Since a Streaming Provider domain is set in Settings, a playable link is generated automatically from this IMDb ID for the movie (or every episode) — no need to paste one. You can still add extra sources below as fallback mirrors.' : 'Set a Streaming Provider domain in Settings &rarr; Playback to auto-generate playable links from this IMDb ID — otherwise, paste your own links below (VidSrc-style and .m3u8 links are recognized automatically).'}</div>
+      <div class="field-hint">Pulls title, poster, backdrop, logo, genres, rating, runtime, cast, trailer — and for TV shows, every season and episode — from OMDb + TMDB. Movie/TV type is detected automatically. ${(state.settings.streamingProviders||[]).length ? 'Since Streaming Provider domains are set in Settings, playable links are generated automatically from this IMDb ID for the movie (or every episode) — no need to paste one; they will show up below once imported. You can still add extra sources as fallback mirrors.' : 'Set a Streaming Provider domain in Settings &rarr; Playback to auto-generate playable links from this IMDb ID — otherwise, paste your own links below (VidSrc-style and .m3u8 links are recognized automatically).'}</div>
     </div>
     <div class="type-toggle">
       <button class="${state.editType==='movie'?'active':''}" onclick="setEditType('movie')">Movie</button>
@@ -6689,9 +6732,11 @@ function toggleCastBlur(i){
   if(el) el.innerHTML = castBlurEditorHtml();
 }
 function sourcesEditorHtml(){
+  const auto = getEditAutoSources(null, null);
   return `
     <div class="field">
       <label>Sources</label>
+      ${autoSourcesPreviewHtml(auto)}
       ${state.editSources.map((s,i)=>`
         <div class="source-row">
           <input placeholder="Label (e.g. VidSrc)" value="${esc(s.label)}" oninput="state.editSources[${i}].label=this.value">
@@ -6701,6 +6746,24 @@ function sourcesEditorHtml(){
       <button type="button" class="btn btn-ghost" onclick="addSource()">${ICON.plus} Add Source</button>
       <div class="field-hint">Add multiple as fallback sources (YouTube, mp4, VidSrc, Dailymotion, etc).</div>
     </div>`;
+}
+// Shared by the movie editor and each episode editor: a read-only preview of the auto-generated
+// Streaming Provider link(s), so it's clear at a glance what will actually play without having to
+// leave the edit modal and check Settings. Nothing here is editable — change the domain list in
+// Settings > Playback > Streaming Providers instead.
+function autoSourcesPreviewHtml(auto){
+  if(!auto.length){
+    const hint = (state.editImdbMeta && state.editImdbMeta.imdbId)
+      ? 'No Streaming Provider domains set — add one in Settings &rarr; Playback to auto-generate a link here.'
+      : 'Import from IMDb above to auto-generate a link here once a Streaming Provider is set in Settings.';
+    return `<div class="field-hint" style="margin-bottom:8px;">${hint}</div>`;
+  }
+  return auto.map(s=>`
+    <div class="source-row source-row-auto" title="Generated automatically from Settings &rarr; Playback &rarr; Streaming Providers. Edit the domain there, not here.">
+      <input value="${esc(s.label)}" disabled>
+      <input value="${esc(s.url)}" disabled>
+      <span class="source-row-auto-badge">Auto</span>
+    </div>`).join('');
 }
 function addSource(){ state.editSources.push({label:'',url:''}); document.getElementById('typeSpecific').innerHTML = sourcesEditorHtml(); }
 function removeSource(i){ state.editSources.splice(i,1); if(!state.editSources.length) state.editSources.push({label:'',url:''}); document.getElementById('typeSpecific').innerHTML = sourcesEditorHtml(); }
@@ -6724,6 +6787,7 @@ function seasonsEditorHtml(){
             <input type="number" min="1" placeholder="Min" title="Runtime in minutes — used to calculate watch progress" value="${e.runtime||''}" style="flex:0 0 64px; width:64px;" oninput="state.editSeasons[${si}].episodes[${ei}].runtime=parseInt(this.value)||null">
             <button type="button" class="btn-icon" onclick="removeEpisode(${si},${ei})">${ICON.close}</button>
           </div>
+          ${autoSourcesPreviewHtml(getEditAutoSources(s.number, e.number))}
           ${(e.sources||[]).map((src,oi)=>`
             <div class="source-row">
               <input placeholder="Label" value="${esc(src.label)}" oninput="state.editSeasons[${si}].episodes[${ei}].sources[${oi}].label=this.value">
@@ -7518,20 +7582,26 @@ const VIDSRC_MATCH = /vidsrc[-a-z]*\.(ru|su|to|me|pro|cc|xyz|net|in|vip)|vsrc\.s
    titles, overviews, posters, air dates, etc.) is fetched -- that all
    still comes from importFromImdb()/fetchTmdbEpisode()/refreshLibraryFromTmdb()
    exactly as before. It only changes how a playable URL is produced.
-   The user sets a bare domain in Settings > Playback > Streaming Provider
-   (state.settings.streamingProvider). No full streaming URL is ever
-   written to storage -- only that domain is persisted (via saveSettings(),
-   same as every other setting). Every time a movie or episode is opened,
-   the embed URL is generated fresh from the saved domain plus the title's
-   IMDb ID (plus season/episode for TV) and handed to the player as a
-   "Streaming Provider" source, ahead of any sources added manually --
-   which keep working exactly as before, as fallbacks.
+   The user sets an ORDERED list of bare domains in Settings > Playback >
+   Streaming Providers (state.settings.streamingProviders). No full
+   streaming URL is ever written to storage -- only that list of domains
+   is persisted (via saveSettings(), same as every other setting). Every
+   time a movie or episode is opened, one embed URL per configured domain
+   is generated fresh from the saved domain plus the title's IMDb ID
+   (plus season/episode for TV) and handed to the player as "Source 1",
+   "Source 2", etc, ahead of any sources added manually -- which keep
+   working exactly as before, as further fallbacks. The edit modal shows
+   a live (read-only) preview of these via getEditAutoSources() /
+   autoSourcesPreviewHtml(), so it's clear what will play without leaving
+   the modal to check Settings.
 ========================================================= */
 function normalizeProviderDomain(v){
   return (v||'').trim().replace(/^https?:\/\//i,'').replace(/\/+$/,'');
 }
-function buildProviderStreamUrl(item, seasonNum, epNum){
-  const domain = normalizeProviderDomain(state.settings.streamingProvider);
+// Builds the embed URL for one domain at call time — nothing here is ever cached or saved.
+// seasonNum/epNum both null/undefined => movie template; both provided => episode template.
+function buildProviderStreamUrl(domain, item, seasonNum, epNum){
+  domain = normalizeProviderDomain(domain);
   if(!domain || !item || !item.imdbId) return null;
   const suffix = 'autoplay=1&controls=false&overlay=false&showTitle=false';
   if(seasonNum!=null && epNum!=null){
@@ -7539,15 +7609,34 @@ function buildProviderStreamUrl(item, seasonNum, epNum){
   }
   return `https://${domain}/embed/movie/${item.imdbId}?${suffix}`;
 }
-function getMovieSources(item){
-  const auto = buildProviderStreamUrl(item, null, null);
-  const manual = item.sources || [];
-  return auto ? [{label:'Streaming Provider', url:auto}, ...manual] : manual;
+// One auto-generated source per configured provider domain, in order — the first configured
+// domain becomes "Source 1", the second "Source 2", and so on. Skips silently (returns []) if
+// there's no IMDb ID yet or no provider domains configured.
+function getAutoProviderSources(item, seasonNum, epNum){
+  const domains = state.settings.streamingProviders || [];
+  const out = [];
+  domains.forEach((domain,i)=>{
+    const url = buildProviderStreamUrl(domain, item, seasonNum, epNum);
+    if(url) out.push({label:'Source '+(i+1), url, isAuto:true});
+  });
+  return out;
 }
+// Effective source list for a movie: every auto-generated Streaming Provider link first (if a
+// domain + IMDb ID are available), then whatever sources were added manually in the edit modal.
+function getMovieSources(item){
+  return [...getAutoProviderSources(item, null, null), ...(item.sources||[])];
+}
+// Same idea for a single episode — ep.number/season come from the metadata exactly as fetched
+// today; only the URLs attached to them are generated instead of read from storage.
 function getEpisodeSources(item, ep, seasonNum){
-  const auto = buildProviderStreamUrl(item, seasonNum, ep.number);
-  const manual = ep.sources || [];
-  return auto ? [{label:'Streaming Provider', url:auto}, ...manual] : manual;
+  return [...getAutoProviderSources(item, seasonNum, ep.number), ...(ep.sources||[])];
+}
+// Live preview for the edit modal — uses the IMDb ID captured by the current import session
+// (state.editImdbMeta), since the item itself may not be saved yet.
+function getEditAutoSources(seasonNum, epNum){
+  const imdbId = state.editImdbMeta && state.editImdbMeta.imdbId;
+  if(!imdbId) return [];
+  return getAutoProviderSources({imdbId}, seasonNum, epNum);
 }
 
 function detectEmbed(url){
