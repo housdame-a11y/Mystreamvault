@@ -1211,12 +1211,33 @@ body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
 .modal-footer{display:flex; justify-content:flex-end; gap:10px; margin-top:20px; border-top:1px solid #1a1d26; padding-top:18px;}
 
 /* ---------- Add Title Wizard ---------- */
-.modal-wizard{max-width:860px;}
-.modal-wizard{
+/* Every step is deliberately short (see the ADD TITLE WIZARD comment in JS for why), but as a
+   last-resort safety net for anything that still doesn't fit on a very short screen, the modal
+   itself becomes a fixed-height flex column: modal-head / stepper / tabs / hero stay pinned, only
+   #wizardStepBody scrolls, and the footer with Back/Next is always pinned at the bottom — so you
+   never have to hunt for the buttons, even in that edge case. */
+.modal.modal-wizard{
+  max-width:860px; display:flex; flex-direction:column; max-height:88vh; overflow:hidden;
+  padding:30px 30px 0 30px;
   background:radial-gradient(130% 90% at 100% -14%, rgba(61,219,217,.07), transparent 55%), var(--surface);
 }
+.modal-wizard .modal-head,
+.modal-wizard .wizard-steps,
+.modal-wizard .wizard-title-tabs,
+.modal-wizard .wizard-hero,
+.modal-wizard .wizard-footer{flex-shrink:0;}
+.modal-wizard #wizardStepBody{flex:1 1 auto; min-height:0; overflow-y:auto; padding-right:2px;}
+.modal-wizard #wizardStepBody::-webkit-scrollbar{width:6px;}
+.modal-wizard #wizardStepBody::-webkit-scrollbar-track{background:transparent;}
+.modal-wizard #wizardStepBody::-webkit-scrollbar-thumb{background:rgba(61,219,217,.25); border-radius:3px;}
+.modal-wizard #wizardStepBody::-webkit-scrollbar-thumb:hover{background:rgba(61,219,217,.45);}
+.modal-wizard .wizard-footer{margin-bottom:26px;}
 @keyframes wizardFadeUp{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);}}
 #wizardStepBody, .wizard-hero, .wizard-intro{animation:wizardFadeUp .35s cubic-bezier(.22,1,.36,1);}
+
+.wizard-season-nav{display:flex; align-items:center; justify-content:center; gap:16px; margin-bottom:16px; padding:10px; border-radius:10px; background:#0c0e14; border:1px solid rgba(61,219,217,.14);}
+.wizard-season-nav-label{font-weight:800; font-size:14px; text-align:center; min-width:120px; color:var(--highlight);}
+.wizard-season-nav-label span{display:block; font-weight:600; font-size:10.5px; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); margin-top:2px;}
 
 .wizard-steps{display:flex; align-items:flex-start; margin-bottom:24px; gap:0;}
 .wizard-step-item{display:flex; flex-direction:column; align-items:center; gap:8px; flex:1; min-width:0;}
@@ -1247,6 +1268,15 @@ body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
 .wizard-intro h3{font-size:20px; font-weight:800; font-family:var(--display-font); margin-bottom:8px;}
 .wizard-intro p{color:var(--muted); font-size:13px; line-height:1.65; max-width:440px; margin:0 auto;}
 
+.wizard-step-header{display:flex; align-items:center; gap:13px; margin-bottom:20px; padding-bottom:18px; border-bottom:1px solid rgba(61,219,217,.1);}
+.wizard-step-header-icon{
+  width:38px; height:38px; border-radius:11px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  background:linear-gradient(135deg, rgba(61,219,217,.2), rgba(61,219,217,.04)); color:var(--highlight); border:1px solid rgba(61,219,217,.25);
+}
+.wizard-step-header-icon svg{width:17px; height:17px;}
+.wizard-step-header-text h4{font-size:15.5px; font-weight:800; font-family:var(--display-font); color:var(--text);}
+.wizard-step-header-text p{font-size:11.5px; color:var(--muted); margin-top:1px;}
+
 /* Live-updating summary card shown across steps 2-5, so editing never feels disconnected from
    what you're actually about to add. */
 .wizard-hero{
@@ -1273,18 +1303,26 @@ body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
 .wizard-hero-genres{display:flex; gap:6px; margin-top:9px; flex-wrap:wrap;}
 .wizard-hero-genre-tag{font-size:10.5px; font-weight:700; padding:3px 10px; border-radius:20px; background:var(--highlight-dim); color:var(--highlight);}
 
-.wizard-title-tabs{display:flex; gap:8px; overflow-x:auto; padding-bottom:14px; margin-bottom:18px; border-bottom:1px solid #1a1d26;}
+.wizard-title-tabs{display:flex; gap:8px; overflow-x:auto; padding-bottom:14px; margin-bottom:18px; border-bottom:1px solid rgba(61,219,217,.1);}
 .wizard-title-tab{
-  display:flex; align-items:center; gap:8px; flex-shrink:0; padding:6px 14px 6px 6px; border-radius:30px;
-  background:#12141c; border:1px solid #232837; color:var(--muted); font-size:12.5px; font-weight:700; transition:all var(--transition);
-  max-width:220px;
+  display:flex; align-items:center; gap:6px; flex-shrink:0; padding:6px 8px 6px 6px; border-radius:30px;
+  background:#12141c; border:1px solid rgba(61,219,217,.12); color:var(--muted); font-size:12.5px; font-weight:700; transition:all var(--transition);
+  max-width:240px;
 }
 .wizard-title-tab:hover{border-color:#333a4d; color:var(--text); transform:translateY(-1px);}
 .wizard-title-tab.active{background:var(--highlight-dim); color:var(--highlight); border-color:rgba(61,219,217,.45); box-shadow:0 4px 14px -4px rgba(61,219,217,.3);}
-.wizard-title-tab-thumb{width:22px; height:22px; border-radius:50%; overflow:hidden; flex-shrink:0; background:#1e2330; display:flex; align-items:center; justify-content:center;}
+.wizard-title-tab-btn{display:flex; align-items:center; gap:8px; min-width:0; background:none; border:none; color:inherit; font:inherit; cursor:pointer; padding:0;}
+.wizard-title-tab-thumb{width:22px; height:22px; border-radius:50%; overflow:hidden; flex-shrink:0; background:#1e2330; display:flex; align-items:center; justify-content:center; transition:box-shadow var(--transition);}
+.wizard-title-tab.active .wizard-title-tab-thumb{box-shadow:0 0 0 2px rgba(61,219,217,.55);}
 .wizard-title-tab-thumb img{width:100%; height:100%; object-fit:cover; display:block;}
 .wizard-title-tab-name{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .wizard-title-tab-error{width:7px; height:7px; border-radius:50%; background:#ff5566; flex-shrink:0; box-shadow:0 0 0 3px rgba(255,85,102,.2);}
+.wizard-title-tab-remove{
+  width:18px; height:18px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  background:transparent; color:var(--muted); transition:all var(--transition);
+}
+.wizard-title-tab-remove svg{width:9px; height:9px;}
+.wizard-title-tab-remove:hover{background:#3a1218; color:#ff8b93;}
 
 .wizard-gallery{display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:10px; margin-bottom:8px;}
 .wizard-gallery.wizard-gallery-wide{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));}
@@ -1306,7 +1344,7 @@ body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
 }
 .wizard-gallery-check svg{width:12px; height:12px;}
 .wizard-gallery-item.selected .wizard-gallery-check{background:var(--highlight); border-color:var(--highlight); color:#04211f;}
-.wizard-gallery-empty{color:var(--muted); font-size:12.5px; padding:16px; text-align:center; border:1px dashed #232837; border-radius:8px;}
+.wizard-gallery-empty{color:rgba(61,219,217,.55); font-size:12.5px; padding:16px; text-align:center; border:1px dashed rgba(61,219,217,.25); border-radius:8px;}
 
 .wizard-preview-strip{display:flex; gap:16px; margin-bottom:18px; flex-wrap:wrap;}
 .wizard-preview-card{text-align:center;}
@@ -1317,19 +1355,19 @@ body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
 .wizard-preview-logo img{max-width:88%; max-height:70%; object-fit:contain;}
 .wizard-preview-poster img, .wizard-preview-backdrop img{width:100%; height:100%; object-fit:cover; display:block;}
 
-.wizard-footer{display:flex; justify-content:space-between; align-items:center; margin-top:22px; border-top:1px solid #1a1d26; padding-top:18px; gap:10px;}
+.wizard-footer{display:flex; justify-content:space-between; align-items:center; margin-top:22px; border-top:1px solid rgba(61,219,217,.1); padding-top:18px; gap:10px;}
 .wizard-footer-right{display:flex; gap:10px;}
 .wizard-progress-track{height:3px; border-radius:2px; background:#1a1d26; overflow:hidden; margin-bottom:2px;}
 .wizard-progress-fill{height:100%; background:linear-gradient(90deg, var(--highlight), #29a3a1); transition:width .3s ease;}
 
 .wizard-confirm-stats{display:flex; gap:12px; margin-bottom:22px;}
-.wizard-confirm-stat{flex:1; text-align:center; padding:18px 10px; border-radius:12px; background:#0c0e14; border:1px solid #1e2330; transition:border-color var(--transition);}
+.wizard-confirm-stat{flex:1; text-align:center; padding:18px 10px; border-radius:12px; background:#0c0e14; border:1px solid rgba(61,219,217,.14); transition:border-color var(--transition);}
 .wizard-confirm-stat-num{font-size:30px; font-weight:800; font-family:var(--display-font); color:var(--highlight); line-height:1;}
 .wizard-confirm-stat-label{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); margin-top:6px;}
 .wizard-confirm-stat-error{border-color:rgba(255,85,102,.25);}
 .wizard-confirm-stat-error .wizard-confirm-stat-num{color:#ff8b93;}
 
-.wizard-summary-item{display:flex; gap:14px; padding:14px; border:1px solid #1e2330; border-radius:10px; margin-bottom:10px; background:#0c0e14; transition:all var(--transition);}
+.wizard-summary-item{display:flex; gap:14px; padding:14px; border:1px solid rgba(61,219,217,.14); border-radius:10px; margin-bottom:10px; background:#0c0e14; transition:all var(--transition);}
 .wizard-summary-item:hover{border-color:#2a3040; background:#0e1119;}
 .wizard-summary-poster{width:56px; aspect-ratio:2/3; border-radius:6px; overflow:hidden; flex-shrink:0; background:#12141c; box-shadow:0 8px 18px -4px rgba(0,0,0,.5);}
 .wizard-summary-poster img{width:100%; height:100%; object-fit:cover; display:block;}
@@ -1340,7 +1378,8 @@ body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
 .wizard-summary-tag{font-size:11px; font-weight:700; padding:3px 9px; border-radius:20px; background:var(--highlight-dim); color:var(--highlight);}
 .wizard-summary-tag-newest{background:rgba(255,201,77,.16); color:#ffc94d;}
 .wizard-summary-error{border-color:rgba(255,85,102,.3); background:rgba(255,85,102,.05);}
-.wizard-summary-remove{flex-shrink:0; align-self:flex-start;}
+.wizard-summary-remove{flex-shrink:0; align-self:flex-start; padding:7px 12px; font-size:12px;}
+.wizard-summary-remove:hover{background:#3a1218; border-color:#4d1a20; color:#ff8b93;}
 
 .wizard-error-banner{
   display:flex; align-items:flex-start; gap:10px; padding:12px 14px; border-radius:8px; margin-bottom:16px;
@@ -7415,8 +7454,8 @@ async function fetchTmdbDetailsHeadless(tmdbId, tmdbType){
   const logos = (d.images && d.images.logos) || [];
   const bestLogo = logos.find(l=>l.iso_639_1==='en') || logos[0];
   const logo = bestLogo ? `https://image.tmdb.org/t/p/original${bestLogo.file_path}` : '';
-  // Up to 8 candidates each, best-match first — used by the Add Title wizard's image picker
-  // (wizardStepArtworkHtml). Ignored by any other caller of this function, so purely additive.
+  // Up to 8 candidates each, best-match first — used by the Add Title wizard's Poster/Backdrop/Logo
+  // steps (wizardStepPosterHtml etc). Ignored by any other caller of this function, so purely additive.
   const posterCandidates = ((d.images && d.images.posters) || []).slice(0,8).map(p=>`https://image.tmdb.org/t/p/w500${p.file_path}`);
   const backdropCandidates = ((d.images && d.images.backdrops) || []).slice(0,8).map(p=>`https://image.tmdb.org/t/p/w780${p.file_path}`);
   const logoCandidates = logos.slice(0,8).map(l=>`https://image.tmdb.org/t/p/w500${l.file_path}`);
@@ -7600,17 +7639,28 @@ function renderBulkImdbImportReport(added, skipped, failed){
    ---------------------------------------------------------
    The old single "Add Title" modal is still used for editing a title you already added
    (openEditModal(id) / renderEditModal) — untouched. This is the new flow for ADDING one, or many
-   at once: a 6-step guided wizard (Links -> Info -> Genre -> Artwork -> Sources -> Confirm) that
-   replaces both the old blank Add Title form and the standalone Bulk Import modal. Metadata still
-   comes from the exact same OMDb + TMDB lookups as always (buildWizardItemFromImdb mirrors
-   buildLibraryItemFromImdb, just carrying image candidate galleries through too) — this only
-   changes how you review/edit it before it lands in your library. Multiple pasted links flow
-   through the same six steps together via a title-switcher tab strip, and streaming links are
-   still generated at playback time from imdbId exactly as always (see DYNAMIC STREAMING PROVIDER).
+   at once: a guided, deliberately fine-grained wizard (Links -> Basic Info -> Cast & Story -> Genre
+   -> Poster -> Backdrop -> Logo -> Extra Art -> Sources -> Confirm) that replaces both the old blank
+   Add Title form and the standalone Bulk Import modal. Each step is kept short on purpose so it fits
+   without scrolling — the old single "Info" and "Artwork" steps were split into several smaller ones
+   for exactly that reason, and Sources further paginates by season for TV shows (see
+   wizardSourcesSeasonNav) rather than dumping every episode on screen at once. As a last-resort
+   safety net for anything that still doesn't fit on a very short screen, only the step's own content
+   area scrolls (#wizardStepBody) — the stepper, tabs, live preview, and Back/Next buttons never move.
+   Metadata still comes from the exact same OMDb + TMDB lookups as always (buildWizardItemFromImdb
+   mirrors buildLibraryItemFromImdb, just carrying image candidate galleries through too) — this only
+   changes how you review/edit it before it lands in your library. Multiple pasted links flow through
+   the same steps together via a title-switcher tab strip — each tab has its own remove button, so a
+   title can be dropped from the batch at any point, not just at the final Confirm step. Streaming
+   links are still generated at playback time from imdbId exactly as always (see DYNAMIC STREAMING
+   PROVIDER).
 ========================================================= */
 const WIZARD_STEPS = [
-  {n:1,label:'Links'}, {n:2,label:'Info'}, {n:3,label:'Genre'}, {n:4,label:'Artwork'}, {n:5,label:'Sources'}, {n:6,label:'Confirm'}
+  {n:1,label:'Links'}, {n:2,label:'Basic Info'}, {n:3,label:'Cast & Story'}, {n:4,label:'Genre'},
+  {n:5,label:'Poster'}, {n:6,label:'Backdrop'}, {n:7,label:'Logo'}, {n:8,label:'Extra Art'},
+  {n:9,label:'Sources'}, {n:10,label:'Confirm'}
 ];
+const WIZARD_LAST_STEP = 10;
 function openAddWizard(){
   state.wizard = { step:1, current:0, items:[], rawInput:'', duplicates:[] };
   renderWizardModal();
@@ -7629,13 +7679,13 @@ function renderWizardModal(){
   if(!w) return;
   if(w.step===1){ openModal(wizardStep1Html()); document.getElementById('modalBody').classList.add('modal-wizard'); return; }
   const draft = w.items[w.current];
-  const showHero = draft && draft.status!=='error' && w.step>=2 && w.step<=5;
+  const showHero = draft && draft.status!=='error' && w.step>=2 && w.step<WIZARD_LAST_STEP;
   openModal(`
     <div class="modal-head"><h2>Add Title</h2><button class="btn-icon" onclick="wizardClose()">${ICON.close}</button></div>
     ${wizardStepperHtml()}
-    ${w.items.length>1 && w.step<6 ? wizardTabsHtml() : ''}
+    ${w.items.length>1 && w.step<WIZARD_LAST_STEP ? wizardTabsHtml() : ''}
     ${showHero ? `<div class="wizard-hero" id="wizardHeroHeader">${wizardHeroHtml(draft)}</div>` : ''}
-    ${draft && draft.status==='error' && w.step<6 ? wizardErrorStepHtml(draft) : `<div id="wizardStepBody">${wizardStepBodyHtml(draft)}</div>`}
+    <div id="wizardStepBody">${draft && draft.status==='error' && w.step<WIZARD_LAST_STEP ? wizardErrorStepHtml(draft) : wizardStepBodyHtml(draft)}</div>
     ${wizardFooterHtml()}
   `);
   document.getElementById('modalBody').classList.add('modal-wizard');
@@ -7644,6 +7694,16 @@ function renderWizardModal(){
 // what's actually about to be added instead of feeling like disconnected form fields. Refreshed via
 // wizardSyncHero() from the handful of fields that actually change what it shows (title, year,
 // rating, runtime, content rating, genre, poster).
+// Small cyan icon + heading shown at the top of every content step (Basic Info, Cast & Story,
+// Genre, Poster, Backdrop, Logo, Extra Art, Sources) — gives each step a clear identity at a
+// glance and keeps the wizard visually anchored to the app's cyan accent throughout, not just on
+// the stepper and buttons.
+function wizardStepHeaderHtml(icon, title, subtitle){
+  return `<div class="wizard-step-header">
+    <div class="wizard-step-header-icon">${icon}</div>
+    <div class="wizard-step-header-text"><h4>${title}</h4><p>${subtitle}</p></div>
+  </div>`;
+}
 function wizardHeroHtml(draft){
   const genreTags = (draft.genre||[]).slice(0,3);
   const extra = (draft.genre||[]).length - genreTags.length;
@@ -7667,11 +7727,15 @@ function wizardSyncHero(){
 }
 function wizardStepBodyHtml(draft){
   switch(state.wizard.step){
-    case 2: return wizardStepInfoHtml(draft);
-    case 3: return wizardStepGenreHtml(draft);
-    case 4: return wizardStepArtworkHtml(draft);
-    case 5: return wizardStepSourcesHtml(draft);
-    case 6: return wizardStepConfirmHtml();
+    case 2: return wizardStepBasicInfoHtml(draft);
+    case 3: return wizardStepCastStoryHtml(draft);
+    case 4: return wizardStepGenreHtml(draft);
+    case 5: return wizardStepPosterHtml(draft);
+    case 6: return wizardStepBackdropHtml(draft);
+    case 7: return wizardStepLogoHtml(draft);
+    case 8: return wizardStepExtraArtHtml(draft);
+    case 9: return wizardStepSourcesHtml(draft);
+    case 10: return wizardStepConfirmHtml();
     default: return '';
   }
 }
@@ -7696,11 +7760,14 @@ function wizardTabsHtml(){
   const w = state.wizard;
   return `<div class="wizard-title-tabs">
     ${w.items.map((it,i)=>`
-      <button type="button" class="wizard-title-tab ${i===w.current?'active':''}" onclick="wizardSwitchItem(${i})">
-        <span class="wizard-title-tab-thumb">${it.poster?`<img src="${esc(it.poster)}" alt="">`:(it.type==='series'?ICON.tv:ICON.movie)}</span>
-        <span class="wizard-title-tab-name">${esc(it.title||it.imdbId)}</span>
-        ${it.status==='error'?`<span class="wizard-title-tab-error" title="${esc(it.error||'Failed')}"></span>`:''}
-      </button>`).join('')}
+      <span class="wizard-title-tab ${i===w.current?'active':''}">
+        <button type="button" class="wizard-title-tab-btn" onclick="wizardSwitchItem(${i})">
+          <span class="wizard-title-tab-thumb">${it.poster?`<img src="${esc(it.poster)}" alt="">`:(it.type==='series'?ICON.tv:ICON.movie)}</span>
+          <span class="wizard-title-tab-name">${esc(it.title||it.imdbId)}</span>
+          ${it.status==='error'?`<span class="wizard-title-tab-error" title="${esc(it.error||'Failed')}"></span>`:''}
+        </button>
+        <button type="button" class="wizard-title-tab-remove" title="Remove ${esc(it.title||it.imdbId)} from this batch" onclick="wizardRemoveItem(${i})">${ICON.close}</button>
+      </span>`).join('')}
   </div>`;
 }
 function wizardSwitchItem(i){ state.wizard.current = i; renderWizardModal(); }
@@ -7712,7 +7779,7 @@ function wizardFooterHtml(){
   const leftBtn = w.step===2
     ? `<button class="btn btn-ghost" onclick="wizardBackToStep1()">${ICON.chevronLeft} Back</button>`
     : `<button class="btn btn-ghost" onclick="wizardGoStep(${w.step-1})">${ICON.chevronLeft} Back</button>`;
-  const rightBtn = w.step===6
+  const rightBtn = w.step===WIZARD_LAST_STEP
     ? `<button class="btn btn-primary" ${readyCount?'':'disabled'} onclick="wizardFinish()">Add ${readyCount} Title${readyCount===1?'':'s'} to Library</button>`
     : `<button class="btn btn-primary" onclick="wizardGoStep(${w.step+1})" ${isError && w.items.length===1?'disabled':''}>Next ${ICON.chevronRight}</button>`;
   return `<div class="wizard-footer"><div>${leftBtn}</div><div class="wizard-footer-right">${rightBtn}</div></div>`;
@@ -7743,15 +7810,17 @@ function wizardStep1Html(){
   return `
     <div class="modal-head"><h2>Add Title</h2><button class="btn-icon" onclick="wizardClose()">${ICON.close}</button></div>
     ${wizardStepperHtml()}
-    <div class="wizard-intro">
-      <div class="wizard-intro-icon">${ICON.link}</div>
-      <h3>Add by IMDb Link</h3>
-      <p>Paste one title, or paste a whole batch — we'll fetch metadata, cast, artwork and genres for each, and generate streaming links automatically.</p>
-    </div>
-    <div class="field">
-      <label>IMDb Links or IDs</label>
-      <textarea id="wizardLinksInput" rows="9" placeholder="One or many, e.g.&#10;https://www.imdb.com/title/tt0111161/&#10;https://www.imdb.com/title/tt0068646/&#10;tt0071562&#10;&#10;...or paste a JSON array/blob containing them — IDs are pulled out automatically.">${esc(w.rawInput||'')}</textarea>
-      <div class="field-hint">Links, bare IDs, comma-separated, or JSON all work. Titles already in your library are skipped automatically.</div>
+    <div id="wizardStepBody">
+      <div class="wizard-intro">
+        <div class="wizard-intro-icon">${ICON.link}</div>
+        <h3>Add by IMDb Link</h3>
+        <p>Paste one title, or paste a whole batch — we'll fetch metadata, cast, artwork and genres for each, and generate streaming links automatically.</p>
+      </div>
+      <div class="field">
+        <label>IMDb Links or IDs</label>
+        <textarea id="wizardLinksInput" rows="9" placeholder="One or many, e.g.&#10;https://www.imdb.com/title/tt0111161/&#10;https://www.imdb.com/title/tt0068646/&#10;tt0071562&#10;&#10;...or paste a JSON array/blob containing them — IDs are pulled out automatically.">${esc(w.rawInput||'')}</textarea>
+        <div class="field-hint">Links, bare IDs, comma-separated, or JSON all work. Titles already in your library are skipped automatically.</div>
+      </div>
     </div>
     <div class="wizard-footer" style="justify-content:flex-end;">
       <button class="btn btn-primary" onclick="wizardBeginFetch()">Continue ${ICON.chevronRight}</button>
@@ -7896,8 +7965,9 @@ function wizardRemoveItem(idx){
 }
 
 /* ---- Step 2: Info ---- */
-function wizardStepInfoHtml(draft){
+function wizardStepBasicInfoHtml(draft){
   return `
+    ${wizardStepHeaderHtml(ICON.edit, 'Basic Info', 'The essentials — title, year, and a few key details.')}
     <div class="field-row">
       <div class="field" style="flex:2"><label>Title</label><input value="${esc(draft.title||'')}" oninput="wizardCurrentItem().title=this.value; wizardSyncHero();" placeholder="e.g. Interstellar"></div>
       <div class="field"><label>Year</label><input value="${esc(draft.year||'')}" oninput="wizardCurrentItem().year=this.value; wizardSyncHero();" placeholder="2014"></div>
@@ -7907,6 +7977,16 @@ function wizardStepInfoHtml(draft){
       <div class="field"><label>Director / Creator <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional)</span></label><input value="${esc(draft.director||'')}" oninput="wizardCurrentItem().director=this.value" placeholder="e.g. Christopher Nolan"></div>
       <div class="field" style="max-width:140px;"><label>Content Rating</label><input value="${esc(draft.contentRating||'')}" oninput="wizardCurrentItem().contentRating=this.value; wizardSyncHero();" placeholder="PG-13"></div>
     </div>
+    <div class="field-row">
+      <div class="field" style="max-width:140px;"><label>Rating</label><input value="${esc(draft.rating||'')}" oninput="wizardCurrentItem().rating=this.value; wizardSyncHero();" placeholder="8.6"></div>
+      <div class="field" style="max-width:160px;"><label>Runtime</label><input value="${esc(draft.runtime||'')}" oninput="wizardCurrentItem().runtime=this.value; wizardSyncHero();" placeholder="148 min"></div>
+      <div class="field"><label>Awards <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional)</span></label><input value="${esc(draft.awards||'')}" oninput="wizardCurrentItem().awards=this.value" placeholder="e.g. Won 4 Oscars"></div>
+    </div>
+  `;
+}
+function wizardStepCastStoryHtml(draft){
+  return `
+    ${wizardStepHeaderHtml(ICON.subtitles, 'Cast & Story', "Who's in it, and what it's about.")}
     <div class="field">
       <label>Cast</label>
       <div class="actor-chips-wrap" id="wizardActorChips">${wizardActorChipsHtml(draft)}</div>
@@ -7916,12 +7996,7 @@ function wizardStepInfoHtml(draft){
       </div>
       <div class="field-hint">Filled in automatically from TMDB/OMDb — add or remove cast members freely.</div>
     </div>
-    <div class="field"><label>Description</label><textarea rows="4" oninput="wizardCurrentItem().description=this.value" placeholder="Synopsis...">${esc(draft.description||'')}</textarea></div>
-    <div class="field"><label>Awards <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional)</span></label><input value="${esc(draft.awards||'')}" oninput="wizardCurrentItem().awards=this.value" placeholder="e.g. Won 4 Oscars"></div>
-    <div class="field-row">
-      <div class="field" style="max-width:140px;"><label>Rating</label><input value="${esc(draft.rating||'')}" oninput="wizardCurrentItem().rating=this.value; wizardSyncHero();" placeholder="8.6"></div>
-      <div class="field" style="max-width:160px;"><label>Runtime</label><input value="${esc(draft.runtime||'')}" oninput="wizardCurrentItem().runtime=this.value; wizardSyncHero();" placeholder="148 min"></div>
-    </div>
+    <div class="field"><label>Description</label><textarea rows="6" oninput="wizardCurrentItem().description=this.value" placeholder="Synopsis...">${esc(draft.description||'')}</textarea></div>
   `;
 }
 function wizardActorChipsHtml(draft){
@@ -7953,6 +8028,7 @@ function wizardRemoveActor(i){
 function wizardStepGenreHtml(draft){
   const genresPool = [...new Set([...DEFAULT_GENRES, ...allGenres(), ...(draft.genre||[])])];
   return `
+    ${wizardStepHeaderHtml(ICON.filter, 'Genre', 'Tag it so it shows up in the right place.')}
     <div class="field">
       <label>Genre</label>
       <div class="chip-select" id="wizardGenreChips">${genresPool.map(g=>`<button type="button" class="chip-btn ${(draft.genre||[]).includes(g)?'active':''}" onclick="wizardToggleGenre('${g.replace(/'/g,"\\'")}')">${esc(g)}</button>`).join('')}</div>
@@ -7986,69 +8062,85 @@ function wizardAddCustomGenre(){
 }
 
 /* ---- Step 4: Artwork ---- */
-function wizardStepArtworkHtml(draft){
+const wizardEscJs = s=>esc(s).replace(/'/g,"\\'");
+function wizardStepPosterHtml(draft){
   const posterCandidates = draft.posterCandidates || [];
-  const backdropCandidates = draft.backdropCandidates || [];
-  const logoCandidates = draft.logoCandidates || [];
-  const panoramic = draft.panoramicBanners || [];
-  const escJs = s=>esc(s).replace(/'/g,"\\'");
   return `
+    ${wizardStepHeaderHtml(ICON.expand, 'Poster', 'Pick the cover art for your library.')}
     <div class="wizard-preview-strip">
       <div class="wizard-preview-card">
         <div class="wizard-preview-card-label">Poster</div>
         <div class="wizard-preview-poster"><img id="wizardPosterPreviewImg" src="${esc(draft.poster||'')}" style="${draft.poster?'':'display:none;'}" alt=""></div>
       </div>
-      <div class="wizard-preview-card">
-        <div class="wizard-preview-card-label">Backdrop</div>
-        <div class="wizard-preview-backdrop"><img id="wizardBackdropPreviewImg" src="${esc(draft.backdrop||'')}" style="${draft.backdrop?'':'display:none;'}" alt=""></div>
-      </div>
-      <div class="wizard-preview-card">
-        <div class="wizard-preview-card-label">Logo</div>
-        <div class="wizard-preview-logo"><img id="wizardLogoPreviewImg" src="${esc(draft.logo||'')}" style="${draft.logo?'':'display:none;'}" alt=""></div>
-      </div>
     </div>
-
     <div class="field">
       <label>Poster</label>
       ${posterCandidates.length ? `<div class="wizard-gallery">${posterCandidates.map(url=>`
-        <div class="wizard-gallery-item ${draft.poster===url?'selected':''}" onclick="wizardSelectImage('poster','${escJs(url)}')">
+        <div class="wizard-gallery-item ${draft.poster===url?'selected':''}" onclick="wizardSelectImage('poster','${wizardEscJs(url)}')">
           <img src="${esc(url)}" loading="lazy" alt="">
           <div class="wizard-gallery-check">${ICON.check}</div>
         </div>`).join('')}</div>` : `<div class="wizard-gallery-empty">No poster candidates found on TMDB.</div>`}
       <input style="margin-top:10px;" value="${esc(draft.poster||'')}" placeholder="Or paste a custom poster URL" oninput="wizardCurrentItem().poster=this.value; wizardSyncPreviewImg('wizardPosterPreviewImg', this.value); wizardSyncHero();">
     </div>
-
+  `;
+}
+function wizardStepBackdropHtml(draft){
+  const backdropCandidates = draft.backdropCandidates || [];
+  return `
+    ${wizardStepHeaderHtml(ICON.brightness, 'Backdrop', 'Wide artwork used behind the detail page.')}
+    <div class="wizard-preview-strip">
+      <div class="wizard-preview-card">
+        <div class="wizard-preview-card-label">Backdrop</div>
+        <div class="wizard-preview-backdrop"><img id="wizardBackdropPreviewImg" src="${esc(draft.backdrop||'')}" style="${draft.backdrop?'':'display:none;'}" alt=""></div>
+      </div>
+    </div>
     <div class="field">
       <label>Backdrop</label>
       ${backdropCandidates.length ? `<div class="wizard-gallery wizard-gallery-wide">${backdropCandidates.map(url=>`
-        <div class="wizard-gallery-item ${draft.backdrop===url?'selected':''}" onclick="wizardSelectImage('backdrop','${escJs(url)}')">
+        <div class="wizard-gallery-item ${draft.backdrop===url?'selected':''}" onclick="wizardSelectImage('backdrop','${wizardEscJs(url)}')">
           <img src="${esc(url)}" loading="lazy" alt="">
           <div class="wizard-gallery-check">${ICON.check}</div>
         </div>`).join('')}</div>` : `<div class="wizard-gallery-empty">No backdrop candidates found on TMDB.</div>`}
       <input style="margin-top:10px;" value="${esc(draft.backdrop||'')}" placeholder="Or paste a custom backdrop URL" oninput="wizardCurrentItem().backdrop=this.value; wizardSyncPreviewImg('wizardBackdropPreviewImg', this.value);">
     </div>
-
+  `;
+}
+function wizardStepLogoHtml(draft){
+  const logoCandidates = draft.logoCandidates || [];
+  return `
+    ${wizardStepHeaderHtml(ICON.sparkles, 'Logo', 'Optional — shown instead of a text title.')}
+    <div class="wizard-preview-strip">
+      <div class="wizard-preview-card">
+        <div class="wizard-preview-card-label">Logo</div>
+        <div class="wizard-preview-logo"><img id="wizardLogoPreviewImg" src="${esc(draft.logo||'')}" style="${draft.logo?'':'display:none;'}" alt=""></div>
+      </div>
+    </div>
     <div class="field">
       <label>Logo <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional, shown on the detail page instead of text title)</span></label>
       ${logoCandidates.length ? `<div class="wizard-gallery wizard-gallery-wide">${logoCandidates.map(url=>`
-        <div class="wizard-gallery-item logo-tile ${draft.logo===url?'selected':''}" onclick="wizardSelectImage('logo','${escJs(url)}')">
+        <div class="wizard-gallery-item logo-tile ${draft.logo===url?'selected':''}" onclick="wizardSelectImage('logo','${wizardEscJs(url)}')">
           <img src="${esc(url)}" loading="lazy" alt="">
           <div class="wizard-gallery-check">${ICON.check}</div>
         </div>`).join('')}</div>` : `<div class="wizard-gallery-empty">No logo candidates found on TMDB.</div>`}
       <input style="margin-top:10px;" value="${esc(draft.logo||'')}" placeholder="Or paste a custom logo URL" oninput="wizardCurrentItem().logo=this.value; wizardSyncPreviewImg('wizardLogoPreviewImg', this.value);">
     </div>
-
+  `;
+}
+function wizardStepExtraArtHtml(draft){
+  const backdropCandidates = draft.backdropCandidates || [];
+  const panoramic = draft.panoramicBanners || [];
+  return `
+    ${wizardStepHeaderHtml(ICON.bookmark, 'Extra Art', 'Cinematic banners and cutout art.')}
     <div class="field">
       <label>Panoramic Banners <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional, up to 6 — pick several)</span></label>
       ${backdropCandidates.length ? `<div class="wizard-gallery wizard-gallery-wide">${backdropCandidates.map(url=>`
-        <div class="wizard-gallery-item ${panoramic.includes(url)?'selected':''}" onclick="wizardTogglePanoramic('${escJs(url)}')">
+        <div class="wizard-gallery-item ${panoramic.includes(url)?'selected':''}" onclick="wizardTogglePanoramic('${wizardEscJs(url)}')">
           <img src="${esc(url)}" loading="lazy" alt="">
           <div class="wizard-gallery-check">${ICON.check}</div>
         </div>`).join('')}</div>` : ''}
       <textarea rows="3" style="margin-top:10px;" placeholder="Or paste custom banner URLs, one per line" oninput="wizardSetPanoramicManual(this.value)">${esc((panoramic||[]).filter(u=>!backdropCandidates.includes(u)).join('\n'))}</textarea>
       <div class="field-hint">Wide, cinematic hero artwork — ${panoramic.length}/6 selected. Click backdrop candidates above to toggle them, or paste your own below.</div>
     </div>
-
     <div class="field">
       <label>Featured Cutout URL <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional)</span></label>
       <input value="${esc(draft.featuredCutout||'')}" oninput="wizardCurrentItem().featuredCutout=this.value" placeholder="https://... transparent PNG, subject only, no background">
@@ -8097,6 +8189,7 @@ function wizardAutoSourcesPreviewHtml(auto){
 function wizardStepSourcesHtml(draft){
   if(draft.type==='movie'){
     return `
+      ${wizardStepHeaderHtml(ICON.link, 'Sources', "Where this actually plays from.")}
       <div class="field">
         <label>Sources</label>
         ${wizardAutoSourcesPreviewHtml(draft.imdbId ? getAutoProviderSources({imdbId:draft.imdbId}, null, null) : [])}
@@ -8111,25 +8204,41 @@ function wizardStepSourcesHtml(draft){
       </div>`;
   }
   const seasons = draft.seasons || [];
-  if(!seasons.length) return `<div class="field-hint">No seasons were found for this title on TMDB. You can add them later from Edit Title.</div>`;
-  let html = `<div class="field-hint" style="margin-bottom:14px;">${seasons.length} season${seasons.length===1?'':'s'}, ${seasons.reduce((n,s)=>n+(s.episodes||[]).length,0)} episodes imported. Auto-generated links (if any) show per episode; add manual fallbacks below if you want them.</div>`;
-  html += seasons.map((s,si)=>`
-    <div class="season-block">
-      <div class="season-block-head"><b>Season ${s.number}</b><span class="ep-sub">${(s.episodes||[]).length} episodes</span></div>
-      ${(s.episodes||[]).map((e,ei)=>`
-        <div class="ep-editor">
-          <div class="ep-editor-head"><b>${s.number}x${String(e.number).padStart(2,'0')}</b><span class="ep-sub" style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(e.title||'')}</span></div>
-          ${wizardAutoSourcesPreviewHtml(draft.imdbId ? getAutoProviderSources({imdbId:draft.imdbId}, s.number, e.number) : [])}
-          ${(e.sources||[]).map((src,oi)=>`
-            <div class="source-row">
-              <input placeholder="Label" value="${esc(src.label)}" oninput="wizardCurrentItem().seasons[${si}].episodes[${ei}].sources[${oi}].label=this.value">
-              <input placeholder="https://..." value="${esc(src.url)}" oninput="wizardCurrentItem().seasons[${si}].episodes[${ei}].sources[${oi}].url=this.value">
-              <button type="button" class="rm" onclick="wizardRemoveEpSource(${si},${ei},${oi})">${ICON.close}</button>
-            </div>`).join('')}
-          <button type="button" class="btn btn-ghost" style="padding:6px 10px;font-size:12px;" onclick="wizardAddEpSource(${si},${ei})">${ICON.plus} Add Source</button>
+  if(!seasons.length) return wizardStepHeaderHtml(ICON.link, 'Sources', "Where this actually plays from.") + `<div class="field-hint">No seasons were found for this title on TMDB. You can add them later from Edit Title.</div>`;
+  // One season per screen — a show with a dozen seasons of a dozen episodes each would never fit
+  // (or stay scroll-free) shown all at once, so Sources paginates by season instead, the same way
+  // the rest of this step is broken up. Doesn't block Next: the auto-generated links already work
+  // without visiting every season, this is just for anyone who wants to add manual fallbacks.
+  if(draft._sourcesSeasonIdx==null || draft._sourcesSeasonIdx>=seasons.length) draft._sourcesSeasonIdx = 0;
+  const si = draft._sourcesSeasonIdx;
+  const s = seasons[si];
+  const totalEpisodes = seasons.reduce((n,sn)=>n+(sn.episodes||[]).length,0);
+  let html = wizardStepHeaderHtml(ICON.link, 'Sources', "Where this actually plays from.");
+  html += `<div class="field-hint" style="margin-bottom:14px;">${seasons.length} season${seasons.length===1?'':'s'}, ${totalEpisodes} episodes imported. Auto-generated links (if any) show per episode; add manual fallbacks if you want them.</div>`;
+  html += `<div class="wizard-season-nav">
+    <button type="button" class="btn-icon" onclick="wizardSourcesSeasonNav(-1)" ${si===0?'disabled':''}>${ICON.chevronLeft}</button>
+    <div class="wizard-season-nav-label">Season ${s.number}<span>${si+1} of ${seasons.length}</span></div>
+    <button type="button" class="btn-icon" onclick="wizardSourcesSeasonNav(1)" ${si===seasons.length-1?'disabled':''}>${ICON.chevronRight}</button>
+  </div>`;
+  html += (s.episodes||[]).map((e,ei)=>`
+    <div class="ep-editor">
+      <div class="ep-editor-head"><b>${s.number}x${String(e.number).padStart(2,'0')}</b><span class="ep-sub" style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(e.title||'')}</span></div>
+      ${wizardAutoSourcesPreviewHtml(draft.imdbId ? getAutoProviderSources({imdbId:draft.imdbId}, s.number, e.number) : [])}
+      ${(e.sources||[]).map((src,oi)=>`
+        <div class="source-row">
+          <input placeholder="Label" value="${esc(src.label)}" oninput="wizardCurrentItem().seasons[${si}].episodes[${ei}].sources[${oi}].label=this.value">
+          <input placeholder="https://..." value="${esc(src.url)}" oninput="wizardCurrentItem().seasons[${si}].episodes[${ei}].sources[${oi}].url=this.value">
+          <button type="button" class="rm" onclick="wizardRemoveEpSource(${si},${ei},${oi})">${ICON.close}</button>
         </div>`).join('')}
+      <button type="button" class="btn btn-ghost" style="padding:6px 10px;font-size:12px;" onclick="wizardAddEpSource(${si},${ei})">${ICON.plus} Add Source</button>
     </div>`).join('');
   return html;
+}
+function wizardSourcesSeasonNav(dir){
+  const draft = wizardCurrentItem();
+  const seasons = draft.seasons || [];
+  draft._sourcesSeasonIdx = Math.min(seasons.length-1, Math.max(0, (draft._sourcesSeasonIdx||0)+dir));
+  wizardRefreshStepBody();
 }
 function wizardAddMovieSource(){
   const draft = wizardCurrentItem();
@@ -8176,7 +8285,7 @@ function wizardStepConfirmHtml(){
         <div class="wizard-summary-meta">${it.type==='series'?'TV Show':'Movie'} · ${esc(it.imdbId)}${it.type==='series'?` · ${(it.seasons||[]).length} season(s)`:''}</div>
         <div class="wizard-summary-tags">${isNewest?`<span class="wizard-summary-tag wizard-summary-tag-newest">${ICON.sparkles} Newest</span>`:''}${(it.genre||[]).slice(0,4).map(g=>`<span class="wizard-summary-tag">${esc(g)}</span>`).join('')}</div>
       </div>
-      <button type="button" class="btn-icon wizard-summary-remove" title="Remove from batch" onclick="wizardRemoveItem(${realIdx})">${ICON.trash}</button>
+      <button type="button" class="btn btn-ghost wizard-summary-remove" title="Remove from batch" onclick="wizardRemoveItem(${realIdx})">${ICON.trash} Remove</button>
     </div>`;
   }).join('');
   if(errored.length){
@@ -8203,6 +8312,7 @@ function wizardFinish(){
     const clean = Object.assign({}, it);
     delete clean.status; delete clean.error;
     delete clean.posterCandidates; delete clean.backdropCandidates; delete clean.logoCandidates;
+    delete clean._sourcesSeasonIdx;
     state.lib.items.push({
       id: uuid(), dateAdded: new Date(baseTime + i*1000).toISOString(), lastWatched:null, progress:{},
       ...clean
