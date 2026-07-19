@@ -1391,7 +1391,7 @@ body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
 .wizard-summary-poster img{width:100%; height:100%; object-fit:cover; display:block;}
 .wizard-summary-body{min-width:0; flex:1;}
 .wizard-summary-title{font-weight:800; font-size:14.5px; margin-bottom:2px; line-height:1.3;}
-.wizard-summary-meta{font-size:12px; color:var(--muted);}
+.wizard-summary-meta{font-size:12px; color:var(--muted); margin-bottom:6px;}
 .wizard-summary-tags{display:flex; flex-wrap:wrap; align-items:center; gap:6px;}
 .wizard-summary-tag{display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; padding:3px 9px; border-radius:20px; background:var(--highlight-dim); color:var(--highlight); line-height:1.4;}
 .wizard-summary-tag svg{width:10px; height:10px; flex-shrink:0;}
@@ -7657,7 +7657,7 @@ function renderBulkImdbImportReport(added, skipped, failed){
    ---------------------------------------------------------
    The old single "Add Title" modal is still used for editing a title you already added
    (openEditModal(id) / renderEditModal) — untouched. This is the new flow for ADDING one, or many
-   at once: a guided, deliberately fine-grained wizard (Links -> Basic Info -> Cast & Story -> Genre
+   at once: a guided, deliberately fine-grained wizard (Links -> Basic Info -> Details -> Cast & Story -> Genre
    -> Poster -> Backdrop -> Logo -> Extra Art -> Sources -> Confirm) that replaces both the old blank
    Add Title form and the standalone Bulk Import modal. Each step is kept short on purpose so it fits
    without scrolling — the old single "Info" and "Artwork" steps were split into several smaller ones
@@ -7674,11 +7674,11 @@ function renderBulkImdbImportReport(added, skipped, failed){
    PROVIDER).
 ========================================================= */
 const WIZARD_STEPS = [
-  {n:1,label:'Links'}, {n:2,label:'Basic Info'}, {n:3,label:'Cast & Story'}, {n:4,label:'Genre'},
-  {n:5,label:'Poster'}, {n:6,label:'Backdrop'}, {n:7,label:'Logo'}, {n:8,label:'Extra Art'},
-  {n:9,label:'Sources'}, {n:10,label:'Confirm'}
+  {n:1,label:'Links'}, {n:2,label:'Basic Info'}, {n:3,label:'Details'}, {n:4,label:'Cast & Story'}, {n:5,label:'Genre'},
+  {n:6,label:'Poster'}, {n:7,label:'Backdrop'}, {n:8,label:'Logo'}, {n:9,label:'Extra Art'},
+  {n:10,label:'Sources'}, {n:11,label:'Confirm'}
 ];
-const WIZARD_LAST_STEP = 10;
+const WIZARD_LAST_STEP = 11;
 function openAddWizard(){
   state.wizard = { step:1, current:0, items:[], rawInput:'', duplicates:[] };
   renderWizardModal();
@@ -7750,14 +7750,15 @@ function wizardSyncHero(){
 function wizardStepBodyHtml(draft){
   switch(state.wizard.step){
     case 2: return wizardStepBasicInfoHtml(draft);
-    case 3: return wizardStepCastStoryHtml(draft);
-    case 4: return wizardStepGenreHtml(draft);
-    case 5: return wizardStepPosterHtml(draft);
-    case 6: return wizardStepBackdropHtml(draft);
-    case 7: return wizardStepLogoHtml(draft);
-    case 8: return wizardStepExtraArtHtml(draft);
-    case 9: return wizardStepSourcesHtml(draft);
-    case 10: return wizardStepConfirmHtml();
+    case 3: return wizardStepDetailsHtml(draft);
+    case 4: return wizardStepCastStoryHtml(draft);
+    case 5: return wizardStepGenreHtml(draft);
+    case 6: return wizardStepPosterHtml(draft);
+    case 7: return wizardStepBackdropHtml(draft);
+    case 8: return wizardStepLogoHtml(draft);
+    case 9: return wizardStepExtraArtHtml(draft);
+    case 10: return wizardStepSourcesHtml(draft);
+    case 11: return wizardStepConfirmHtml();
     default: return '';
   }
 }
@@ -7987,26 +7988,32 @@ function wizardRemoveItem(idx){
 /* ---- Step 2: Info ---- */
 function wizardStepBasicInfoHtml(draft){
   return `
-    ${wizardStepHeaderHtml(ICON.edit, 'Basic Info', 'The essentials — title, year, and a few key details.')}
+    ${wizardStepHeaderHtml(ICON.edit, 'Basic Info', 'The essentials — title, year, and a tagline.')}
     <div class="field-row">
       <div class="field" style="flex:2"><label>Title</label><input value="${esc(draft.title||'')}" oninput="wizardCurrentItem().title=this.value; wizardSyncHero();" placeholder="e.g. Interstellar"></div>
       <div class="field"><label>Year</label><input value="${esc(draft.year||'')}" oninput="wizardCurrentItem().year=this.value; wizardSyncHero();" placeholder="2014"></div>
     </div>
     <div class="field"><label>Tagline <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional)</span></label><input value="${esc(draft.tagline||'')}" oninput="wizardCurrentItem().tagline=this.value" placeholder="e.g. In space, no one can hear you scream"></div>
-    <div class="field-row">
-      <div class="field"><label>Director / Creator <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional)</span></label><input value="${esc(draft.director||'')}" oninput="wizardCurrentItem().director=this.value" placeholder="e.g. Christopher Nolan"></div>
-      <div class="field" style="max-width:140px;"><label>Content Rating</label><input value="${esc(draft.contentRating||'')}" oninput="wizardCurrentItem().contentRating=this.value; wizardSyncHero();" placeholder="PG-13"></div>
-    </div>
-    <div class="field-row">
-      <div class="field" style="max-width:140px;"><label>Rating</label><input value="${esc(draft.rating||'')}" oninput="wizardCurrentItem().rating=this.value; wizardSyncHero();" placeholder="8.6"></div>
-      <div class="field" style="max-width:160px;"><label>Runtime</label><input value="${esc(draft.runtime||'')}" oninput="wizardCurrentItem().runtime=this.value; wizardSyncHero();" placeholder="148 min"></div>
-      <div class="field"><label>Awards <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional)</span></label><input value="${esc(draft.awards||'')}" oninput="wizardCurrentItem().awards=this.value" placeholder="e.g. Won 4 Oscars"></div>
-    </div>
   `;
 }
+/* ---- Step 3: Details ---- */
+function wizardStepDetailsHtml(draft){
+  return `
+    ${wizardStepHeaderHtml(ICON.award, 'Details', 'Rating, runtime, and the synopsis.')}
+    <div class="field-row">
+      <div class="field" style="max-width:140px;"><label>Content Rating</label><input value="${esc(draft.contentRating||'')}" oninput="wizardCurrentItem().contentRating=this.value; wizardSyncHero();" placeholder="PG-13"></div>
+      <div class="field" style="max-width:140px;"><label>Rating</label><input value="${esc(draft.rating||'')}" oninput="wizardCurrentItem().rating=this.value; wizardSyncHero();" placeholder="8.6"></div>
+      <div class="field" style="max-width:160px;"><label>Runtime</label><input value="${esc(draft.runtime||'')}" oninput="wizardCurrentItem().runtime=this.value; wizardSyncHero();" placeholder="148 min"></div>
+    </div>
+    <div class="field"><label>Awards <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional)</span></label><input value="${esc(draft.awards||'')}" oninput="wizardCurrentItem().awards=this.value" placeholder="e.g. Won 4 Oscars"></div>
+    <div class="field"><label>Description</label><textarea rows="6" oninput="wizardCurrentItem().description=this.value" placeholder="Synopsis...">${esc(draft.description||'')}</textarea></div>
+  `;
+}
+/* ---- Step 4: Cast & Story ---- */
 function wizardStepCastStoryHtml(draft){
   return `
-    ${wizardStepHeaderHtml(ICON.subtitles, 'Cast & Story', "Who's in it, and what it's about.")}
+    ${wizardStepHeaderHtml(ICON.subtitles, 'Cast & Story', "Who's in it, and who made it.")}
+    <div class="field"><label>Director / Creator <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional)</span></label><input value="${esc(draft.director||'')}" oninput="wizardCurrentItem().director=this.value" placeholder="e.g. Christopher Nolan"></div>
     <div class="field">
       <label>Cast</label>
       <div class="actor-chips-wrap" id="wizardActorChips">${wizardActorChipsHtml(draft)}</div>
@@ -8021,7 +8028,6 @@ function wizardStepCastStoryHtml(draft){
       <div class="cast-blur-editor" id="wizardCastBlurEditor">${wizardCastBlurEditorHtml(draft)}</div>
       <div class="field-hint">Tap the eye to blur a photo — handy for a spoiler cameo you'd rather not reveal up front.</div>
     </div>` : ''}
-    <div class="field"><label>Description</label><textarea rows="6" oninput="wizardCurrentItem().description=this.value" placeholder="Synopsis...">${esc(draft.description||'')}</textarea></div>
   `;
 }
 // Mirrors castBlurEditorHtml()/toggleCastBlur() from the classic edit modal, scoped to the current
@@ -8072,7 +8078,7 @@ function wizardRemoveActor(i){
   if(el) el.innerHTML = wizardActorChipsHtml(draft);
 }
 
-/* ---- Step 3: Genre ---- */
+/* ---- Step 5: Genre ---- */
 function wizardStepGenreHtml(draft){
   const genresPool = [...new Set([...DEFAULT_GENRES, ...allGenres(), ...(draft.genre||[])])];
   return `
@@ -8330,10 +8336,11 @@ function wizardStepConfirmHtml(){
         <div class="wizard-summary-body">
           <div class="wizard-summary-title">${esc(it.title)}${it.year?` (${esc(it.year)})`:''}</div>
           <div class="wizard-summary-meta">${it.type==='series'?'TV Show':'Movie'} · ${esc(it.imdbId)}${it.type==='series'?` · ${(it.seasons||[]).length} season(s)`:''}</div>
+          ${isNewest?`<span class="wizard-summary-tag wizard-summary-tag-newest">${ICON.award} Newest</span>`:''}
         </div>
         <button type="button" class="btn-icon wizard-summary-remove" title="Remove from batch" onclick="wizardRemoveItem(${realIdx})">${ICON.trash}</button>
       </div>
-      <div class="wizard-summary-tags">${isNewest?`<span class="wizard-summary-tag wizard-summary-tag-newest">${ICON.award} Newest</span>`:''}${(it.genre||[]).slice(0,4).map(g=>`<span class="wizard-summary-tag">${esc(g)}</span>`).join('')}</div>
+      <div class="wizard-summary-tags">${(it.genre||[]).slice(0,4).map(g=>`<span class="wizard-summary-tag">${esc(g)}</span>`).join('')}</div>
     </div>`;
   }).join('');
   if(errored.length){
