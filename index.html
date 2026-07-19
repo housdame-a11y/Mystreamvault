@@ -1210,6 +1210,148 @@ body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
 
 .modal-footer{display:flex; justify-content:flex-end; gap:10px; margin-top:20px; border-top:1px solid #1a1d26; padding-top:18px;}
 
+/* ---------- Add Title Wizard ---------- */
+.modal-wizard{max-width:860px;}
+.modal-wizard{
+  background:radial-gradient(130% 90% at 100% -14%, rgba(61,219,217,.07), transparent 55%), var(--surface);
+}
+@keyframes wizardFadeUp{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);}}
+#wizardStepBody, .wizard-hero, .wizard-intro{animation:wizardFadeUp .35s cubic-bezier(.22,1,.36,1);}
+
+.wizard-steps{display:flex; align-items:flex-start; margin-bottom:24px; gap:0;}
+.wizard-step-item{display:flex; flex-direction:column; align-items:center; gap:8px; flex:1; min-width:0;}
+.wizard-step-circle{
+  width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  background:#12141c; border:1.5px solid #232837; color:var(--muted); font-size:12.5px; font-weight:800;
+  transition:all var(--transition); flex-shrink:0;
+}
+.wizard-step-item.active .wizard-step-circle{
+  background:linear-gradient(135deg, var(--highlight), #29a3a1); border-color:transparent; color:#04211f;
+  box-shadow:0 0 0 5px rgba(61,219,217,.15), 0 6px 16px -2px rgba(61,219,217,.4); transform:scale(1.06);
+}
+.wizard-step-item.done .wizard-step-circle{background:linear-gradient(135deg, rgba(61,219,217,.24), rgba(61,219,217,.07)); border-color:rgba(61,219,217,.5); color:var(--highlight);}
+.wizard-step-item.done .wizard-step-circle svg{width:13px; height:13px;}
+.wizard-step-label{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); text-align:center; transition:color var(--transition);}
+.wizard-step-item.active .wizard-step-label{color:var(--text);}
+.wizard-step-connector{flex:1; height:1.5px; background:#232837; margin:0 -2px; transition:background .4s ease; position:relative; top:16px;}
+.wizard-step-connector.done{background:linear-gradient(90deg, rgba(61,219,217,.6), rgba(61,219,217,.35));}
+
+/* Step 1: a proper hero intro rather than a bare textarea */
+.wizard-intro{text-align:center; padding:4px 10px 24px;}
+.wizard-intro-icon{
+  width:56px; height:56px; border-radius:16px; margin:0 auto 16px; display:flex; align-items:center; justify-content:center;
+  background:linear-gradient(135deg, rgba(61,219,217,.2), rgba(61,219,217,.03)); color:var(--highlight); border:1px solid rgba(61,219,217,.25);
+  box-shadow:0 10px 30px -10px rgba(61,219,217,.35);
+}
+.wizard-intro-icon svg{width:24px; height:24px;}
+.wizard-intro h3{font-size:20px; font-weight:800; font-family:var(--display-font); margin-bottom:8px;}
+.wizard-intro p{color:var(--muted); font-size:13px; line-height:1.65; max-width:440px; margin:0 auto;}
+
+/* Live-updating summary card shown across steps 2-5, so editing never feels disconnected from
+   what you're actually about to add. */
+.wizard-hero{
+  display:flex; gap:16px; align-items:center; padding:16px; margin-bottom:24px; border-radius:14px;
+  background:linear-gradient(135deg, rgba(61,219,217,.09), rgba(61,219,217,.015) 65%), #0c0e14;
+  border:1px solid #1e2330; position:relative; overflow:hidden;
+}
+.wizard-hero::before{
+  content:''; position:absolute; top:-50%; right:-8%; width:200px; height:200px; border-radius:50%;
+  background:radial-gradient(circle, rgba(61,219,217,.18), transparent 72%); pointer-events:none;
+}
+.wizard-hero-poster{width:60px; aspect-ratio:2/3; border-radius:8px; overflow:hidden; flex-shrink:0; background:#161923; box-shadow:0 14px 28px -6px rgba(0,0,0,.6); position:relative; z-index:1; transition:box-shadow var(--transition);}
+.wizard-hero-poster img{width:100%; height:100%; object-fit:cover; display:block;}
+.wizard-hero-poster-empty{width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:var(--muted);}
+.wizard-hero-poster-empty svg{width:20px; height:20px;}
+.wizard-hero-info{min-width:0; flex:1; position:relative; z-index:1;}
+.wizard-hero-type{display:inline-block; font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--highlight); background:rgba(61,219,217,.14); padding:3px 9px; border-radius:20px; margin-bottom:7px;}
+.wizard-hero-title{font-size:18px; font-weight:800; font-family:var(--display-font); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.wizard-hero-year{font-weight:500; color:var(--muted); font-size:14.5px;}
+.wizard-hero-meta{display:flex; align-items:center; gap:10px; font-size:12px; color:var(--muted); margin-top:5px; flex-wrap:wrap;}
+.wizard-hero-rating{display:flex; align-items:center; gap:4px; color:#ffc94d; font-weight:700;}
+.wizard-hero-rating svg{width:12px; height:12px;}
+.wizard-hero-pill{padding:2px 8px; border-radius:4px; background:#1a1d26; font-size:10.5px; font-weight:700; color:var(--text);}
+.wizard-hero-genres{display:flex; gap:6px; margin-top:9px; flex-wrap:wrap;}
+.wizard-hero-genre-tag{font-size:10.5px; font-weight:700; padding:3px 10px; border-radius:20px; background:var(--highlight-dim); color:var(--highlight);}
+
+.wizard-title-tabs{display:flex; gap:8px; overflow-x:auto; padding-bottom:14px; margin-bottom:18px; border-bottom:1px solid #1a1d26;}
+.wizard-title-tab{
+  display:flex; align-items:center; gap:8px; flex-shrink:0; padding:6px 14px 6px 6px; border-radius:30px;
+  background:#12141c; border:1px solid #232837; color:var(--muted); font-size:12.5px; font-weight:700; transition:all var(--transition);
+  max-width:220px;
+}
+.wizard-title-tab:hover{border-color:#333a4d; color:var(--text); transform:translateY(-1px);}
+.wizard-title-tab.active{background:var(--highlight-dim); color:var(--highlight); border-color:rgba(61,219,217,.45); box-shadow:0 4px 14px -4px rgba(61,219,217,.3);}
+.wizard-title-tab-thumb{width:22px; height:22px; border-radius:50%; overflow:hidden; flex-shrink:0; background:#1e2330; display:flex; align-items:center; justify-content:center;}
+.wizard-title-tab-thumb img{width:100%; height:100%; object-fit:cover; display:block;}
+.wizard-title-tab-name{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.wizard-title-tab-error{width:7px; height:7px; border-radius:50%; background:#ff5566; flex-shrink:0; box-shadow:0 0 0 3px rgba(255,85,102,.2);}
+
+.wizard-gallery{display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:10px; margin-bottom:8px;}
+.wizard-gallery.wizard-gallery-wide{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));}
+.wizard-gallery-item{
+  position:relative; border-radius:8px; overflow:hidden; cursor:pointer; background:#12141c;
+  border:2px solid transparent; transition:transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+  aspect-ratio:2/3;
+}
+.wizard-gallery-wide .wizard-gallery-item{aspect-ratio:16/9;}
+.wizard-gallery-item img{width:100%; height:100%; object-fit:cover; display:block;}
+.wizard-gallery-item.logo-tile{background:repeating-conic-gradient(#1a1d26 0% 25%, #14161e 0% 50%) 50%/16px 16px;}
+.wizard-gallery-item.logo-tile img{object-fit:contain; padding:14px;}
+.wizard-gallery-item:hover{border-color:#333a4d; transform:translateY(-3px); box-shadow:0 10px 22px -6px rgba(0,0,0,.55);}
+.wizard-gallery-item.selected{border-color:var(--highlight); box-shadow:0 0 0 3px rgba(61,219,217,.2), 0 12px 26px -6px rgba(61,219,217,.3); transform:translateY(-3px);}
+.wizard-gallery-check{
+  position:absolute; top:6px; right:6px; width:22px; height:22px; border-radius:50%; background:rgba(6,8,12,.75);
+  border:1.5px solid rgba(255,255,255,.25); display:flex; align-items:center; justify-content:center; color:transparent;
+  transition:all var(--transition);
+}
+.wizard-gallery-check svg{width:12px; height:12px;}
+.wizard-gallery-item.selected .wizard-gallery-check{background:var(--highlight); border-color:var(--highlight); color:#04211f;}
+.wizard-gallery-empty{color:var(--muted); font-size:12.5px; padding:16px; text-align:center; border:1px dashed #232837; border-radius:8px;}
+
+.wizard-preview-strip{display:flex; gap:16px; margin-bottom:18px; flex-wrap:wrap;}
+.wizard-preview-card{text-align:center;}
+.wizard-preview-card-label{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); margin-bottom:6px;}
+.wizard-preview-poster{width:74px; aspect-ratio:2/3; border-radius:8px; overflow:hidden; background:#12141c; box-shadow:0 10px 26px rgba(0,0,0,.5);}
+.wizard-preview-backdrop{width:132px; aspect-ratio:16/9; border-radius:8px; overflow:hidden; background:#12141c; box-shadow:0 10px 26px rgba(0,0,0,.5);}
+.wizard-preview-logo{width:132px; aspect-ratio:16/9; border-radius:8px; overflow:hidden; background:repeating-conic-gradient(#1a1d26 0% 25%, #14161e 0% 50%) 50%/16px 16px; display:flex; align-items:center; justify-content:center;}
+.wizard-preview-logo img{max-width:88%; max-height:70%; object-fit:contain;}
+.wizard-preview-poster img, .wizard-preview-backdrop img{width:100%; height:100%; object-fit:cover; display:block;}
+
+.wizard-footer{display:flex; justify-content:space-between; align-items:center; margin-top:22px; border-top:1px solid #1a1d26; padding-top:18px; gap:10px;}
+.wizard-footer-right{display:flex; gap:10px;}
+.wizard-progress-track{height:3px; border-radius:2px; background:#1a1d26; overflow:hidden; margin-bottom:2px;}
+.wizard-progress-fill{height:100%; background:linear-gradient(90deg, var(--highlight), #29a3a1); transition:width .3s ease;}
+
+.wizard-confirm-stats{display:flex; gap:12px; margin-bottom:22px;}
+.wizard-confirm-stat{flex:1; text-align:center; padding:18px 10px; border-radius:12px; background:#0c0e14; border:1px solid #1e2330; transition:border-color var(--transition);}
+.wizard-confirm-stat-num{font-size:30px; font-weight:800; font-family:var(--display-font); color:var(--highlight); line-height:1;}
+.wizard-confirm-stat-label{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); margin-top:6px;}
+.wizard-confirm-stat-error{border-color:rgba(255,85,102,.25);}
+.wizard-confirm-stat-error .wizard-confirm-stat-num{color:#ff8b93;}
+
+.wizard-summary-item{display:flex; gap:14px; padding:14px; border:1px solid #1e2330; border-radius:10px; margin-bottom:10px; background:#0c0e14; transition:all var(--transition);}
+.wizard-summary-item:hover{border-color:#2a3040; background:#0e1119;}
+.wizard-summary-poster{width:56px; aspect-ratio:2/3; border-radius:6px; overflow:hidden; flex-shrink:0; background:#12141c; box-shadow:0 8px 18px -4px rgba(0,0,0,.5);}
+.wizard-summary-poster img{width:100%; height:100%; object-fit:cover; display:block;}
+.wizard-summary-body{min-width:0; flex:1;}
+.wizard-summary-title{font-weight:800; font-size:14.5px; margin-bottom:2px;}
+.wizard-summary-meta{font-size:12px; color:var(--muted); margin-bottom:6px;}
+.wizard-summary-tags{display:flex; flex-wrap:wrap; gap:6px;}
+.wizard-summary-tag{font-size:11px; font-weight:700; padding:3px 9px; border-radius:20px; background:var(--highlight-dim); color:var(--highlight);}
+.wizard-summary-tag-newest{background:rgba(255,201,77,.16); color:#ffc94d;}
+.wizard-summary-error{border-color:rgba(255,85,102,.3); background:rgba(255,85,102,.05);}
+.wizard-summary-remove{flex-shrink:0; align-self:flex-start;}
+
+.wizard-error-banner{
+  display:flex; align-items:flex-start; gap:10px; padding:12px 14px; border-radius:8px; margin-bottom:16px;
+  background:rgba(255,85,102,.08); border:1px solid rgba(255,85,102,.3); color:#ff8b93; font-size:12.5px; line-height:1.5;
+}
+@media (max-width:480px){
+  .wizard-step-label{display:none;}
+  .wizard-step-connector{top:0;}
+
+}
+
 /* ---------- Player ---------- */
 .player-overlay{
   position:fixed; inset:0; background:#000; z-index:200; display:flex; flex-direction:column;
@@ -2278,6 +2420,7 @@ const state = {
   editGenres: [],
   editSources: [],
   editSeasons: [],
+  wizard: null, // set by openAddWizard() — see ADD TITLE WIZARD section
   player: null,
 };
 
@@ -2750,16 +2893,14 @@ function renderShell(){
     <div class="brand"><div class="mark">SV</div><span>Stream Vault</span></div>
     ${navHtml}
     <div style="flex:1"></div>
-    <button class="btn btn-primary btn-icon-only" style="justify-content:center" title="Add Title" onclick="openEditModal()">${ICON.plus}</button>
-    <button class="btn btn-ghost btn-icon-only" style="justify-content:center" title="Bulk Import from IMDb" onclick="openBulkImdbImport()">${ICON.link}</button>
+    <button class="btn btn-primary btn-icon-only" style="justify-content:center" title="Add Title" onclick="openAddWizard()">${ICON.plus}</button>
   `;
   document.getElementById('bottomNav').innerHTML = navHtml;
 
   const titles = {home:'Home', movies:'Movies', series:'TV Shows', live:'Live TV', schedule:'TV Schedule', collections:'Collections', settings:'Settings'};
   let topActions = '';
   if(['home','movies','series'].includes(state.route)){
-    topActions += `<button class="btn btn-primary btn-icon-only" title="Add Title" onclick="openEditModal()">${ICON.plus}</button>`;
-    topActions += `<button class="btn btn-ghost btn-icon-only" title="Bulk Import from IMDb" onclick="openBulkImdbImport()">${ICON.link}</button>`;
+    topActions += `<button class="btn btn-primary btn-icon-only" title="Add Title" onclick="openAddWizard()">${ICON.plus}</button>`;
   } else if(state.route==='live'){
     topActions += `<button class="btn btn-primary btn-icon-only" title="Add Channel" onclick="openChannelModal()">${ICON.plus}</button>`;
   }
@@ -3685,7 +3826,7 @@ document.addEventListener('click', e=>{
 
 function emptyState(title, sub, btnLabel, btnOnclick, secondaryLabel, secondaryOnclick){
   btnLabel = btnLabel || 'Add Title';
-  btnOnclick = btnOnclick || 'openEditModal()';
+  btnOnclick = btnOnclick || 'openAddWizard()';
   return `<div class="empty-state">
     <div class="empty-icon">${ICON.library}</div>
     <h3>${esc(title)}</h3>
@@ -6469,6 +6610,7 @@ function applyRestoreFromCode(){
 function openModal(html){
   document.getElementById('modalBody').classList.remove('modal-video');
   document.getElementById('modalBody').classList.remove('modal-episode-info');
+  document.getElementById('modalBody').classList.remove('modal-wizard');
   document.getElementById('modalBody').innerHTML = html;
   document.getElementById('modalOverlay').classList.add('open');
 }
@@ -7273,6 +7415,11 @@ async function fetchTmdbDetailsHeadless(tmdbId, tmdbType){
   const logos = (d.images && d.images.logos) || [];
   const bestLogo = logos.find(l=>l.iso_639_1==='en') || logos[0];
   const logo = bestLogo ? `https://image.tmdb.org/t/p/original${bestLogo.file_path}` : '';
+  // Up to 8 candidates each, best-match first — used by the Add Title wizard's image picker
+  // (wizardStepArtworkHtml). Ignored by any other caller of this function, so purely additive.
+  const posterCandidates = ((d.images && d.images.posters) || []).slice(0,8).map(p=>`https://image.tmdb.org/t/p/w500${p.file_path}`);
+  const backdropCandidates = ((d.images && d.images.backdrops) || []).slice(0,8).map(p=>`https://image.tmdb.org/t/p/w780${p.file_path}`);
+  const logoCandidates = logos.slice(0,8).map(l=>`https://image.tmdb.org/t/p/w500${l.file_path}`);
   const videos = ((d.videos && d.videos.results) || []).filter(v=>v.site==='YouTube');
   const trailerVid = videos.find(v=>v.type==='Trailer' && v.official) || videos.find(v=>v.type==='Trailer') || videos.find(v=>v.type==='Teaser') || videos[0];
 
@@ -7298,6 +7445,7 @@ async function fetchTmdbDetailsHeadless(tmdbId, tmdbType){
 
   return {
     tmdbId, trailerKey: trailerVid ? trailerVid.key : '', seasons, seasonCount, episodeCount,
+    posterCandidates, backdropCandidates, logoCandidates,
     fields: { title, year, poster, backdrop, logo, genre, rating, runtime, description, tagline, director, contentRating, actors, cast, tvStatus, nextEpisodeInfo }
   };
 }
@@ -7445,6 +7593,626 @@ function renderBulkImdbImportReport(added, skipped, failed){
     ` : ''}
     <button class="btn btn-primary" style="margin-top:16px;" onclick="closeModal(); router();">Done</button>
   `);
+}
+
+/* =========================================================
+   ADD TITLE WIZARD
+   ---------------------------------------------------------
+   The old single "Add Title" modal is still used for editing a title you already added
+   (openEditModal(id) / renderEditModal) — untouched. This is the new flow for ADDING one, or many
+   at once: a 6-step guided wizard (Links -> Info -> Genre -> Artwork -> Sources -> Confirm) that
+   replaces both the old blank Add Title form and the standalone Bulk Import modal. Metadata still
+   comes from the exact same OMDb + TMDB lookups as always (buildWizardItemFromImdb mirrors
+   buildLibraryItemFromImdb, just carrying image candidate galleries through too) — this only
+   changes how you review/edit it before it lands in your library. Multiple pasted links flow
+   through the same six steps together via a title-switcher tab strip, and streaming links are
+   still generated at playback time from imdbId exactly as always (see DYNAMIC STREAMING PROVIDER).
+========================================================= */
+const WIZARD_STEPS = [
+  {n:1,label:'Links'}, {n:2,label:'Info'}, {n:3,label:'Genre'}, {n:4,label:'Artwork'}, {n:5,label:'Sources'}, {n:6,label:'Confirm'}
+];
+function openAddWizard(){
+  state.wizard = { step:1, current:0, items:[], rawInput:'', duplicates:[] };
+  renderWizardModal();
+}
+function wizardClose(){
+  if(state.wizard && state.wizard.items.length && state.wizard.step>1){
+    if(!confirm('Discard this import? Nothing will be added to your library.')) return;
+  }
+  state.wizard = null;
+  closeModal();
+}
+function wizardCurrentItem(){ return state.wizard.items[state.wizard.current]; }
+
+function renderWizardModal(){
+  const w = state.wizard;
+  if(!w) return;
+  if(w.step===1){ openModal(wizardStep1Html()); document.getElementById('modalBody').classList.add('modal-wizard'); return; }
+  const draft = w.items[w.current];
+  const showHero = draft && draft.status!=='error' && w.step>=2 && w.step<=5;
+  openModal(`
+    <div class="modal-head"><h2>Add Title</h2><button class="btn-icon" onclick="wizardClose()">${ICON.close}</button></div>
+    ${wizardStepperHtml()}
+    ${w.items.length>1 && w.step<6 ? wizardTabsHtml() : ''}
+    ${showHero ? `<div class="wizard-hero" id="wizardHeroHeader">${wizardHeroHtml(draft)}</div>` : ''}
+    ${draft && draft.status==='error' && w.step<6 ? wizardErrorStepHtml(draft) : `<div id="wizardStepBody">${wizardStepBodyHtml(draft)}</div>`}
+    ${wizardFooterHtml()}
+  `);
+  document.getElementById('modalBody').classList.add('modal-wizard');
+}
+// Live-updating mini summary shown across steps 2-5 (see .wizard-hero) — keeps editing connected to
+// what's actually about to be added instead of feeling like disconnected form fields. Refreshed via
+// wizardSyncHero() from the handful of fields that actually change what it shows (title, year,
+// rating, runtime, content rating, genre, poster).
+function wizardHeroHtml(draft){
+  const genreTags = (draft.genre||[]).slice(0,3);
+  const extra = (draft.genre||[]).length - genreTags.length;
+  return `
+    <div class="wizard-hero-poster">${draft.poster?`<img src="${esc(draft.poster)}" alt="">`:`<div class="wizard-hero-poster-empty">${draft.type==='series'?ICON.tv:ICON.movie}</div>`}</div>
+    <div class="wizard-hero-info">
+      <span class="wizard-hero-type">${draft.type==='series'?'TV Show':'Movie'}</span>
+      <div class="wizard-hero-title">${esc(draft.title || 'Untitled')}${draft.year?` <span class="wizard-hero-year">(${esc(draft.year)})</span>`:''}</div>
+      <div class="wizard-hero-meta">
+        ${draft.rating?`<span class="wizard-hero-rating">${ICON.award} ${esc(draft.rating)}</span>`:''}
+        ${draft.runtime?`<span>${esc(draft.runtime)}</span>`:''}
+        ${draft.contentRating?`<span class="wizard-hero-pill">${esc(draft.contentRating)}</span>`:''}
+      </div>
+      ${genreTags.length ? `<div class="wizard-hero-genres">${genreTags.map(g=>`<span class="wizard-hero-genre-tag">${esc(g)}</span>`).join('')}${extra>0?`<span class="wizard-hero-genre-tag">+${extra}</span>`:''}</div>` : ''}
+    </div>
+  `;
+}
+function wizardSyncHero(){
+  const el = document.getElementById('wizardHeroHeader');
+  if(el) el.innerHTML = wizardHeroHtml(wizardCurrentItem());
+}
+function wizardStepBodyHtml(draft){
+  switch(state.wizard.step){
+    case 2: return wizardStepInfoHtml(draft);
+    case 3: return wizardStepGenreHtml(draft);
+    case 4: return wizardStepArtworkHtml(draft);
+    case 5: return wizardStepSourcesHtml(draft);
+    case 6: return wizardStepConfirmHtml();
+    default: return '';
+  }
+}
+function wizardRefreshStepBody(){
+  const el = document.getElementById('wizardStepBody');
+  if(el) el.innerHTML = wizardStepBodyHtml(wizardCurrentItem());
+}
+function wizardStepperHtml(){
+  const cur = state.wizard.step;
+  let html = '<div class="wizard-steps">';
+  WIZARD_STEPS.forEach((s,i)=>{
+    html += `<div class="wizard-step-item ${s.n===cur?'active':''} ${s.n<cur?'done':''}">
+      <div class="wizard-step-circle">${s.n<cur?ICON.check:s.n}</div>
+      <div class="wizard-step-label">${s.label}</div>
+    </div>`;
+    if(i<WIZARD_STEPS.length-1) html += `<div class="wizard-step-connector ${s.n<cur?'done':''}"></div>`;
+  });
+  html += '</div>';
+  return html;
+}
+function wizardTabsHtml(){
+  const w = state.wizard;
+  return `<div class="wizard-title-tabs">
+    ${w.items.map((it,i)=>`
+      <button type="button" class="wizard-title-tab ${i===w.current?'active':''}" onclick="wizardSwitchItem(${i})">
+        <span class="wizard-title-tab-thumb">${it.poster?`<img src="${esc(it.poster)}" alt="">`:(it.type==='series'?ICON.tv:ICON.movie)}</span>
+        <span class="wizard-title-tab-name">${esc(it.title||it.imdbId)}</span>
+        ${it.status==='error'?`<span class="wizard-title-tab-error" title="${esc(it.error||'Failed')}"></span>`:''}
+      </button>`).join('')}
+  </div>`;
+}
+function wizardSwitchItem(i){ state.wizard.current = i; renderWizardModal(); }
+function wizardFooterHtml(){
+  const w = state.wizard;
+  const readyCount = w.items.filter(i=>i.status==='ready').length;
+  const draft = w.items[w.current];
+  const isError = draft && draft.status==='error';
+  const leftBtn = w.step===2
+    ? `<button class="btn btn-ghost" onclick="wizardBackToStep1()">${ICON.chevronLeft} Back</button>`
+    : `<button class="btn btn-ghost" onclick="wizardGoStep(${w.step-1})">${ICON.chevronLeft} Back</button>`;
+  const rightBtn = w.step===6
+    ? `<button class="btn btn-primary" ${readyCount?'':'disabled'} onclick="wizardFinish()">Add ${readyCount} Title${readyCount===1?'':'s'} to Library</button>`
+    : `<button class="btn btn-primary" onclick="wizardGoStep(${w.step+1})" ${isError && w.items.length===1?'disabled':''}>Next ${ICON.chevronRight}</button>`;
+  return `<div class="wizard-footer"><div>${leftBtn}</div><div class="wizard-footer-right">${rightBtn}</div></div>`;
+}
+function wizardGoStep(n){
+  const w = state.wizard;
+  if(n>w.step && w.step===2){
+    const badIdx = w.items.findIndex(i=>i.status==='ready' && !i.title.trim());
+    if(badIdx>-1){ w.current=badIdx; toast('Title is required for every item before continuing'); renderWizardModal(); return; }
+  }
+  w.step = n;
+  if(w.items[w.current] && w.items[w.current].status==='error'){
+    const firstReady = w.items.findIndex(i=>i.status==='ready');
+    if(firstReady>-1) w.current = firstReady;
+  }
+  renderWizardModal();
+}
+function wizardBackToStep1(){
+  if(!confirm('Go back to edit the IMDb links? This discards the info fetched so far.')) return;
+  state.wizard.step = 1;
+  state.wizard.items = [];
+  renderWizardModal();
+}
+
+/* ---- Step 1: Links ---- */
+function wizardStep1Html(){
+  const w = state.wizard;
+  return `
+    <div class="modal-head"><h2>Add Title</h2><button class="btn-icon" onclick="wizardClose()">${ICON.close}</button></div>
+    ${wizardStepperHtml()}
+    <div class="wizard-intro">
+      <div class="wizard-intro-icon">${ICON.link}</div>
+      <h3>Add by IMDb Link</h3>
+      <p>Paste one title, or paste a whole batch — we'll fetch metadata, cast, artwork and genres for each, and generate streaming links automatically.</p>
+    </div>
+    <div class="field">
+      <label>IMDb Links or IDs</label>
+      <textarea id="wizardLinksInput" rows="9" placeholder="One or many, e.g.&#10;https://www.imdb.com/title/tt0111161/&#10;https://www.imdb.com/title/tt0068646/&#10;tt0071562&#10;&#10;...or paste a JSON array/blob containing them — IDs are pulled out automatically.">${esc(w.rawInput||'')}</textarea>
+      <div class="field-hint">Links, bare IDs, comma-separated, or JSON all work. Titles already in your library are skipped automatically.</div>
+    </div>
+    <div class="wizard-footer" style="justify-content:flex-end;">
+      <button class="btn btn-primary" onclick="wizardBeginFetch()">Continue ${ICON.chevronRight}</button>
+    </div>
+  `;
+}
+async function wizardBeginFetch(){
+  if(!state.settings.omdb){ toast('Add your OMDb API key in Settings first'); return; }
+  if(!state.settings.tmdb){ toast('Add your TMDB API key in Settings first — needed for backdrops, logos, cast photos, and season data'); return; }
+  const raw = document.getElementById('wizardLinksInput').value;
+  const ids = extractImdbIds(raw);
+  if(!ids.length){ toast('No IMDb IDs found — paste links, bare IDs, or JSON containing them'); return; }
+  state.wizard.rawInput = raw;
+
+  const existingIds = new Set(state.lib.items.map(i=>i.imdbId).filter(Boolean));
+  const duplicates = ids.filter(id=>existingIds.has(id));
+  const toFetch = ids.filter(id=>!existingIds.has(id));
+  state.wizard.duplicates = duplicates;
+  if(!toFetch.length){ toast('All of those are already in your library'); return; }
+
+  openModal(`
+    <div class="modal-head"><h2>Fetching…</h2></div>
+    <div style="text-align:center; padding:36px 0;">
+      <div class="spinner" style="margin:0 auto 18px auto;"></div>
+      <div id="wizardFetchProgressText" style="color:var(--muted); font-size:13px;">Starting…</div>
+      <div class="wizard-progress-track" style="max-width:280px; margin:16px auto 0;"><div class="wizard-progress-fill" id="wizardFetchProgressFill" style="width:0%;"></div></div>
+    </div>
+  `);
+  const setProgress = (i,total,label)=>{
+    const t = document.getElementById('wizardFetchProgressText'); if(t) t.textContent = `Fetching ${i} / ${total}… (${label})`;
+    const f = document.getElementById('wizardFetchProgressFill'); if(f) f.style.width = Math.round(i/total*100)+'%';
+  };
+  const items = [];
+  for(let i=0;i<toFetch.length;i++){
+    const imdbId = toFetch[i];
+    setProgress(i+1, toFetch.length, imdbId);
+    try{
+      const payload = await buildWizardItemFromImdb(imdbId);
+      items.push(Object.assign({status:'ready', imdbId}, payload));
+    }catch(e){
+      items.push({status:'error', imdbId, error:(e.message||'Failed').replace(imdbId+': ','')});
+    }
+  }
+  state.wizard.items = items;
+  const readyCount = items.filter(i=>i.status==='ready').length;
+  if(!readyCount){
+    const firstErr = items.find(i=>i.status==='error');
+    toast('Import failed for all links' + (firstErr ? ': '+firstErr.error : ''));
+    state.wizard.items = [];
+    state.wizard.step = 1;
+    renderWizardModal();
+    return;
+  }
+  state.wizard.current = items.findIndex(i=>i.status==='ready');
+  state.wizard.step = 2;
+  renderWizardModal();
+}
+// Headless fetch used only by the wizard — same OMDb + TMDB lookups and merge order as
+// buildLibraryItemFromImdb (Settings-triggered bulk import), plus it carries the image candidate
+// galleries through so the Artwork step has something to show, and starts sources/panoramic blank
+// so the wizard's own steps are the single place those get filled in.
+async function buildWizardItemFromImdb(imdbId){
+  const omdbRes = await fetch(`https://www.omdbapi.com/?i=${encodeURIComponent(imdbId)}&plot=full&apikey=${encodeURIComponent(state.settings.omdb)}`);
+  const omdb = await omdbRes.json();
+  if(omdb.Response==='False') throw new Error(`${imdbId}: ${omdb.Error || 'not found on OMDb'}`);
+  const type = omdb.Type==='series' ? 'series' : 'movie';
+  const tmdbType = type==='series' ? 'tv' : 'movie';
+
+  const findRes = await fetch(`https://api.themoviedb.org/3/find/${imdbId}?api_key=${encodeURIComponent(state.settings.tmdb)}&external_source=imdb_id`);
+  const find = await findRes.json();
+  if(find.success===false) throw new Error(`${imdbId}: TMDB error — ${find.status_message||'request failed'}`);
+  const results = tmdbType==='movie' ? find.movie_results : find.tv_results;
+  const tmdbMatch = results && results[0];
+
+  const payload = { type, imdbId, genre:[], actors:[], posterCandidates:[], backdropCandidates:[], logoCandidates:[], panoramicBanners:[] };
+  let info = null;
+  if(tmdbMatch){
+    info = await fetchTmdbDetailsHeadless(tmdbMatch.id, tmdbType);
+    Object.assign(payload, info.fields);
+    payload.posterCandidates = info.posterCandidates || [];
+    payload.backdropCandidates = info.backdropCandidates || [];
+    payload.logoCandidates = info.logoCandidates || [];
+    if(type==='series') payload.seasons = info.seasons;
+  } else {
+    if(omdb.Genre) payload.genre = omdb.Genre.split(',').map(g=>g.trim()).filter(Boolean);
+    if(omdb.Actors && omdb.Actors!=='N/A') payload.actors = omdb.Actors.split(',').map(a=>a.trim()).filter(Boolean);
+  }
+
+  const setIfEmpty = (key, val)=>{ if(!payload[key] && val && val!=='N/A') payload[key] = val; };
+  setIfEmpty('title', omdb.Title);
+  setIfEmpty('year', (omdb.Year||'').split('–')[0].split('-')[0]);
+  setIfEmpty('poster', omdb.Poster);
+  setIfEmpty('description', omdb.Plot);
+  setIfEmpty('runtime', omdb.Runtime);
+  if(omdb.imdbRating && omdb.imdbRating!=='N/A') payload.rating = omdb.imdbRating;
+  setIfEmpty('director', omdb.Director);
+  setIfEmpty('contentRating', omdb.Rated);
+  setIfEmpty('awards', omdb.Awards);
+  const omdbRatings = normalizeOmdbRatings(omdb);
+  if(omdbRatings.length) payload.ratings = omdbRatings;
+
+  if(!payload.title) throw new Error(`${imdbId}: no title found on either OMDb or TMDB`);
+  payload.tmdbId = info ? info.tmdbId : null;
+  payload.trailerKey = info ? info.trailerKey : '';
+  payload.trailerChecked = !!(info && info.trailerKey);
+  if(type==='movie') payload.sources = [];
+  else payload.seasons = payload.seasons || [];
+
+  return payload;
+}
+
+/* ---- Error state (shown instead of a step for an item whose fetch failed) ---- */
+function wizardErrorStepHtml(draft){
+  const idx = state.wizard.current;
+  return `
+    <div class="wizard-error-banner">Import failed for <b>${esc(draft.imdbId)}</b>: ${esc(draft.error||'Unknown error')}</div>
+    <div style="display:flex; gap:10px;">
+      <button class="btn btn-ghost" onclick="wizardRetryItem(${idx})">Retry</button>
+      <button class="btn btn-ghost" onclick="wizardRemoveItem(${idx})">Remove from Batch</button>
+    </div>
+  `;
+}
+async function wizardRetryItem(idx){
+  const w = state.wizard;
+  const imdbId = w.items[idx].imdbId;
+  toast('Retrying '+imdbId+'…');
+  try{
+    const payload = await buildWizardItemFromImdb(imdbId);
+    w.items[idx] = Object.assign({status:'ready', imdbId}, payload);
+    toast('Imported '+(payload.title||imdbId));
+  }catch(e){
+    w.items[idx] = {status:'error', imdbId, error:(e.message||'Failed').replace(imdbId+': ','')};
+  }
+  renderWizardModal();
+}
+function wizardRemoveItem(idx){
+  const w = state.wizard;
+  w.items.splice(idx,1);
+  if(w.current>=w.items.length) w.current = Math.max(0, w.items.length-1);
+  if(!w.items.length){ w.step=1; w.rawInput=''; }
+  renderWizardModal();
+}
+
+/* ---- Step 2: Info ---- */
+function wizardStepInfoHtml(draft){
+  return `
+    <div class="field-row">
+      <div class="field" style="flex:2"><label>Title</label><input value="${esc(draft.title||'')}" oninput="wizardCurrentItem().title=this.value; wizardSyncHero();" placeholder="e.g. Interstellar"></div>
+      <div class="field"><label>Year</label><input value="${esc(draft.year||'')}" oninput="wizardCurrentItem().year=this.value; wizardSyncHero();" placeholder="2014"></div>
+    </div>
+    <div class="field"><label>Tagline <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional)</span></label><input value="${esc(draft.tagline||'')}" oninput="wizardCurrentItem().tagline=this.value" placeholder="e.g. In space, no one can hear you scream"></div>
+    <div class="field-row">
+      <div class="field"><label>Director / Creator <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional)</span></label><input value="${esc(draft.director||'')}" oninput="wizardCurrentItem().director=this.value" placeholder="e.g. Christopher Nolan"></div>
+      <div class="field" style="max-width:140px;"><label>Content Rating</label><input value="${esc(draft.contentRating||'')}" oninput="wizardCurrentItem().contentRating=this.value; wizardSyncHero();" placeholder="PG-13"></div>
+    </div>
+    <div class="field">
+      <label>Cast</label>
+      <div class="actor-chips-wrap" id="wizardActorChips">${wizardActorChipsHtml(draft)}</div>
+      <div style="display:flex; gap:8px; margin-top:10px;">
+        <input id="wizardActorInput" placeholder="Add actor name and press Enter" onkeydown="if(event.key==='Enter'){event.preventDefault(); wizardAddActor();}">
+        <button type="button" class="btn-icon" title="Add actor" onclick="wizardAddActor()">${ICON.plus}</button>
+      </div>
+      <div class="field-hint">Filled in automatically from TMDB/OMDb — add or remove cast members freely.</div>
+    </div>
+    <div class="field"><label>Description</label><textarea rows="4" oninput="wizardCurrentItem().description=this.value" placeholder="Synopsis...">${esc(draft.description||'')}</textarea></div>
+    <div class="field"><label>Awards <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional)</span></label><input value="${esc(draft.awards||'')}" oninput="wizardCurrentItem().awards=this.value" placeholder="e.g. Won 4 Oscars"></div>
+    <div class="field-row">
+      <div class="field" style="max-width:140px;"><label>Rating</label><input value="${esc(draft.rating||'')}" oninput="wizardCurrentItem().rating=this.value; wizardSyncHero();" placeholder="8.6"></div>
+      <div class="field" style="max-width:160px;"><label>Runtime</label><input value="${esc(draft.runtime||'')}" oninput="wizardCurrentItem().runtime=this.value; wizardSyncHero();" placeholder="148 min"></div>
+    </div>
+  `;
+}
+function wizardActorChipsHtml(draft){
+  const actors = draft.actors || [];
+  if(!actors.length) return `<span style="color:var(--muted); font-size:12.5px;">No cast added yet.</span>`;
+  return actors.map((a,i)=>`<span class="actor-chip">${esc(a)}<button type="button" title="Remove" onclick="wizardRemoveActor(${i})">${ICON.close}</button></span>`).join('');
+}
+function wizardAddActor(){
+  const input = document.getElementById('wizardActorInput');
+  if(!input) return;
+  const name = input.value.trim();
+  if(!name) return;
+  const draft = wizardCurrentItem();
+  draft.actors = draft.actors || [];
+  if(!draft.actors.some(a=>a.toLowerCase()===name.toLowerCase())) draft.actors.push(name);
+  input.value = '';
+  const el = document.getElementById('wizardActorChips');
+  if(el) el.innerHTML = wizardActorChipsHtml(draft);
+  input.focus();
+}
+function wizardRemoveActor(i){
+  const draft = wizardCurrentItem();
+  draft.actors.splice(i,1);
+  const el = document.getElementById('wizardActorChips');
+  if(el) el.innerHTML = wizardActorChipsHtml(draft);
+}
+
+/* ---- Step 3: Genre ---- */
+function wizardStepGenreHtml(draft){
+  const genresPool = [...new Set([...DEFAULT_GENRES, ...allGenres(), ...(draft.genre||[])])];
+  return `
+    <div class="field">
+      <label>Genre</label>
+      <div class="chip-select" id="wizardGenreChips">${genresPool.map(g=>`<button type="button" class="chip-btn ${(draft.genre||[]).includes(g)?'active':''}" onclick="wizardToggleGenre('${g.replace(/'/g,"\\'")}')">${esc(g)}</button>`).join('')}</div>
+      <div style="display:flex; gap:8px; margin-top:12px;">
+        <input id="wizardGenreInput" placeholder="Add a custom genre and press Enter" onkeydown="if(event.key==='Enter'){event.preventDefault(); wizardAddCustomGenre();}">
+        <button type="button" class="btn-icon" title="Add genre" onclick="wizardAddCustomGenre()">${ICON.plus}</button>
+      </div>
+      <div class="field-hint">Pulled in automatically from TMDB — tap to add or remove any. ${draft.genre && draft.genre.length ? draft.genre.length+' selected.' : 'None selected yet.'}</div>
+    </div>
+  `;
+}
+function wizardToggleGenre(g){
+  const draft = wizardCurrentItem();
+  draft.genre = draft.genre || [];
+  const i = draft.genre.indexOf(g);
+  if(i>-1) draft.genre.splice(i,1); else draft.genre.push(g);
+  wizardRefreshStepBody();
+  wizardSyncHero();
+}
+function wizardAddCustomGenre(){
+  const input = document.getElementById('wizardGenreInput');
+  if(!input) return;
+  const g = input.value.trim();
+  if(!g) return;
+  const draft = wizardCurrentItem();
+  draft.genre = draft.genre || [];
+  if(!draft.genre.includes(g)) draft.genre.push(g);
+  input.value = '';
+  wizardRefreshStepBody();
+  wizardSyncHero();
+}
+
+/* ---- Step 4: Artwork ---- */
+function wizardStepArtworkHtml(draft){
+  const posterCandidates = draft.posterCandidates || [];
+  const backdropCandidates = draft.backdropCandidates || [];
+  const logoCandidates = draft.logoCandidates || [];
+  const panoramic = draft.panoramicBanners || [];
+  const escJs = s=>esc(s).replace(/'/g,"\\'");
+  return `
+    <div class="wizard-preview-strip">
+      <div class="wizard-preview-card">
+        <div class="wizard-preview-card-label">Poster</div>
+        <div class="wizard-preview-poster"><img id="wizardPosterPreviewImg" src="${esc(draft.poster||'')}" style="${draft.poster?'':'display:none;'}" alt=""></div>
+      </div>
+      <div class="wizard-preview-card">
+        <div class="wizard-preview-card-label">Backdrop</div>
+        <div class="wizard-preview-backdrop"><img id="wizardBackdropPreviewImg" src="${esc(draft.backdrop||'')}" style="${draft.backdrop?'':'display:none;'}" alt=""></div>
+      </div>
+      <div class="wizard-preview-card">
+        <div class="wizard-preview-card-label">Logo</div>
+        <div class="wizard-preview-logo"><img id="wizardLogoPreviewImg" src="${esc(draft.logo||'')}" style="${draft.logo?'':'display:none;'}" alt=""></div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Poster</label>
+      ${posterCandidates.length ? `<div class="wizard-gallery">${posterCandidates.map(url=>`
+        <div class="wizard-gallery-item ${draft.poster===url?'selected':''}" onclick="wizardSelectImage('poster','${escJs(url)}')">
+          <img src="${esc(url)}" loading="lazy" alt="">
+          <div class="wizard-gallery-check">${ICON.check}</div>
+        </div>`).join('')}</div>` : `<div class="wizard-gallery-empty">No poster candidates found on TMDB.</div>`}
+      <input style="margin-top:10px;" value="${esc(draft.poster||'')}" placeholder="Or paste a custom poster URL" oninput="wizardCurrentItem().poster=this.value; wizardSyncPreviewImg('wizardPosterPreviewImg', this.value); wizardSyncHero();">
+    </div>
+
+    <div class="field">
+      <label>Backdrop</label>
+      ${backdropCandidates.length ? `<div class="wizard-gallery wizard-gallery-wide">${backdropCandidates.map(url=>`
+        <div class="wizard-gallery-item ${draft.backdrop===url?'selected':''}" onclick="wizardSelectImage('backdrop','${escJs(url)}')">
+          <img src="${esc(url)}" loading="lazy" alt="">
+          <div class="wizard-gallery-check">${ICON.check}</div>
+        </div>`).join('')}</div>` : `<div class="wizard-gallery-empty">No backdrop candidates found on TMDB.</div>`}
+      <input style="margin-top:10px;" value="${esc(draft.backdrop||'')}" placeholder="Or paste a custom backdrop URL" oninput="wizardCurrentItem().backdrop=this.value; wizardSyncPreviewImg('wizardBackdropPreviewImg', this.value);">
+    </div>
+
+    <div class="field">
+      <label>Logo <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional, shown on the detail page instead of text title)</span></label>
+      ${logoCandidates.length ? `<div class="wizard-gallery wizard-gallery-wide">${logoCandidates.map(url=>`
+        <div class="wizard-gallery-item logo-tile ${draft.logo===url?'selected':''}" onclick="wizardSelectImage('logo','${escJs(url)}')">
+          <img src="${esc(url)}" loading="lazy" alt="">
+          <div class="wizard-gallery-check">${ICON.check}</div>
+        </div>`).join('')}</div>` : `<div class="wizard-gallery-empty">No logo candidates found on TMDB.</div>`}
+      <input style="margin-top:10px;" value="${esc(draft.logo||'')}" placeholder="Or paste a custom logo URL" oninput="wizardCurrentItem().logo=this.value; wizardSyncPreviewImg('wizardLogoPreviewImg', this.value);">
+    </div>
+
+    <div class="field">
+      <label>Panoramic Banners <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional, up to 6 — pick several)</span></label>
+      ${backdropCandidates.length ? `<div class="wizard-gallery wizard-gallery-wide">${backdropCandidates.map(url=>`
+        <div class="wizard-gallery-item ${panoramic.includes(url)?'selected':''}" onclick="wizardTogglePanoramic('${escJs(url)}')">
+          <img src="${esc(url)}" loading="lazy" alt="">
+          <div class="wizard-gallery-check">${ICON.check}</div>
+        </div>`).join('')}</div>` : ''}
+      <textarea rows="3" style="margin-top:10px;" placeholder="Or paste custom banner URLs, one per line" oninput="wizardSetPanoramicManual(this.value)">${esc((panoramic||[]).filter(u=>!backdropCandidates.includes(u)).join('\n'))}</textarea>
+      <div class="field-hint">Wide, cinematic hero artwork — ${panoramic.length}/6 selected. Click backdrop candidates above to toggle them, or paste your own below.</div>
+    </div>
+
+    <div class="field">
+      <label>Featured Cutout URL <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional)</span></label>
+      <input value="${esc(draft.featuredCutout||'')}" oninput="wizardCurrentItem().featuredCutout=this.value" placeholder="https://... transparent PNG, subject only, no background">
+    </div>
+  `;
+}
+function wizardSyncPreviewImg(id,url){
+  const img = document.getElementById(id);
+  if(!img) return;
+  if(url){ img.src = url; img.style.display=''; } else { img.style.display = 'none'; }
+}
+function wizardSelectImage(kind,url){
+  const draft = wizardCurrentItem();
+  draft[kind] = draft[kind]===url ? '' : url;
+  wizardRefreshStepBody();
+  wizardSyncHero();
+}
+function wizardTogglePanoramic(url){
+  const draft = wizardCurrentItem();
+  draft.panoramicBanners = draft.panoramicBanners || [];
+  const i = draft.panoramicBanners.indexOf(url);
+  if(i>-1) draft.panoramicBanners.splice(i,1);
+  else if(draft.panoramicBanners.length<6) draft.panoramicBanners.push(url);
+  else { toast('Up to 6 panoramic banners'); return; }
+  wizardRefreshStepBody();
+}
+function wizardSetPanoramicManual(text){
+  const draft = wizardCurrentItem();
+  const manualUrls = text.split('\n').map(s=>s.trim()).filter(Boolean);
+  const fromCandidates = (draft.panoramicBanners||[]).filter(u=>(draft.backdropCandidates||[]).includes(u));
+  draft.panoramicBanners = [...fromCandidates, ...manualUrls].slice(0,6);
+}
+
+/* ---- Step 5: Sources ---- */
+function wizardAutoSourcesPreviewHtml(auto){
+  if(!auto.length){
+    return `<div class="field-hint" style="margin-bottom:8px;">No Streaming Provider domains set — add one in Settings &rarr; Playback to auto-generate a link here. You can still add one manually below.</div>`;
+  }
+  return auto.map(s=>`
+    <div class="source-row source-row-auto" title="Generated automatically from Settings &rarr; Playback &rarr; Streaming Providers.">
+      <input value="${esc(s.label)}" disabled>
+      <input value="${esc(s.url)}" disabled>
+      <span class="source-row-auto-badge">Auto</span>
+    </div>`).join('');
+}
+function wizardStepSourcesHtml(draft){
+  if(draft.type==='movie'){
+    return `
+      <div class="field">
+        <label>Sources</label>
+        ${wizardAutoSourcesPreviewHtml(draft.imdbId ? getAutoProviderSources({imdbId:draft.imdbId}, null, null) : [])}
+        ${(draft.sources||[]).map((s,i)=>`
+          <div class="source-row">
+            <input placeholder="Label (e.g. VidSrc)" value="${esc(s.label)}" oninput="wizardCurrentItem().sources[${i}].label=this.value">
+            <input placeholder="https://..." value="${esc(s.url)}" oninput="wizardCurrentItem().sources[${i}].url=this.value">
+            <button type="button" class="rm" onclick="wizardRemoveMovieSource(${i})">${ICON.close}</button>
+          </div>`).join('')}
+        <button type="button" class="btn btn-ghost" onclick="wizardAddMovieSource()">${ICON.plus} Add Source</button>
+        <div class="field-hint">Add fallback sources (YouTube, mp4, VidSrc, Dailymotion, etc). Optional — the auto-generated link(s) above already work once you've set a Streaming Provider.</div>
+      </div>`;
+  }
+  const seasons = draft.seasons || [];
+  if(!seasons.length) return `<div class="field-hint">No seasons were found for this title on TMDB. You can add them later from Edit Title.</div>`;
+  let html = `<div class="field-hint" style="margin-bottom:14px;">${seasons.length} season${seasons.length===1?'':'s'}, ${seasons.reduce((n,s)=>n+(s.episodes||[]).length,0)} episodes imported. Auto-generated links (if any) show per episode; add manual fallbacks below if you want them.</div>`;
+  html += seasons.map((s,si)=>`
+    <div class="season-block">
+      <div class="season-block-head"><b>Season ${s.number}</b><span class="ep-sub">${(s.episodes||[]).length} episodes</span></div>
+      ${(s.episodes||[]).map((e,ei)=>`
+        <div class="ep-editor">
+          <div class="ep-editor-head"><b>${s.number}x${String(e.number).padStart(2,'0')}</b><span class="ep-sub" style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(e.title||'')}</span></div>
+          ${wizardAutoSourcesPreviewHtml(draft.imdbId ? getAutoProviderSources({imdbId:draft.imdbId}, s.number, e.number) : [])}
+          ${(e.sources||[]).map((src,oi)=>`
+            <div class="source-row">
+              <input placeholder="Label" value="${esc(src.label)}" oninput="wizardCurrentItem().seasons[${si}].episodes[${ei}].sources[${oi}].label=this.value">
+              <input placeholder="https://..." value="${esc(src.url)}" oninput="wizardCurrentItem().seasons[${si}].episodes[${ei}].sources[${oi}].url=this.value">
+              <button type="button" class="rm" onclick="wizardRemoveEpSource(${si},${ei},${oi})">${ICON.close}</button>
+            </div>`).join('')}
+          <button type="button" class="btn btn-ghost" style="padding:6px 10px;font-size:12px;" onclick="wizardAddEpSource(${si},${ei})">${ICON.plus} Add Source</button>
+        </div>`).join('')}
+    </div>`).join('');
+  return html;
+}
+function wizardAddMovieSource(){
+  const draft = wizardCurrentItem();
+  draft.sources = draft.sources || [];
+  draft.sources.push({label:'',url:''});
+  wizardRefreshStepBody();
+}
+function wizardRemoveMovieSource(i){
+  const draft = wizardCurrentItem();
+  draft.sources.splice(i,1);
+  wizardRefreshStepBody();
+}
+function wizardAddEpSource(si,ei){
+  const ep = wizardCurrentItem().seasons[si].episodes[ei];
+  ep.sources = ep.sources || [];
+  ep.sources.push({label:'',url:''});
+  wizardRefreshStepBody();
+}
+function wizardRemoveEpSource(si,ei,oi){
+  wizardCurrentItem().seasons[si].episodes[ei].sources.splice(oi,1);
+  wizardRefreshStepBody();
+}
+
+/* ---- Step 6: Confirm ---- */
+function wizardStepConfirmHtml(){
+  const w = state.wizard;
+  const ready = w.items.filter(i=>i.status==='ready');
+  const errored = w.items.filter(i=>i.status==='error');
+  const dupCount = (w.duplicates||[]).length;
+  let html = `<div class="wizard-confirm-stats">
+    <div class="wizard-confirm-stat"><div class="wizard-confirm-stat-num">${ready.length}</div><div class="wizard-confirm-stat-label">Ready</div></div>
+    ${dupCount ? `<div class="wizard-confirm-stat"><div class="wizard-confirm-stat-num">${dupCount}</div><div class="wizard-confirm-stat-label">Already Added</div></div>` : ''}
+    ${errored.length ? `<div class="wizard-confirm-stat wizard-confirm-stat-error"><div class="wizard-confirm-stat-num">${errored.length}</div><div class="wizard-confirm-stat-label">Failed</div></div>` : ''}
+  </div>`;
+  if(ready.length) html += `<div class="field-hint" style="margin-bottom:14px;">The last title below becomes the newest in your library.</div>`;
+  html += ready.map((it,idx)=>{
+    const realIdx = w.items.indexOf(it);
+    const isNewest = idx===ready.length-1;
+    return `
+    <div class="wizard-summary-item">
+      <div class="wizard-summary-poster">${it.poster?`<img src="${esc(it.poster)}" alt="">`:''}</div>
+      <div class="wizard-summary-body">
+        <div class="wizard-summary-title">${esc(it.title)}${it.year?` (${esc(it.year)})`:''}</div>
+        <div class="wizard-summary-meta">${it.type==='series'?'TV Show':'Movie'} · ${esc(it.imdbId)}${it.type==='series'?` · ${(it.seasons||[]).length} season(s)`:''}</div>
+        <div class="wizard-summary-tags">${isNewest?`<span class="wizard-summary-tag wizard-summary-tag-newest">${ICON.sparkles} Newest</span>`:''}${(it.genre||[]).slice(0,4).map(g=>`<span class="wizard-summary-tag">${esc(g)}</span>`).join('')}</div>
+      </div>
+      <button type="button" class="btn-icon wizard-summary-remove" title="Remove from batch" onclick="wizardRemoveItem(${realIdx})">${ICON.trash}</button>
+    </div>`;
+  }).join('');
+  if(errored.length){
+    html += `<div class="field-hint" style="margin:16px 0 8px;">Failed — won't be added:</div>`;
+    html += errored.map(it=>{
+      const realIdx = w.items.indexOf(it);
+      return `<div class="wizard-summary-item wizard-summary-error">
+        <div class="wizard-summary-body">
+          <div class="wizard-summary-title">${esc(it.imdbId)}</div>
+          <div class="wizard-summary-meta">${esc(it.error||'Unknown error')}</div>
+        </div>
+        <button type="button" class="btn-icon wizard-summary-remove" title="Remove" onclick="wizardRemoveItem(${realIdx})">${ICON.close}</button>
+      </div>`;
+    }).join('');
+  }
+  return html;
+}
+function wizardFinish(){
+  const w = state.wizard;
+  const ready = w.items.filter(i=>i.status==='ready');
+  if(!ready.length){ toast('Nothing to add'); return; }
+  const baseTime = Date.now();
+  ready.forEach((it,i)=>{
+    const clean = Object.assign({}, it);
+    delete clean.status; delete clean.error;
+    delete clean.posterCandidates; delete clean.backdropCandidates; delete clean.logoCandidates;
+    state.lib.items.push({
+      id: uuid(), dateAdded: new Date(baseTime + i*1000).toISOString(), lastWatched:null, progress:{},
+      ...clean
+    });
+  });
+  saveLib();
+  state.wizard = null;
+  closeModal();
+  router();
+  toast(`${ready.length} title${ready.length===1?'':'s'} added to your library`);
 }
 
 // Bulk "Update Info" (Settings → Library Metadata): re-pulls TMDB metadata for a TV show you
