@@ -1384,14 +1384,15 @@ body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
 .wizard-confirm-stat-error{border-color:rgba(255,85,102,.25);}
 .wizard-confirm-stat-error .wizard-confirm-stat-icon{background:rgba(255,85,102,.14); color:#ff8b93;}
 
-.wizard-summary-item{display:flex; gap:14px; padding:14px; border:1px solid rgba(61,219,217,.14); border-radius:12px; margin-bottom:10px; background:#0c0e14; transition:all var(--transition);}
+.wizard-summary-item{display:flex; flex-direction:column; gap:12px; padding:14px; border:1px solid rgba(61,219,217,.14); border-radius:12px; margin-bottom:10px; background:#0c0e14; transition:all var(--transition);}
 .wizard-summary-item:hover{border-color:#2a3040; background:#0e1119; transform:translateY(-1px);}
+.wizard-summary-top{display:flex; gap:14px; align-items:flex-start;}
 .wizard-summary-poster{width:56px; aspect-ratio:2/3; border-radius:7px; overflow:hidden; flex-shrink:0; align-self:flex-start; background:#12141c; box-shadow:0 8px 18px -4px rgba(0,0,0,.5);}
 .wizard-summary-poster img{width:100%; height:100%; object-fit:cover; display:block;}
 .wizard-summary-body{min-width:0; flex:1;}
 .wizard-summary-title{font-weight:800; font-size:14.5px; margin-bottom:2px; line-height:1.3;}
-.wizard-summary-meta{font-size:12px; color:var(--muted); margin-bottom:6px;}
-.wizard-summary-tags{display:flex; flex-wrap:wrap; gap:6px;}
+.wizard-summary-meta{font-size:12px; color:var(--muted);}
+.wizard-summary-tags{display:flex; flex-wrap:wrap; align-items:center; gap:6px;}
 .wizard-summary-tag{display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; padding:3px 9px; border-radius:20px; background:var(--highlight-dim); color:var(--highlight); line-height:1.4;}
 .wizard-summary-tag svg{width:10px; height:10px; flex-shrink:0;}
 .wizard-summary-tag-newest{background:rgba(255,201,77,.16); color:#ffc94d;}
@@ -7838,7 +7839,7 @@ function wizardStep1Html(){
       </div>
       <div class="field imdb-import-field">
         <label>IMDb Links or IDs</label>
-        <textarea id="wizardLinksInput" rows="9" placeholder="https://www.imdb.com/title/tt0111161/&#10;https://www.imdb.com/title/tt0068646/&#10;tt0071562">${esc(w.rawInput||'')}</textarea>
+        <textarea id="wizardLinksInput" rows="6" placeholder="https://www.imdb.com/title/tt0111161/&#10;https://www.imdb.com/title/tt0068646/&#10;tt0071562">${esc(w.rawInput||'')}</textarea>
       </div>
     </div>
     <div class="wizard-footer" style="justify-content:flex-end;">
@@ -8324,13 +8325,15 @@ function wizardStepConfirmHtml(){
     const isNewest = idx===ready.length-1;
     return `
     <div class="wizard-summary-item">
-      <div class="wizard-summary-poster">${it.poster?`<img src="${esc(it.poster)}" alt="">`:''}</div>
-      <div class="wizard-summary-body">
-        <div class="wizard-summary-title">${esc(it.title)}${it.year?` (${esc(it.year)})`:''}</div>
-        <div class="wizard-summary-meta">${it.type==='series'?'TV Show':'Movie'} · ${esc(it.imdbId)}${it.type==='series'?` · ${(it.seasons||[]).length} season(s)`:''}</div>
-        <div class="wizard-summary-tags">${isNewest?`<span class="wizard-summary-tag wizard-summary-tag-newest">${ICON.award} Newest</span>`:''}${(it.genre||[]).slice(0,4).map(g=>`<span class="wizard-summary-tag">${esc(g)}</span>`).join('')}</div>
+      <div class="wizard-summary-top">
+        <div class="wizard-summary-poster">${it.poster?`<img src="${esc(it.poster)}" alt="">`:''}</div>
+        <div class="wizard-summary-body">
+          <div class="wizard-summary-title">${esc(it.title)}${it.year?` (${esc(it.year)})`:''}</div>
+          <div class="wizard-summary-meta">${it.type==='series'?'TV Show':'Movie'} · ${esc(it.imdbId)}${it.type==='series'?` · ${(it.seasons||[]).length} season(s)`:''}</div>
+        </div>
+        <button type="button" class="btn-icon wizard-summary-remove" title="Remove from batch" onclick="wizardRemoveItem(${realIdx})">${ICON.trash}</button>
       </div>
-      <button type="button" class="btn-icon wizard-summary-remove" title="Remove from batch" onclick="wizardRemoveItem(${realIdx})">${ICON.trash}</button>
+      <div class="wizard-summary-tags">${isNewest?`<span class="wizard-summary-tag wizard-summary-tag-newest">${ICON.award} Newest</span>`:''}${(it.genre||[]).slice(0,4).map(g=>`<span class="wizard-summary-tag">${esc(g)}</span>`).join('')}</div>
     </div>`;
   }).join('');
   if(errored.length){
@@ -8338,11 +8341,13 @@ function wizardStepConfirmHtml(){
     html += errored.map(it=>{
       const realIdx = w.items.indexOf(it);
       return `<div class="wizard-summary-item wizard-summary-error">
-        <div class="wizard-summary-body">
-          <div class="wizard-summary-title">${esc(it.imdbId)}</div>
-          <div class="wizard-summary-meta">${esc(it.error||'Unknown error')}</div>
+        <div class="wizard-summary-top">
+          <div class="wizard-summary-body">
+            <div class="wizard-summary-title">${esc(it.imdbId)}</div>
+            <div class="wizard-summary-meta">${esc(it.error||'Unknown error')}</div>
+          </div>
+          <button type="button" class="btn-icon wizard-summary-remove" title="Remove" onclick="wizardRemoveItem(${realIdx})">${ICON.close}</button>
         </div>
-        <button type="button" class="btn-icon wizard-summary-remove" title="Remove" onclick="wizardRemoveItem(${realIdx})">${ICON.close}</button>
       </div>`;
     }).join('');
   }
