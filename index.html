@@ -179,7 +179,7 @@ a{color:inherit; text-decoration:none;}
 }
 .global-search-results.show{display:block;}
 .gsr-item{display:flex; gap:12px; align-items:center; padding:8px; border-radius:10px; cursor:pointer; transition:background var(--transition);}
-.gsr-item:hover{background:#161923;}
+.gsr-item:hover, .gsr-item.kbd-active{background:#161923;}
 .gsr-poster{width:38px; height:56px; border-radius:6px; overflow:hidden; flex-shrink:0; background:var(--surface2); display:flex; align-items:center; justify-content:center;}
 .gsr-poster img{width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity .4s ease;}
 .gsr-poster img.loaded{opacity:1;}
@@ -187,10 +187,110 @@ a{color:inherit; text-decoration:none;}
 .gsr-poster svg{width:15px; height:15px; color:var(--muted);}
 .gsr-title{font-size:13px; font-weight:700; line-height:1.3;}
 .gsr-meta{font-size:11px; color:var(--muted); margin-top:3px; display:flex; align-items:center;}
+.search-hl{background:none; color:var(--highlight); font-weight:800;}
 .gsr-empty{padding:16px; text-align:center; color:var(--muted); font-size:13px;}
 @media (max-width:860px){
   .global-search-results{right:16px; left:16px; width:auto;}
   .topbar-search.open .global-search-input{width:130px;}
+}
+
+/* ---------- Mobile full-screen search (IMDb-style) ---------- */
+.mobile-search-overlay{
+  position:fixed; inset:0; z-index:300; background:var(--bg);
+  display:none; flex-direction:column; opacity:0; transition:opacity .18s ease;
+}
+.mobile-search-overlay.show{display:flex; opacity:1;}
+.msearch-header{
+  display:flex; align-items:center; gap:12px; padding:14px 16px;
+  border-bottom:1px solid #14161f; flex-shrink:0;
+}
+.msearch-input-wrap{
+  flex:1; display:flex; align-items:center; gap:10px; background:#12141c; border:1px solid #232837;
+  border-radius:22px; padding:10px 16px; min-width:0;
+}
+.msearch-input-wrap svg{width:17px; height:17px; color:var(--muted); flex-shrink:0;}
+.msearch-input{
+  flex:1; min-width:0; background:transparent; border:0; font-size:15px; color:var(--text); font-family:inherit;
+}
+.msearch-input::placeholder{color:var(--muted);}
+.msearch-clear{
+  flex-shrink:0; width:20px; height:20px; border-radius:50%; background:#2c3244; color:var(--text);
+  display:flex; align-items:center; justify-content:center;
+}
+.msearch-clear svg{width:11px; height:11px;}
+.msearch-cancel{
+  flex-shrink:0; background:none; border:0; color:var(--highlight); font-size:14.5px; font-weight:700;
+  font-family:inherit; padding:4px 2px;
+}
+.msearch-tabs{
+  display:flex; border-bottom:1px solid #14161f; flex-shrink:0; padding:0 16px;
+}
+.msearch-tab{
+  flex:1; text-align:center; padding:13px 8px 12px; background:none; border:0; font-family:inherit;
+  font-size:14.5px; font-weight:700; color:var(--muted); position:relative; transition:color var(--transition);
+}
+.msearch-tab.active{color:var(--text);}
+.msearch-tab.active::after{
+  content:''; position:absolute; left:0; right:0; bottom:-1px; height:2.5px; background:var(--highlight); border-radius:2px 2px 0 0;
+}
+.msearch-body{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch;}
+.msearch-recent-header{
+  display:flex; align-items:center; justify-content:space-between; padding:16px 16px 8px;
+  font-size:13px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.3px;
+}
+.msearch-recent-header button{background:none; border:0; color:var(--highlight); font-family:inherit; font-size:13px; font-weight:700; text-transform:none; letter-spacing:0;}
+.msearch-row{
+  display:flex; align-items:center; gap:14px; padding:10px 16px; transition:background var(--transition);
+}
+.msearch-row:active, .msearch-row.kbd-active{background:#12141c;}
+.msearch-row-poster{
+  width:44px; height:64px; border-radius:6px; overflow:hidden; flex-shrink:0; background:var(--surface2);
+  display:flex; align-items:center; justify-content:center;
+}
+.msearch-row-poster img{width:100%; height:100%; object-fit:cover;}
+.msearch-row-poster svg{width:16px; height:16px; color:var(--muted);}
+.msearch-row-title{font-size:14.5px; font-weight:700; color:var(--text); line-height:1.3;}
+.msearch-row-meta{font-size:12.5px; color:var(--muted); margin-top:3px;}
+.msearch-empty{padding:40px 20px; text-align:center; color:var(--muted); font-size:13.5px;}
+.msearch-adv-section{padding:16px 16px 4px;}
+.msearch-adv-row{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+.msearch-adv-label{font-size:12.5px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; margin-bottom:10px;}
+.msearch-adv-label small{text-transform:none; letter-spacing:0; font-weight:600; color:var(--muted); opacity:.75;}
+.msearch-adv-clearlink{background:none; border:0; color:var(--highlight); font-family:inherit; font-size:12.5px; font-weight:700;}
+.msearch-adv-chips{
+  display:flex; flex-wrap:nowrap; gap:8px; margin-bottom:22px;
+  overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; scrollbar-width:none;
+  padding:0 16px; margin-left:-16px; margin-right:-16px; width:calc(100% + 32px);
+}
+.msearch-adv-chips::-webkit-scrollbar{display:none;}
+.msearch-adv-chip{
+  padding:8px 15px; border-radius:20px; background:#161923; border:1px solid #232837; color:var(--text);
+  font-size:13px; font-weight:600; font-family:inherit; display:inline-flex; align-items:center; gap:6px;
+  transition:background var(--transition), border-color var(--transition), color var(--transition);
+  flex-shrink:0; white-space:nowrap;
+}
+.msearch-adv-chip svg{width:13px; height:13px; flex-shrink:0;}
+.msearch-adv-chip.active{background:var(--highlight-dim); border-color:rgba(61,219,217,.4); color:var(--highlight);}
+.msearch-adv-chip.fav-chip.active{background:rgba(255,107,129,.12); border-color:rgba(255,107,129,.4); color:#ff6b81;}
+.msearch-adv-sort{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:24px;}
+.msearch-adv-sort .select-input{flex-shrink:0; min-width:150px;}
+.msearch-adv-divider{height:1px; background:#14161f; margin:0 0 20px;}
+.msearch-adv-footer{
+  position:sticky; bottom:0; display:flex; gap:10px; padding:12px 16px calc(12px + env(safe-area-inset-bottom));
+  background:linear-gradient(180deg, transparent, var(--bg) 22%); border-top:1px solid #14161f; flex-shrink:0;
+}
+.msearch-adv-clear{
+  flex:0 0 auto; padding:13px 20px; border-radius:10px; text-align:center; background:#161923; border:1px solid #232837;
+  color:var(--text); font-weight:700; font-size:14px; font-family:inherit; transition:opacity var(--transition);
+}
+.msearch-adv-clear:disabled{opacity:.4;}
+.msearch-adv-submit{
+  flex:1; padding:13px; border-radius:10px; text-align:center;
+  background:linear-gradient(135deg, var(--highlight), #2bc4c1); color:#04211f; font-weight:800; font-size:14px; border:0; font-family:inherit;
+}
+.msearch-adv-results-header{
+  display:flex; align-items:center; justify-content:space-between; padding:16px 16px 8px;
+  font-size:13px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.3px;
 }
 
 .page{padding:0 32px; animation:fadeIn .4s cubic-bezier(.16,1,.3,1);}
@@ -2330,6 +2430,8 @@ body.tv-mode .main { padding-bottom: 52px; } /* room for D-pad hint bar */
   <nav class="bottom-nav" id="bottomNav"></nav>
 </div>
 
+<div class="mobile-search-overlay" id="mobileSearchOverlay"></div>
+
 <div class="overlay" id="modalOverlay"><div class="modal" id="modalBody"></div></div>
 <div class="shortcuts-overlay" id="shortcutsOverlay"><div class="shortcuts-modal" id="shortcutsModal"></div></div>
 <div class="subtitle-prompt-overlay" id="subtitlePromptOverlay"><div class="subtitle-prompt-modal" id="subtitlePromptModal"></div></div>
@@ -2390,6 +2492,7 @@ const ICON = {
   unlock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.7-1.5"/></svg>',
   brightness:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>',
   award:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="m9 13.5-1.5 7L12 18l4.5 2.5-1.5-7"/></svg>',
+  scissors:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.5 8 20 20M20 4 8.5 16"/></svg>',
 };
 function heartSvg(filled){
   return `<svg viewBox="0 0 24 24" fill="${filled?'currentColor':'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-10-9.1C.5 8.6 2 5 5.5 5c2 0 3.3 1 4.5 2.5C11.2 6 12.5 5 14.5 5 18 5 19.5 8.6 22 11.9 19.5 16.4 12 21 12 21z"/></svg>`;
@@ -2410,14 +2513,18 @@ const SUBTITLE_SIZE_PX = {small:15, medium:19, large:24, xlarge:30};
 function loadLib(){
   try{
     const raw = localStorage.getItem(LIB_KEY);
-    if(!raw) return {items:[], collections:[], channels:[], notifications:[]};
+    if(!raw) return {items:[], collections:[], channels:[], notifications:[], skipData:{}};
     const d = JSON.parse(raw);
     if(!d.items) d.items = [];
     if(!d.collections) d.collections = [];
     if(!d.channels) d.channels = [];
     if(!d.notifications) d.notifications = [];
+    // Custom Skip Segments (see CUSTOM SKIP SEGMENTS section, near the playback manager) — keyed
+    // by skipDataKey(item, seasonNum, epNum): the bare IMDb ID for a movie, or "<imdbId>:s<N>e<N>"
+    // for a single TV episode, so every episode carries its own independent skip list.
+    if(!d.skipData || typeof d.skipData !== 'object') d.skipData = {};
     return d;
-  }catch(e){ return {items:[], collections:[], channels:[], notifications:[]}; }
+  }catch(e){ return {items:[], collections:[], channels:[], notifications:[], skipData:{}}; }
 }
 function saveLib(){ localStorage.setItem(LIB_KEY, JSON.stringify(state.lib)); }
 function loadSettings(){
@@ -2471,8 +2578,13 @@ function loadSettings(){
     // add/edit, IMDb single import, bulk import, and the multi-title wizard).
     if(!Array.isArray(s.bannedWords)) s.bannedWords = [];
     if(!Array.isArray(s.bannedGenres)) s.bannedGenres = [];
+    // Custom Skip Segments (see CUSTOM SKIP SEGMENTS) — master on/off plus whether an auto-skip
+    // shows a brief toast. The actual segment data lives in state.lib.skipData, not here, since it's
+    // per-title library content rather than a preference.
+    if(typeof s.skipSegmentsEnabled !== 'boolean') s.skipSegmentsEnabled = true;
+    if(typeof s.skipNotify !== 'boolean') s.skipNotify = true;
     return s;
-  }catch(e){ return {omdb:'',tmdb:'',subdl:'',vidsrcDomain:'vidsrc-embed.su', streamingProviders:[], blockPopupAds:false, contentBlur:false, contentBlurLevel:'moderate', contentBlurModelUrl:'', scheduleCountry:'US', recentSearches:[], supabaseUrl:'', supabaseKey:'', playerBrightness:1, subtitleSize:'medium', subtitleColor:'#ffffff', subtitleBgColor:'#000000', subtitleBgOpacity:72, tmdbTop100Excluded:{movie:[],tv:[]}, featuredArtworkBleed:true, bannedWords:[], bannedGenres:[]}; }
+  }catch(e){ return {omdb:'',tmdb:'',subdl:'',vidsrcDomain:'vidsrc-embed.su', streamingProviders:[], blockPopupAds:false, contentBlur:false, contentBlurLevel:'moderate', contentBlurModelUrl:'', scheduleCountry:'US', recentSearches:[], supabaseUrl:'', supabaseKey:'', playerBrightness:1, subtitleSize:'medium', subtitleColor:'#ffffff', subtitleBgColor:'#000000', subtitleBgOpacity:72, tmdbTop100Excluded:{movie:[],tv:[]}, featuredArtworkBleed:true, bannedWords:[], bannedGenres:[], skipSegmentsEnabled:true, skipNotify:true}; }
 }
 function saveSettings(){ localStorage.setItem(SET_KEY, JSON.stringify(state.settings)); }
 
@@ -2501,6 +2613,137 @@ function uuid(){
   });
 }
 function esc(s){ return (s||'').toString().replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+/* =========================================================
+   SHARED TITLE SEARCH: relevance ranking + typo tolerance
+   Used by every text-search entry point in the app (global topbar
+   search, mobile search, manage-library search, skip-manager add
+   search, live TV channel search, schedule search, My Shows search)
+   so results rank and behave the same everywhere.
+========================================================= */
+function escapeRegExp(s){ return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
+// Cheap O(n) check for edit distance <= 1 (handles one substitution, one
+// insertion, or one deletion) — enough for "one misspelled/missing/extra
+// letter" without pulling in a real fuzzy-search library.
+function isTypoOf(a, b){
+  if(a===b) return true;
+  const la=a.length, lb=b.length;
+  if(Math.abs(la-lb)>1) return false;
+  let i=0, j=0, mismatches=0;
+  while(i<la && j<lb){
+    if(a[i]===b[j]){ i++; j++; continue; }
+    mismatches++;
+    if(mismatches>1) return false;
+    if(la===lb){ i++; j++; }        // substitution
+    else if(la>lb){ i++; }          // extra letter in a
+    else { j++; }                   // extra letter in b
+  }
+  mismatches += (la-i) + (lb-j);
+  return mismatches<=1;
+}
+// Scores how well `text` matches query `q` (both should be pre-lowercased):
+// exact match > starts-with > word-boundary match > plain substring > no match.
+function textMatchScore(text, q, qRe){
+  if(!text) return 0;
+  if(text===q) return 100;
+  if(text.startsWith(q)) return 80;
+  if(qRe.test(text)) return 60;
+  if(text.includes(q)) return 40;
+  return 0;
+}
+// Ranked, typo-tolerant search over a list. `textFn` extracts the searchable
+// string (title/name) from each entry; `tieBreakFn` optionally extracts
+// [rating, year] for sorting entries that score equally (higher/newer first).
+// `extraTextFn` is optional and extracts secondary searchable text (genre,
+// cast, description, ...) — a match found only there scores lower than any
+// title match (title's weakest score is 40; extra-field scores are capped
+// at 25), so title hits always surface first while still letting a query
+// like a genre or actor name pull in relevant results.
+// Falls back to a Levenshtein-distance-1 pass over individual words only
+// when the strict pass finds nothing, so exact/substring matches are never
+// pushed aside by fuzzy noise.
+function rankedTitleSearch(list, query, textFn, tieBreakFn, extraTextFn){
+  const q = (query||'').trim().toLowerCase();
+  if(!q) return [];
+  const qRe = new RegExp('(^|[^a-z0-9])'+escapeRegExp(q));
+  let scored = [];
+  for(const it of list){
+    const text = (textFn(it)||'').toLowerCase();
+    let score = textMatchScore(text, q, qRe);
+    if(!score && extraTextFn){
+      const extra = (extraTextFn(it)||'').toLowerCase();
+      if(extra){
+        const extraScore = textMatchScore(extra, q, qRe);
+        if(extraScore) score = Math.round(extraScore/4); // capped well under title's min (40)
+      }
+    }
+    if(score>0) scored.push({it, score});
+  }
+  if(!scored.length && q.length>=3){
+    for(const it of list){
+      const text = (textFn(it)||'').toLowerCase();
+      if(!text) continue;
+      const words = text.split(/[^a-z0-9]+/).filter(Boolean);
+      if(words.some(w=> Math.abs(w.length-q.length)<=1 && isTypoOf(w,q))){
+        scored.push({it, score:30});
+      }
+    }
+  }
+  scored.sort((a,b)=>{
+    if(b.score!==a.score) return b.score-a.score;
+    if(tieBreakFn){
+      const [ar,ay] = tieBreakFn(a.it), [br,by] = tieBreakFn(b.it);
+      if((br||0)!==(ar||0)) return (br||0)-(ar||0);
+      if((by||0)!==(ay||0)) return (by||0)-(ay||0);
+    }
+    return 0;
+  });
+  return scored.map(s=>s.it);
+}
+function libItemTieBreak(i){ return [parseFloat(i.rating)||0, parseInt(i.year,10)||0]; }
+// Secondary searchable text for a library item: genre, cast (TMDB-fetched
+// {name,character} objects), the plain actors[] name list, and the
+// description — combined so rankedTitleSearch can match on any of them
+// (at a lower score than a title match; see rankedTitleSearch above).
+function libItemExtraSearchText(i){
+  const genre = (i.genre||[]).join(' ');
+  const cast = (i.cast||[]).map(c=>c.name).join(' ');
+  const actors = (i.actors||[]).join(' ');
+  return [genre, cast, actors, i.description||''].filter(Boolean).join(' ');
+}
+// Wraps the first case-insensitive occurrence of `q` inside `text` in a
+// <mark> so search result rows can show why a title matched. Falls back to
+// plain escaped text when there's no hit (e.g. a fuzzy/typo match, or a
+// match that only occurred in genre/cast/description).
+function highlightMatch(text, q){
+  text = text||'';
+  if(!q) return esc(text);
+  const idx = text.toLowerCase().indexOf(q.toLowerCase());
+  if(idx<0) return esc(text);
+  return esc(text.slice(0,idx))+'<mark class="search-hl">'+esc(text.slice(idx,idx+q.length))+'</mark>'+esc(text.slice(idx+q.length));
+}
+// When a library item matched search only via genre/cast/description (its
+// title itself doesn't contain the query), this finds the first field that
+// did match so the result row can show *why* it's there instead of just
+// appearing unexplained under a title that doesn't visibly match.
+function findExtraMatchReason(item, q){
+  if(!q) return null;
+  const ql = q.toLowerCase();
+  const genre = (item.genre||[]).find(g=>g && g.toLowerCase().includes(ql));
+  if(genre) return {label:'Genre', html: highlightMatch(genre, q)};
+  const castName = (item.cast||[]).map(c=>c.name).find(n=>n && n.toLowerCase().includes(ql))
+    || (item.actors||[]).find(n=>n && n.toLowerCase().includes(ql));
+  if(castName) return {label:'Cast', html: highlightMatch(castName, q)};
+  const desc = item.description||'';
+  const idx = desc.toLowerCase().indexOf(ql);
+  if(idx>=0){
+    const start = Math.max(0, idx-20);
+    const end = Math.min(desc.length, idx+ql.length+20);
+    const snippet = (start>0?'…':'')+desc.slice(start,end)+(end<desc.length?'…':'');
+    return {label:'Plot', html: highlightMatch(snippet, q)};
+  }
+  return null;
+}
+
 // opts.undoLabel/opts.onUndo are optional — every existing toast(msg) call elsewhere in the app
 // keeps working unchanged. When present, the toast holds a real button (pointer-events re-enabled
 // just for this toast via .has-action) and stays up longer than a plain confirmation, since it now
@@ -2702,8 +2945,98 @@ function getBlockedReason(title, genres){
   return null;
 }
 
-// Dominant-color extraction — samples the poster on a tiny offscreen canvas and averages the non-neutral
-// pixels, giving a rough "album art glow" color (Spotify/Plex-style) with no API calls involved. Purely
+/* =========================================================
+   CUSTOM SKIP SEGMENTS
+   ---------------------------------------------------------
+   Personal Scene Skip: user-defined "skip from Start to End" segments that auto-seek during
+   playback, using the exact same seek mechanism as Restart/±20s/progress-bar seeking (see
+   performPlayerSeek / vid.currentTime, wired up near PLAYER_EVENT and the video-element listeners
+   below). Nothing here ever touches the embedded player's internals directly.
+
+   STORAGE — data lives in state.lib.skipData (persisted via saveLib(), travels with Export/Import
+   Library and Backup, and is cleared by Clear All Data), keyed by skipDataKey():
+     state.lib.skipData = {
+       "<imdbId>": { enabled:true, segments:[ {id,name,start,end,enabled}, ... ] },        // movie
+       "<imdbId>:s2e3": { enabled:true, segments:[ ... ] },                                 // TV ep
+     }
+   Falls back to item.id when a title has no imdbId, so the feature still works for hand-added
+   titles that were never linked to IMDb.
+========================================================= */
+function skipDataKey(item, seasonNum, epNum){
+  const base = (item && (item.imdbId || item.id)) || '';
+  return (seasonNum!=null && epNum!=null) ? `${base}:s${seasonNum}e${epNum}` : base;
+}
+function getSkipEntry(key){
+  return (state.lib.skipData||{})[key] || null;
+}
+function ensureSkipEntry(key){
+  if(!state.lib.skipData) state.lib.skipData = {};
+  if(!state.lib.skipData[key]) state.lib.skipData[key] = {enabled:true, segments:[]};
+  return state.lib.skipData[key];
+}
+// Removes an entry entirely once its last segment is deleted, so empty {enabled:true, segments:[]}
+// husks don't pile up in storage/exports for titles the user has since cleared out.
+function pruneSkipEntry(key){
+  const entry = state.lib.skipData && state.lib.skipData[key];
+  if(entry && (!entry.segments || !entry.segments.length)) delete state.lib.skipData[key];
+}
+// Every title/episode that has at least one segment, newest-added-looking-first is not tracked (no
+// per-segment timestamp), so this returns library insertion order. Each row also carries a resolved
+// item reference (or null if the title behind an old key was since deleted from the library) so the
+// Skip Manager can show a real title/poster instead of a bare key.
+function listSkipEntries(){
+  const out = [];
+  Object.keys(state.lib.skipData||{}).forEach(key=>{
+    const entry = state.lib.skipData[key];
+    if(!entry || !entry.segments || !entry.segments.length) return;
+    const m = key.match(/^(.*):s(\d+)e(\d+)$/);
+    const imdbId = m ? m[1] : key;
+    const seasonNum = m ? Number(m[2]) : null;
+    const epNum = m ? Number(m[3]) : null;
+    const item = state.lib.items.find(i=>(i.imdbId||i.id)===imdbId) || null;
+    out.push({key, entry, item, seasonNum, epNum});
+  });
+  return out;
+}
+// Parses "MM:SS" or "HH:MM:SS" (spec's two accepted manual-entry formats) into whole seconds.
+// Returns null — never throws — for anything that doesn't cleanly match, so callers can just toast.
+function parseSkipTime(str){
+  if(str==null) return null;
+  const parts = String(str).trim().split(':').map(p=>p.trim());
+  if(parts.length<2 || parts.length>3 || parts.some(p=>p==='' || isNaN(Number(p)))) return null;
+  const nums = parts.map(Number);
+  const seconds = nums.length===3 ? (nums[0]*3600 + nums[1]*60 + nums[2]) : (nums[0]*60 + nums[1]);
+  return seconds>=0 ? Math.round(seconds) : null;
+}
+
+/* ---- Playback-side detection (called every tick from the player; see PLAYBACK MANAGER) ---- */
+// Checks the current elapsed position against this title's saved segments and, the first time
+// playback crosses into an enabled segment's [start,end) window this session, performs the skip.
+// `seekFn(target)` abstracts the actual seek — performPlayerSeek() for iframe embeds, a direct
+// vid.currentTime assignment for native <video>/hls — so this function knows nothing about which
+// kind of player is active. Each segment fires at most once per playback session, tracked in
+// state.player._skippedSegmentIds (reset every time a fresh player opens), so re-watching the same
+// scene after manually rewinding past it won't re-trigger the skip and fight the user.
+function checkSkipSegments(elapsedSeconds, seekFn){
+  const p = state.player;
+  if(!p || !state.settings.skipSegmentsEnabled) return;
+  const item = getItem(p.itemId);
+  if(!item) return;
+  const key = skipDataKey(item, p.seasonNum, p.epNum);
+  const entry = getSkipEntry(key);
+  if(!entry || !entry.enabled || !entry.segments.length) return;
+  if(!p._skippedSegmentIds) p._skippedSegmentIds = new Set();
+  const hit = entry.segments.find(seg=>
+    seg.enabled && !p._skippedSegmentIds.has(seg.id) &&
+    elapsedSeconds >= seg.start && elapsedSeconds < seg.end
+  );
+  if(!hit) return;
+  p._skippedSegmentIds.add(hit.id);
+  seekFn(hit.end);
+  if(state.settings.skipNotify) toast(hit.name ? `Skipped "${hit.name}"` : 'Scene skipped');
+}
+
+
 // client-side: draws the already-loading <img> into a canvas and reads pixel data back out.
 const posterGlowCache = new Map();
 function extractPosterGlowColor(url){
@@ -3003,8 +3336,8 @@ function renderShell(){
     <h1>${titles[state.route] || ''}</h1>
     <div class="topbar-actions">
       <div class="topbar-search ${state.globalSearchOpen?'open':''}" id="topbarSearch">
-        <button class="topbar-search-icon" title="Search" onclick="event.stopPropagation(); toggleGlobalSearch()">${ICON.search}</button>
-        <input id="globalSearchInput" class="global-search-input" dir="ltr" placeholder="Search movies, shows & channels" oninput="onGlobalSearchInput(this.value)" value="${esc(state.globalSearchQuery||'')}">
+        <button class="topbar-search-icon" title="Search" onclick="event.stopPropagation(); handleSearchIconClick()">${ICON.search}</button>
+        <input id="globalSearchInput" class="global-search-input" dir="ltr" placeholder="Search movies, shows & channels" oninput="onGlobalSearchInput(this.value)" onkeydown="handleGlobalSearchKeydown(event)" value="${esc(state.globalSearchQuery||'')}">
       </div>
       <button class="btn-icon notif-bell-btn" id="notifBellBtn" title="Notifications" onclick="event.stopPropagation(); toggleNotifications()">
         ${ICON.bell}${unreadNotifCount()>0 ? `<span class="notif-badge">${unreadNotifCount()>9?'9+':unreadNotifCount()}</span>` : ''}
@@ -3762,9 +4095,34 @@ function toggleGlobalSearch(){
     renderGlobalSearchResults(); // shows recent searches immediately if the box is empty
   }
 }
+let _searchDebounceTimer = null;
+function debounceSearch(fn, delay){
+  clearTimeout(_searchDebounceTimer);
+  _searchDebounceTimer = setTimeout(fn, delay==null?120:delay);
+}
+// Shared arrow-key highlight for search result dropdowns/lists. Moves a
+// 'kbd-active' class among the rows currently in the DOM — re-rendering the
+// list (every keystroke) naturally clears it, so there's no separate index
+// to keep in sync. Returns the newly active element, or null if the list is
+// empty. dir is +1 (down) or -1 (up).
+function moveSearchHighlight(containerSelector, itemSelector, dir){
+  const container = document.querySelector(containerSelector);
+  if(!container) return null;
+  const items = [...container.querySelectorAll(itemSelector)];
+  if(!items.length) return null;
+  let idx = items.findIndex(el=> el.classList.contains('kbd-active'));
+  items.forEach(el=> el.classList.remove('kbd-active'));
+  idx = idx===-1 ? (dir>0 ? 0 : items.length-1) : idx+dir;
+  if(idx<0) idx = items.length-1;
+  if(idx>=items.length) idx = 0;
+  const active = items[idx];
+  active.classList.add('kbd-active');
+  active.scrollIntoView({block:'nearest'});
+  return active;
+}
 function onGlobalSearchInput(v){
   state.globalSearchQuery = v;
-  renderGlobalSearchResults();
+  debounceSearch(renderGlobalSearchResults);
 }
 function addRecentSearch(term){
   term = (term||'').trim();
@@ -3772,7 +4130,7 @@ function addRecentSearch(term){
   let recents = state.settings.recentSearches || [];
   recents = recents.filter(t=> t.toLowerCase() !== term.toLowerCase());
   recents.unshift(term);
-  state.settings.recentSearches = recents.slice(0,4);
+  state.settings.recentSearches = recents.slice(0,8);
   saveSettings();
 }
 function clearRecentSearches(){
@@ -3803,19 +4161,22 @@ function renderGlobalSearchResults(){
     box.classList.add('show');
     return;
   }
-  const itemMatches = state.lib.items.filter(i=> i.title.toLowerCase().includes(q)).slice(0,6);
-  const channelMatches = (state.lib.channels||[]).filter(c=> c.name.toLowerCase().includes(q)).slice(0,4);
+  const itemMatches = rankedTitleSearch(state.lib.items, q, i=>i.title, libItemTieBreak, libItemExtraSearchText).slice(0,6);
+  const channelMatches = rankedTitleSearch(state.lib.channels||[], q, c=>c.name).slice(0,4);
   if(!itemMatches.length && !channelMatches.length){
     box.innerHTML = `<div class="gsr-empty">No matches for "${esc(q)}"</div>`;
     box.classList.add('show');
     return;
   }
   box.innerHTML =
-    itemMatches.map(i=>`
+    itemMatches.map(i=>{
+      const reason = i.title.toLowerCase().includes(q) ? null : findExtraMatchReason(i, q);
+      return `
     <div class="gsr-item" onclick="goToSearchResult('${i.id}')">
       <div class="gsr-poster">${posterEl(i)}</div>
-      <div><div class="gsr-title">${esc(i.title)}</div><div class="gsr-meta">${i.type==='series'?'Series':'Movie'}${i.year?' · '+esc(i.year):''}</div></div>
-    </div>`).join('') +
+      <div><div class="gsr-title">${highlightMatch(i.title, q)}</div><div class="gsr-meta">${reason ? `${reason.label}: ${reason.html}` : `${i.type==='series'?'Series':'Movie'}${i.year?' · '+esc(i.year):''}`}</div></div>
+    </div>`;
+    }).join('') +
     channelMatches.map(c=>`
     <div class="gsr-item" onclick="goToChannelResult('${c.id}')">
       <div class="gsr-poster">${c.logo?`<img src="${esc(c.logo)}" alt="" style="object-fit:contain;">`:fallbackHtml(c.name)}</div>
@@ -3834,6 +4195,28 @@ function goToChannelResult(id){
   if(state.route!=='live'){ location.hash = 'live'; setTimeout(()=>playChannel(id), 80); }
   else playChannel(id);
 }
+// Enter jumps straight to the top-ranked match, same ranking used to build the
+// dropdown itself, so "hit enter" always lands on whatever's shown first.
+function handleGlobalSearchKeydown(e){
+  if(e.key==='ArrowDown' || e.key==='ArrowUp'){
+    const box = document.getElementById('globalSearchResults');
+    if(!box || !box.classList.contains('show')) return;
+    e.preventDefault();
+    moveSearchHighlight('#globalSearchResults', '.gsr-item', e.key==='ArrowDown'?1:-1);
+    return;
+  }
+  if(e.key!=='Enter') return;
+  e.preventDefault();
+  const box = document.getElementById('globalSearchResults');
+  const highlighted = box && box.querySelector('.gsr-item.kbd-active');
+  if(highlighted){ highlighted.click(); return; }
+  const q = (state.globalSearchQuery||'').trim();
+  if(!q) return;
+  const topItem = rankedTitleSearch(state.lib.items, q, i=>i.title, libItemTieBreak, libItemExtraSearchText)[0];
+  const topChannel = rankedTitleSearch(state.lib.channels||[], q, c=>c.name)[0];
+  if(topItem) goToSearchResult(topItem.id);
+  else if(topChannel) goToChannelResult(topChannel.id);
+}
 document.addEventListener('click', e=>{
   if(!state.globalSearchOpen) return;
   const box = document.getElementById('globalSearchResults');
@@ -3842,6 +4225,327 @@ document.addEventListener('click', e=>{
   if(container && container.contains(e.target)) return;
   toggleGlobalSearch();
 });
+
+/* ---- Mobile full-screen search (IMDb-style: Recent / Advanced Search tabs) ---- */
+function handleSearchIconClick(){
+  if(window.innerWidth <= 860) openMobileSearch();
+  else toggleGlobalSearch();
+}
+function openMobileSearch(){
+  state.mobileSearchOpen = true;
+  state.mobileSearchTab = state.mobileSearchTab || 'recent';
+  state.globalSearchQuery = '';
+  state.mobileSearchAdv = state.mobileSearchAdv || defaultMobileSearchAdv();
+  state.mobileSearchAdvResults = false;
+  renderMobileSearch();
+  const overlay = document.getElementById('mobileSearchOverlay');
+  if(overlay) overlay.classList.add('show');
+  setTimeout(()=>{ const input = document.getElementById('mobileSearchInput'); if(input) input.focus(); }, 60);
+}
+function closeMobileSearch(){
+  state.mobileSearchOpen = false;
+  state.globalSearchQuery = '';
+  const overlay = document.getElementById('mobileSearchOverlay');
+  if(overlay){ overlay.classList.remove('show'); overlay.innerHTML=''; }
+}
+function setMobileSearchTab(tab){
+  state.mobileSearchTab = tab;
+  renderMobileSearch();
+  const input = document.getElementById('mobileSearchInput');
+  if(input) input.focus();
+}
+function onMobileSearchInput(v){
+  state.globalSearchQuery = v;
+  const clearBtn = document.getElementById('mobileSearchClear');
+  if(clearBtn) clearBtn.style.display = v ? 'flex' : 'none';
+  debounceSearch(renderMobileSearchBody);
+}
+function clearMobileSearchInput(){
+  state.globalSearchQuery = '';
+  const input = document.getElementById('mobileSearchInput');
+  if(input){ input.value=''; input.focus(); }
+  renderMobileSearchBody();
+  const clearBtn = document.getElementById('mobileSearchClear');
+  if(clearBtn) clearBtn.style.display = 'none';
+}
+function defaultMobileSearchAdv(){
+  return {type:'all', genres:[], rating:null, decade:null, category:null, favorite:false, watchlist:false, unwatched:false, sort:'newest'};
+}
+function allDecades(){
+  // Fixed, IMDb-style decade list — always shown regardless of whether the
+  // library's items currently have a matching release year.
+  const currentDecade = Math.floor(new Date().getFullYear()/10)*10;
+  const decades = [];
+  for(let d=currentDecade; d>=1920; d-=10) decades.push(d);
+  return decades;
+}
+function allChannelCategories(){
+  return [...new Set((state.lib.channels||[]).map(c=> c.category || 'General'))];
+}
+function advItemRating(i){ const n = parseFloat(i.rating); return isNaN(n) ? null : n; }
+function advItemYear(i){ const n = parseInt(i.year,10); return isNaN(n) ? null : n; }
+function setMobileSearchAdvType(type){
+  const adv = state.mobileSearchAdv;
+  adv.type = type;
+  if(type==='channel'){ adv.genres=[]; adv.rating=null; adv.decade=null; adv.favorite=false; adv.watchlist=false; adv.unwatched=false; }
+  else adv.category = null;
+  renderMobileSearch();
+}
+function toggleMobileSearchAdvGenre(genre){
+  const adv = state.mobileSearchAdv;
+  const i = adv.genres.indexOf(genre);
+  if(i>-1) adv.genres.splice(i,1); else adv.genres.push(genre);
+  renderMobileSearch();
+}
+function setMobileSearchAdvRating(r){
+  state.mobileSearchAdv.rating = (state.mobileSearchAdv.rating === r) ? null : r;
+  renderMobileSearch();
+}
+function setMobileSearchAdvDecade(d){
+  state.mobileSearchAdv.decade = (state.mobileSearchAdv.decade === d) ? null : d;
+  renderMobileSearch();
+}
+function setMobileSearchAdvCategory(cat){
+  state.mobileSearchAdv.category = (state.mobileSearchAdv.category === cat) ? null : cat;
+  renderMobileSearch();
+}
+function toggleMobileSearchAdvFlag(flag){
+  state.mobileSearchAdv[flag] = !state.mobileSearchAdv[flag];
+  renderMobileSearch();
+}
+function setMobileSearchAdvSort(val){
+  state.mobileSearchAdv.sort = val;
+  renderMobileSearchBody();
+}
+function clearMobileSearchAdv(){
+  state.mobileSearchAdv = defaultMobileSearchAdv();
+  state.mobileSearchAdvResults = false;
+  renderMobileSearch();
+}
+function sortMobileAdvItems(items, sort){
+  const arr = items.slice();
+  if(sort==='title') arr.sort((a,b)=> a.title.localeCompare(b.title));
+  else if(sort==='year') arr.sort((a,b)=> (advItemYear(b)||0)-(advItemYear(a)||0));
+  else if(sort==='rating') arr.sort((a,b)=> (advItemRating(b)||0)-(advItemRating(a)||0));
+  else arr.sort((a,b)=> new Date(b.dateAdded||0)-new Date(a.dateAdded||0));
+  return arr;
+}
+function getMobileAdvFiltered(){
+  const adv = state.mobileSearchAdv;
+  let items = adv.type==='channel' ? [] : state.lib.items.filter(i=> adv.type==='all' || i.type===adv.type);
+  if(adv.genres.length) items = items.filter(i=> (i.genre||[]).some(g=> adv.genres.includes(g)));
+  if(adv.rating!=null) items = items.filter(i=>{ const r=advItemRating(i); return r!=null && r>=adv.rating; });
+  if(adv.decade!=null) items = items.filter(i=>{ const y=advItemYear(i); return y!=null && Math.floor(y/10)*10===adv.decade; });
+  if(adv.favorite) items = items.filter(i=> !!i.favorite);
+  if(adv.watchlist) items = items.filter(i=> !!i.watchlist);
+  if(adv.unwatched) items = items.filter(i=> !isStarted(i));
+  items = sortMobileAdvItems(items, adv.sort);
+  let channels = adv.type==='channel' ? (state.lib.channels||[]) : (adv.type==='all' ? (state.lib.channels||[]) : []);
+  if(adv.category) channels = channels.filter(c=> (c.category||'General')===adv.category);
+  channels = channels.slice().sort((a,b)=> a.name.localeCompare(b.name));
+  return {items, channels};
+}
+function runMobileAdvancedSearch(){
+  state.mobileSearchAdvResults = true;
+  renderMobileSearchBody();
+}
+function mobileSearchRowHtml(i, q){
+  q = q||'';
+  const reason = q && !i.title.toLowerCase().includes(q) ? findExtraMatchReason(i, q) : null;
+  const metaHtml = reason
+    ? `${reason.label}: ${reason.html}`
+    : `${i.type==='series'?'Series':'Movie'}${i.year?' · '+esc(i.year):''}${(i.genre&&i.genre.length)?' · '+esc(i.genre[0]):''}`;
+  return `
+    <div class="msearch-row" onclick="goToMobileSearchResult('${i.id}')">
+      <div class="msearch-row-poster">${posterEl(i)}</div>
+      <div>
+        <div class="msearch-row-title">${q ? highlightMatch(i.title, q) : esc(i.title)}</div>
+        <div class="msearch-row-meta">${metaHtml}</div>
+      </div>
+    </div>`;
+}
+function mobileChannelRowHtml(c){
+  return `
+    <div class="msearch-row" onclick="goToMobileChannelResult('${c.id}')">
+      <div class="msearch-row-poster">${c.logo?`<img src="${esc(c.logo)}" alt="" style="object-fit:contain;">`:fallbackHtml(c.name)}</div>
+      <div>
+        <div class="msearch-row-title">${esc(c.name)}</div>
+        <div class="msearch-row-meta">Live · ${esc(c.category||'General')}</div>
+      </div>
+    </div>`;
+}
+function renderMobileSearch(){
+  const root = document.getElementById('mobileSearchOverlay');
+  if(!root) return;
+  const q = state.globalSearchQuery || '';
+  root.innerHTML = `
+    <div class="msearch-header">
+      <div class="msearch-input-wrap">
+        ${ICON.search}
+        <input id="mobileSearchInput" class="msearch-input" dir="ltr" placeholder="Search movies, shows &amp; channels" value="${esc(q)}" oninput="onMobileSearchInput(this.value)" onkeydown="handleMobileSearchKeydown(event)">
+        <button type="button" id="mobileSearchClear" class="msearch-clear" style="display:${q?'flex':'none'}" onclick="clearMobileSearchInput()">${ICON.close}</button>
+      </div>
+      <button type="button" class="msearch-cancel" onclick="closeMobileSearch()">Cancel</button>
+    </div>
+    <div class="msearch-tabs">
+      <button type="button" class="msearch-tab ${state.mobileSearchTab==='recent'?'active':''}" onclick="setMobileSearchTab('recent')">Recent</button>
+      <button type="button" class="msearch-tab ${state.mobileSearchTab==='advanced'?'active':''}" onclick="setMobileSearchTab('advanced')">Advanced Search</button>
+    </div>
+    <div class="msearch-body" id="mobileSearchBody"></div>
+  `;
+  renderMobileSearchBody();
+}
+function renderMobileSearchBody(){
+  const body = document.getElementById('mobileSearchBody');
+  if(!body) return;
+  const q = (state.globalSearchQuery||'').trim().toLowerCase();
+
+  // Typing always shows live suggestions, regardless of which tab is active.
+  if(q){
+    const itemMatches = rankedTitleSearch(state.lib.items, q, i=>i.title, libItemTieBreak, libItemExtraSearchText).slice(0,20);
+    const channelMatches = rankedTitleSearch(state.lib.channels||[], q, c=>c.name).slice(0,10);
+    if(!itemMatches.length && !channelMatches.length){
+      body.innerHTML = `<div class="msearch-empty">No matches for "${esc(q)}"</div>`;
+      return;
+    }
+    body.innerHTML = itemMatches.map(i=>mobileSearchRowHtml(i,q)).join('') + channelMatches.map(mobileChannelRowHtml).join('');
+    return;
+  }
+
+  if(state.mobileSearchTab === 'advanced'){
+    const adv = state.mobileSearchAdv || defaultMobileSearchAdv();
+    const isChannelType = adv.type === 'channel';
+    const genresPool = [...new Set([...DEFAULT_GENRES, ...allGenres()])];
+    const decadesPool = allDecades();
+    const categoriesPool = allChannelCategories();
+    const typeChips = [
+      {id:'all', label:'All'}, {id:'movie', label:'Movies'}, {id:'series', label:'TV Shows'}, {id:'channel', label:'Live TV'}
+    ];
+    const ratingChips = [9,8,7,6,5];
+    const hasAnyFilter = adv.type!=='all' || adv.genres.length || adv.rating!=null || adv.decade!=null
+      || adv.category || adv.favorite || adv.watchlist || adv.unwatched || adv.sort!=='newest';
+    const {items:liveItems, channels:liveChannels} = getMobileAdvFiltered();
+    const liveCount = liveItems.length + liveChannels.length;
+
+    let resultsHtml = '';
+    if(state.mobileSearchAdvResults){
+      resultsHtml = liveCount
+        ? `<div class="msearch-adv-results-header"><span>Results · ${liveCount}</span></div>`
+          + liveItems.slice(0,40).map(i=>mobileSearchRowHtml(i)).join('') + liveChannels.slice(0,20).map(mobileChannelRowHtml).join('')
+        : `<div class="msearch-empty">No matches for these filters</div>`;
+    }
+
+    body.innerHTML = `
+      <div class="msearch-adv-section">
+        <div class="msearch-adv-label">Type</div>
+        <div class="msearch-adv-chips">
+          ${typeChips.map(t=>`<button type="button" class="msearch-adv-chip ${adv.type===t.id?'active':''}" onclick="setMobileSearchAdvType('${t.id}')">${t.label}</button>`).join('')}
+        </div>
+
+        ${isChannelType ? `
+          <div class="msearch-adv-label">Category</div>
+          <div class="msearch-adv-chips">
+            ${categoriesPool.length ? categoriesPool.map(c=>`<button type="button" class="msearch-adv-chip ${adv.category===c?'active':''}" onclick="setMobileSearchAdvCategory('${c.replace(/'/g,"&#39;")}')">${esc(c)}</button>`).join('') : `<span class="msearch-adv-label" style="text-transform:none; font-weight:600;">No channel categories yet</span>`}
+          </div>
+        ` : `
+          <div class="msearch-adv-label">Rating <small>IMDb-style, at least</small></div>
+          <div class="msearch-adv-chips">
+            ${ratingChips.map(r=>`<button type="button" class="msearch-adv-chip ${adv.rating===r?'active':''}" onclick="setMobileSearchAdvRating(${r})">${ICON.award}${r}+</button>`).join('')}
+          </div>
+
+          <div class="msearch-adv-label">Genre${adv.genres.length?` <small>${adv.genres.length} selected</small>`:''}</div>
+          <div class="msearch-adv-chips">
+            ${genresPool.map(g=>`<button type="button" class="msearch-adv-chip ${adv.genres.includes(g)?'active':''}" onclick="toggleMobileSearchAdvGenre('${g.replace(/'/g,"&#39;")}')">${esc(g)}</button>`).join('')}
+          </div>
+
+          <div class="msearch-adv-label">Decade</div>
+          <div class="msearch-adv-chips">
+            ${decadesPool.map(d=>`<button type="button" class="msearch-adv-chip ${adv.decade===d?'active':''}" onclick="setMobileSearchAdvDecade(${d})">${d}s</button>`).join('')}
+          </div>
+
+          <div class="msearch-adv-label">Your Library</div>
+          <div class="msearch-adv-chips">
+            <button type="button" class="msearch-adv-chip fav-chip ${adv.favorite?'active':''}" onclick="toggleMobileSearchAdvFlag('favorite')">${heartSvg(!!adv.favorite)} Favorites</button>
+            <button type="button" class="msearch-adv-chip ${adv.watchlist?'active':''}" onclick="toggleMobileSearchAdvFlag('watchlist')">${ICON.watchlist} Watchlist</button>
+            <button type="button" class="msearch-adv-chip ${adv.unwatched?'active':''}" onclick="toggleMobileSearchAdvFlag('unwatched')">${ICON.eyeOff} Not Started</button>
+          </div>
+
+          <div class="msearch-adv-label">Sort By</div>
+          <div class="msearch-adv-sort">
+            <select class="select-input" onchange="setMobileSearchAdvSort(this.value)">
+              <option value="newest" ${adv.sort==='newest'?'selected':''}>Recently Added</option>
+              <option value="title" ${adv.sort==='title'?'selected':''}>Title A–Z</option>
+              <option value="year" ${adv.sort==='year'?'selected':''}>Year (Newest)</option>
+              <option value="rating" ${adv.sort==='rating'?'selected':''}>Rating (Highest)</option>
+            </select>
+          </div>
+        `}
+      </div>
+      <div class="msearch-adv-footer">
+        <button type="button" class="msearch-adv-clear" ${hasAnyFilter?'':'disabled'} onclick="clearMobileSearchAdv()">Clear</button>
+        <button type="button" class="msearch-adv-submit" onclick="runMobileAdvancedSearch()">See Results${liveCount?` (${liveCount})`:''}</button>
+      </div>
+      ${resultsHtml}
+    `;
+    return;
+  }
+
+  // Recent tab (default)
+  const recents = state.settings.recentSearches || [];
+  if(!recents.length){
+    body.innerHTML = `<div class="msearch-empty">Your recent searches will show up here.</div>`;
+    return;
+  }
+  body.innerHTML = `
+    <div class="msearch-recent-header"><span>Recent Searches</span><button type="button" onclick="clearRecentSearches(); renderMobileSearchBody();">Clear</button></div>
+    ${recents.map(term=>`
+    <div class="msearch-row" onclick="applyMobileRecentSearch('${esc(term).replace(/'/g,"&#39;")}')">
+      <div class="msearch-row-poster">${ICON.schedule}</div>
+      <div class="msearch-row-title">${esc(term)}</div>
+    </div>`).join('')}
+  `;
+}
+function applyMobileRecentSearch(term){
+  state.globalSearchQuery = term;
+  const input = document.getElementById('mobileSearchInput');
+  if(input) input.value = term;
+  const clearBtn = document.getElementById('mobileSearchClear');
+  if(clearBtn) clearBtn.style.display = 'flex';
+  renderMobileSearchBody();
+}
+function goToMobileSearchResult(id){
+  addRecentSearch(state.globalSearchQuery);
+  closeMobileSearch();
+  location.hash = 'detail/'+id;
+}
+function goToMobileChannelResult(id){
+  addRecentSearch(state.globalSearchQuery);
+  closeMobileSearch();
+  if(state.route!=='live'){ location.hash = 'live'; setTimeout(()=>playChannel(id), 80); }
+  else playChannel(id);
+}
+// Mirrors handleGlobalSearchKeydown for the mobile overlay — Enter jumps to the
+// top-ranked match instead of doing nothing.
+function handleMobileSearchKeydown(e){
+  if(e.key==='ArrowDown' || e.key==='ArrowUp'){
+    const body = document.getElementById('mobileSearchBody');
+    if(!body) return;
+    e.preventDefault();
+    moveSearchHighlight('#mobileSearchBody', '.msearch-row', e.key==='ArrowDown'?1:-1);
+    return;
+  }
+  if(e.key!=='Enter') return;
+  e.preventDefault();
+  const body = document.getElementById('mobileSearchBody');
+  const highlighted = body && body.querySelector('.msearch-row.kbd-active');
+  if(highlighted){ highlighted.click(); return; }
+  const q = (state.globalSearchQuery||'').trim();
+  if(!q) return;
+  const topItem = rankedTitleSearch(state.lib.items, q, i=>i.title, libItemTieBreak, libItemExtraSearchText)[0];
+  const topChannel = rankedTitleSearch(state.lib.channels||[], q, c=>c.name)[0];
+  if(topItem) goToMobileSearchResult(topItem.id);
+  else if(topChannel) goToMobileChannelResult(topChannel.id);
+}
 
 /* =========================================================
    NOTIFICATIONS
@@ -4047,7 +4751,7 @@ function renderScheduleListing(data){
   if(!container) return;
   const search = (state.schedule.search||'').trim().toLowerCase();
   let list = data;
-  if(search) list = list.filter(ep=> ((ep.show&&ep.show.name)||'').toLowerCase().includes(search));
+  if(search) list = rankedTitleSearch(list, search, ep=> (ep.show&&ep.show.name)||'');
   if(!list.length){
     container.innerHTML = emptyState('Nothing found', 'Try a different date, country code, or search.', 'Today', "state.schedule.date=todayISO(); document.getElementById('pageRoot').innerHTML=renderSchedule(); loadScheduleData();");
     return;
@@ -4100,7 +4804,7 @@ function renderMyShowsListing(results){
   if(!container) return;
   const search = (state.schedule.search||'').trim().toLowerCase();
   let list = results;
-  if(search) list = list.filter(r=> (r.item.title||'').toLowerCase().includes(search));
+  if(search) list = rankedTitleSearch(list, search, r=> r.item.title||'');
   if(!list.length){
     container.innerHTML = emptyState('Nothing found', 'Try a different search.', '', '');
     return;
@@ -4561,8 +5265,11 @@ function liveChannelListingHtml(){
   let list = [...channels];
   if(st.category!=='all') list = list.filter(c=>(c.category||'General')===st.category);
   if(st.language!=='all') list = list.filter(c=>(c.language||'')===st.language);
-  if(st.search) list = list.filter(c=>c.name.toLowerCase().includes(st.search.toLowerCase()));
-  list.sort((a,b)=>a.name.localeCompare(b.name));
+  if(st.search){
+    list = rankedTitleSearch(list, st.search, c=>c.name);
+  } else {
+    list.sort((a,b)=>a.name.localeCompare(b.name));
+  }
   return list.length ? `<div class="channel-grid">${list.map(channelCardHtml).join('')}</div>` : emptyState('No channels found','Try a different search, type, or language.','Add Channel','openChannelModal()','Import Channels','openChannelsJsonImport()');
 }
 function liveFilterPanelHtml(cats, langs, st){
@@ -5781,10 +6488,7 @@ function filterManageLibResults(){
     container.innerHTML = '<div class="manage-lib-empty">Start typing a title to find it.</div>';
     return;
   }
-  const matches = state.lib.items
-    .filter(i=> (i.title||'').toLowerCase().includes(q))
-    .sort((a,b)=> (a.title||'').localeCompare(b.title||''))
-    .slice(0,50);
+  const matches = rankedTitleSearch(state.lib.items, q, i=>i.title, libItemTieBreak).slice(0,50);
   container.innerHTML = matches.length ? matches.map(renderManageLibRow).join('') : '<div class="manage-lib-empty">No titles match.</div>';
 }
 // Same delete as the detail page's, minus the location.hash='home' redirect — there's no detail page
@@ -5859,6 +6563,36 @@ function renderSettings(){
           <label>Banned Genres</label>
           <div class="chip-select" id="bannedGenreChips">${[...new Set([...DEFAULT_GENRES, ...allGenres()])].map(g=>`<button type="button" class="chip-btn ${(state.settings.bannedGenres||[]).includes(g)?'active':''}" onclick="toggleBannedGenre('${g.replace(/'/g,"\\'")}')">${esc(g)}</button>`).join('')}</div>
           <div class="field-hint">Any title tagged with one of these genres is refused when adding, the same way as a banned word.</div>
+        </div>
+        </div>
+      </div>
+      <div class="settings-section${settingsSectionClass('skipSegments')}" data-section="skipSegments">
+        <h3 onclick="toggleSettingsSection('skipSegments')"><span class="settings-title-text">Skip Segments</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
+        <div class="settings-section-body">
+        <div class="field">
+          <div class="toggle-row">
+            <label class="switch"><input type="checkbox" id="skipSegmentsEnabledToggle" ${s.skipSegmentsEnabled?'checked':''} onchange="toggleSkipSegmentsEnabled(this.checked)"><span class="switch-slider"></span></label>
+            <span class="toggle-row-label">${s.skipSegmentsEnabled?'Enabled':'Disabled'}</span>
+          </div>
+          <div class="field-hint">When on, playback automatically jumps from a segment's Start to its End the moment it's reached — same seek as Restart/±20s. Turn off to pause the feature everywhere without losing any saved segments.</div>
+        </div>
+        <div class="field">
+          <div class="toggle-row">
+            <label class="switch"><input type="checkbox" id="skipNotifyToggle" ${s.skipNotify?'checked':''} onchange="toggleSkipNotify(this.checked)"><span class="switch-slider"></span></label>
+            <span class="toggle-row-label">${s.skipNotify?'On':'Off'}</span>
+          </div>
+          <div class="field-hint">Show a small "Scene skipped" toast right after an automatic skip.</div>
+        </div>
+        <div class="settings-row" style="margin-top:4px;">
+          <button class="btn btn-primary" onclick="openSkipManager()">${ICON.scissors} Manage Skip Segments</button>
+        </div>
+        <div class="settings-row" style="margin-top:10px;">
+          <button class="btn btn-ghost" onclick="exportSkipData()">Export Skip Data (JSON)</button>
+          <button class="btn btn-ghost" onclick="document.getElementById('skipImportFile').click()">Import Skip Data</button>
+          <input type="file" id="skipImportFile" accept="application/json" style="display:none" onchange="importSkipData(this.files[0])">
+        </div>
+        <div class="settings-row" style="margin-top:10px;">
+          <button class="btn btn-danger" onclick="resetAllSkipSegments()">${ICON.trash} Reset All Skip Segments</button>
         </div>
         </div>
       </div>
@@ -6616,7 +7350,7 @@ function importLibrary(file){
     try{
       const data = JSON.parse(e.target.result);
       if(!data.items) throw new Error('invalid');
-      state.lib = {items:data.items||[], collections:data.collections||[], channels:data.channels||[]};
+      state.lib = {items:data.items||[], collections:data.collections||[], channels:data.channels||[], notifications:data.notifications||[], skipData:(data.skipData && typeof data.skipData==='object') ? data.skipData : {}};
       saveLib(); router(); toast('Library imported');
     }catch(err){ toast('Invalid library file'); }
   };
@@ -6625,7 +7359,7 @@ function importLibrary(file){
 function clearAllData(){
   if(!confirm('This will permanently delete your entire library. Continue?')) return;
   if(!confirm('Are you absolutely sure? This cannot be undone.')) return;
-  state.lib = {items:[], collections:[], channels:[]};
+  state.lib = {items:[], collections:[], channels:[], notifications:[], skipData:{}};
   saveLib(); location.hash='home'; toast('All data cleared');
 }
 
@@ -6927,6 +7661,7 @@ function renderEditModal(item){
 
     <div id="typeSpecific">${state.editType==='movie' ? sourcesEditorHtml() : seasonsEditorHtml()}</div>
 
+    <div class="field-hint" id="editModalError" style="display:none; color:#ff6b81; font-weight:600; margin-bottom:10px;"></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
       <button class="btn btn-primary" onclick="saveEditModal()">${item?'Save Changes':'Add Title'}</button>
@@ -7011,6 +7746,379 @@ function toggleBannedGenre(g){
   document.querySelectorAll('#bannedGenreChips .chip-btn').forEach(b=>{
     if(b.textContent.trim()===g) b.classList.toggle('active', list.includes(g));
   });
+}
+
+/* =========================================================
+   SKIP SEGMENTS — Settings + Manager UI
+   ---------------------------------------------------------
+   Master on/off + notification toggle live directly on the Settings page (see renderSettings >
+   "Skip Segments"). Everything else — browsing every title/episode that has segments, adding new
+   ones by hand, editing, deleting, and per-segment or per-title enable/disable — lives in a modal
+   "Skip Manager" (openSkipManager), reusing the app's existing openModal()/closeModal() plumbing
+   and .link-health-row / .switch / .chip-btn styling rather than introducing new components.
+   state.skipManager holds the manager's own transient UI state (which of its 3 screens is showing,
+   search text, which title/episode is drilled into, which single segment is mid-edit) — none of it
+   is persisted; only the actual skip data (state.lib.skipData) is.
+========================================================= */
+function toggleSkipSegmentsEnabled(checked){
+  state.settings.skipSegmentsEnabled = checked;
+  saveSettings();
+  const toggle = document.getElementById('skipSegmentsEnabledToggle');
+  const span = toggle && toggle.closest('.field') && toggle.closest('.field').querySelector('.toggle-row-label');
+  if(span) span.textContent = checked ? 'Enabled' : 'Disabled';
+  toast(checked ? 'Skip Segments enabled' : 'Skip Segments disabled');
+}
+function toggleSkipNotify(checked){
+  state.settings.skipNotify = checked;
+  saveSettings();
+  const toggle = document.getElementById('skipNotifyToggle');
+  const span = toggle && toggle.closest('.field') && toggle.closest('.field').querySelector('.toggle-row-label');
+  if(span) span.textContent = checked ? 'On' : 'Off';
+}
+function exportSkipData(){
+  const blob = new Blob([JSON.stringify(state.lib.skipData||{}, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'stream-vault-skip-segments.json'; a.click();
+  URL.revokeObjectURL(url);
+  toast('Skip data exported');
+}
+function importSkipData(file){
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e=>{
+    try{
+      const data = JSON.parse(e.target.result);
+      if(typeof data !== 'object' || !data || Array.isArray(data)) throw new Error('invalid');
+      // Merge rather than replace — importing a shared/backup skip file shouldn't wipe out segments
+      // already built locally for titles the import doesn't mention.
+      if(!state.lib.skipData) state.lib.skipData = {};
+      let importedCount = 0;
+      Object.keys(data).forEach(key=>{
+        const incoming = data[key];
+        if(!incoming || !Array.isArray(incoming.segments)) return;
+        const segments = incoming.segments
+          .filter(s=> s && typeof s.start==='number' && typeof s.end==='number' && s.end > s.start)
+          .map(s=>({ id: s.id || uuid(), name: s.name || '', start: Math.max(0, Math.round(s.start)), end: Math.round(s.end), enabled: s.enabled !== false }));
+        if(!segments.length) return;
+        state.lib.skipData[key] = { enabled: incoming.enabled !== false, segments };
+        importedCount++;
+      });
+      if(!importedCount) throw new Error('empty');
+      saveLib();
+      toast(`Imported skip data for ${importedCount} title${importedCount===1?'':'s'}`);
+      if(state.skipManager) openModal(renderSkipManagerHtml());
+    }catch(err){ toast('Invalid skip data file'); }
+  };
+  reader.readAsText(file);
+}
+function resetAllSkipSegments(){
+  if(!confirm('Delete every saved skip segment for every title? This cannot be undone.')) return;
+  state.lib.skipData = {};
+  saveLib();
+  toast('All skip segments reset');
+  if(state.skipManager) openModal(renderSkipManagerHtml());
+}
+
+function skipManagerRowLabel(r){
+  if(!r.item) return r.key; // title behind this key was since deleted from the library
+  return r.seasonNum!=null ? `${r.item.title} — S${r.seasonNum}E${r.epNum}` : r.item.title;
+}
+function openSkipManager(){
+  state.skipManager = {view:'list', query:'', openKey:null, editingSegId:null, addPickItemId:null, addPickQuery:''};
+  openModal(renderSkipManagerHtml());
+}
+function renderSkipManagerHtml(){
+  const sm = state.skipManager;
+  if(sm.view==='detail') return renderSkipManagerDetailHtml(sm.openKey);
+  if(sm.view==='addPick') return renderSkipManagerAddPickHtml();
+  return renderSkipManagerListHtml();
+}
+function renderSkipManagerListHtml(){
+  const sm = state.skipManager;
+  const q = (sm.query||'').toLowerCase();
+  let rows = listSkipEntries();
+  if(q) rows = rankedTitleSearch(rows, q, skipManagerRowLabel);
+  rows.sort((a,b)=> skipManagerRowLabel(a).localeCompare(skipManagerRowLabel(b)));
+  return `
+    <div class="modal-head"><h2>Skip Segments</h2><button class="btn-icon" onclick="closeModal()">${ICON.close}</button></div>
+    <div class="field" style="margin-bottom:12px;">
+      <input id="skipManagerSearch" placeholder="Search titles with skip segments..." value="${esc(sm.query||'')}" oninput="filterSkipManagerList(this.value)">
+    </div>
+    <button class="btn btn-ghost" style="width:100%; justify-content:center; margin-bottom:14px;" onclick="startSkipManagerAddTitle()">${ICON.plus} Add Skip Segment to a Title</button>
+    <div id="skipManagerRows" style="display:flex; flex-direction:column; gap:8px; max-height:400px; overflow-y:auto;">
+      ${rows.length ? rows.map(r=>skipManagerRowHtml(r)).join('') : `<div class="field-hint">${state.lib.items.length ? 'No skip segments yet — while watching, tap the scissors icon in the player, or use "Add Skip Segment to a Title" above.' : 'Add some titles to your library first.'}</div>`}
+    </div>
+  `;
+}
+function skipManagerRowHtml(r){
+  const label = skipManagerRowLabel(r);
+  const count = r.entry.segments.length;
+  const keyEsc = r.key.replace(/'/g,"\\'");
+  return `
+    <div class="link-health-row" style="align-items:center; cursor:pointer;" onclick="openSkipManagerDetail('${keyEsc}')">
+      <div style="min-width:0; flex:1;">
+        <div class="link-health-title">${esc(label)}</div>
+        <div class="link-health-url">${count} segment${count===1?'':'s'} · ${r.entry.enabled ? 'Enabled' : 'Disabled'}</div>
+      </div>
+      <label class="switch" style="flex-shrink:0;" onclick="event.stopPropagation();"><input type="checkbox" ${r.entry.enabled?'checked':''} onchange="toggleSkipEntryEnabled('${keyEsc}', this.checked)"><span class="switch-slider"></span></label>
+    </div>`;
+}
+function filterSkipManagerList(query){
+  state.skipManager.query = query;
+  const el = document.getElementById('skipManagerRows');
+  if(!el) return;
+  const q = (query||'').toLowerCase();
+  let rows = listSkipEntries();
+  if(q) rows = rankedTitleSearch(rows, q, skipManagerRowLabel);
+  rows.sort((a,b)=> skipManagerRowLabel(a).localeCompare(skipManagerRowLabel(b)));
+  el.innerHTML = rows.length ? rows.map(r=>skipManagerRowHtml(r)).join('') : `<div class="field-hint">No matches.</div>`;
+}
+function openSkipManagerDetail(key){
+  state.skipManager.view = 'detail';
+  state.skipManager.openKey = key;
+  state.skipManager.editingSegId = null;
+  openModal(renderSkipManagerHtml());
+}
+function backToSkipManagerList(){
+  state.skipManager.view = 'list';
+  state.skipManager.openKey = null;
+  openModal(renderSkipManagerHtml());
+}
+function renderSkipManagerDetailHtml(key){
+  const entry = ensureSkipEntry(key);
+  const m = key.match(/^(.*):s(\d+)e(\d+)$/);
+  const imdbId = m ? m[1] : key;
+  const item = state.lib.items.find(i=>(i.imdbId||i.id)===imdbId) || null;
+  const titleText = item ? (m ? `${item.title} — S${m[2]}E${m[3]}` : item.title) : key;
+  const keyEsc = key.replace(/'/g,"\\'");
+  return `
+    <div class="modal-head">
+      <button class="btn-icon" title="Back" onclick="backToSkipManagerList()">${ICON.chevronLeft}</button>
+      <h2 style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(titleText)}</h2>
+      <button class="btn-icon" onclick="closeModal()">${ICON.close}</button>
+    </div>
+    <div class="field">
+      <div class="toggle-row">
+        <label class="switch"><input type="checkbox" ${entry.enabled?'checked':''} onchange="toggleSkipEntryEnabled('${keyEsc}', this.checked)"><span class="switch-slider"></span></label>
+        <span class="toggle-row-label">${entry.enabled?'Enabled':'Disabled'} for this ${m?'episode':'title'}</span>
+      </div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
+      ${entry.segments.length ? entry.segments.map(seg=>skipSegmentRowHtml(key, seg)).join('') : `<div class="field-hint">No segments yet — add one below.</div>`}
+    </div>
+    <div class="field-row" style="align-items:flex-end; margin-bottom:8px;">
+      <div class="field" style="flex:1; margin-bottom:0;"><label>Start</label><input id="skipMgrNewStart" placeholder="MM:SS or HH:MM:SS"></div>
+      <div class="field" style="flex:1; margin-bottom:0;"><label>End</label><input id="skipMgrNewEnd" placeholder="MM:SS or HH:MM:SS"></div>
+    </div>
+    <div class="field"><label>Name <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional)</span></label><input id="skipMgrNewName" placeholder="e.g. Opening Scene"></div>
+    <button class="btn btn-primary" style="width:100%; justify-content:center; margin-bottom:10px;" onclick="addSkipSegmentInManager('${keyEsc}')">${ICON.plus} Add Segment</button>
+    ${entry.segments.length ? `<button class="btn btn-danger" style="width:100%; justify-content:center;" onclick="deleteAllSkipSegmentsForKey('${keyEsc}')">${ICON.trash} Delete All Segments For This ${m?'Episode':'Title'}</button>` : ''}
+  `;
+}
+function skipSegmentRowHtml(key, seg){
+  const sm = state.skipManager;
+  const keyEsc = key.replace(/'/g,"\\'");
+  if(sm.editingSegId === seg.id){
+    return `
+      <div class="link-health-row" style="flex-direction:column; align-items:stretch; gap:8px;">
+        <div class="field-row" style="align-items:flex-end;">
+          <div class="field" style="flex:1; margin-bottom:0;"><label>Start</label><input id="skipMgrEditStart" value="${esc(formatResumeTime(seg.start))}"></div>
+          <div class="field" style="flex:1; margin-bottom:0;"><label>End</label><input id="skipMgrEditEnd" value="${esc(formatResumeTime(seg.end))}"></div>
+        </div>
+        <input id="skipMgrEditName" value="${esc(seg.name||'')}" placeholder="Name (optional)">
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-primary" style="flex:1; justify-content:center;" onclick="saveSkipManagerEditSegment('${keyEsc}','${seg.id}')">Save</button>
+          <button class="btn btn-ghost" style="flex:1; justify-content:center;" onclick="cancelSkipManagerEditSegment()">Cancel</button>
+        </div>
+      </div>`;
+  }
+  return `
+    <div class="link-health-row" style="align-items:center;">
+      <div style="min-width:0; flex:1;">
+        <div class="link-health-title">${esc(seg.name || 'Skip Segment')}</div>
+        <div class="link-health-url">${formatResumeTime(seg.start)} → ${formatResumeTime(seg.end)} ${seg.enabled?'':'· Disabled'}</div>
+      </div>
+      <label class="switch" style="flex-shrink:0;"><input type="checkbox" ${seg.enabled?'checked':''} onchange="toggleSkipSegmentEnabledInManager('${keyEsc}','${seg.id}', this.checked)"><span class="switch-slider"></span></label>
+      <button class="btn-icon" title="Edit" style="flex-shrink:0; margin-left:6px;" onclick="startSkipManagerEditSegment('${seg.id}')">${ICON.edit}</button>
+      <button class="btn-icon" title="Delete" style="flex-shrink:0; margin-left:6px;" onclick="deleteSkipSegmentInManager('${keyEsc}','${seg.id}')">${ICON.trash}</button>
+    </div>`;
+}
+function toggleSkipEntryEnabled(key, checked){
+  const entry = ensureSkipEntry(key);
+  entry.enabled = checked;
+  saveLib();
+}
+function toggleSkipSegmentEnabledInManager(key, segId, checked){
+  const entry = getSkipEntry(key);
+  const seg = entry && entry.segments.find(s=>s.id===segId);
+  if(seg) seg.enabled = checked;
+  saveLib();
+}
+function deleteSkipSegmentInManager(key, segId){
+  const entry = getSkipEntry(key);
+  if(!entry) return;
+  entry.segments = entry.segments.filter(s=>s.id!==segId);
+  pruneSkipEntry(key);
+  saveLib();
+  toast('Skip segment deleted');
+  if(state.lib.skipData[key]) openModal(renderSkipManagerHtml());
+  else backToSkipManagerList(); // that was the last segment — the key was pruned, nothing left to show here
+}
+function deleteAllSkipSegmentsForKey(key){
+  if(!confirm('Delete all skip segments for this title?')) return;
+  delete state.lib.skipData[key];
+  saveLib();
+  toast('Skip segments deleted');
+  backToSkipManagerList();
+}
+function startSkipManagerEditSegment(segId){
+  state.skipManager.editingSegId = segId;
+  openModal(renderSkipManagerHtml());
+}
+function cancelSkipManagerEditSegment(){
+  state.skipManager.editingSegId = null;
+  openModal(renderSkipManagerHtml());
+}
+function saveSkipManagerEditSegment(key, segId){
+  const entry = getSkipEntry(key);
+  const seg = entry && entry.segments.find(s=>s.id===segId);
+  if(!seg) return;
+  const start = parseSkipTime(document.getElementById('skipMgrEditStart').value);
+  const end = parseSkipTime(document.getElementById('skipMgrEditEnd').value);
+  if(start==null || end==null){ toast('Enter both Start and End as MM:SS or HH:MM:SS'); return; }
+  if(end<=start){ toast('End must be after Start'); return; }
+  seg.start = start; seg.end = end;
+  seg.name = document.getElementById('skipMgrEditName').value.trim();
+  saveLib();
+  state.skipManager.editingSegId = null;
+  openModal(renderSkipManagerHtml());
+  toast('Skip segment updated');
+}
+function addSkipSegmentInManager(key){
+  const start = parseSkipTime(document.getElementById('skipMgrNewStart').value);
+  const end = parseSkipTime(document.getElementById('skipMgrNewEnd').value);
+  if(start==null || end==null){ toast('Enter both Start and End as MM:SS or HH:MM:SS'); return; }
+  if(end<=start){ toast('End must be after Start'); return; }
+  const name = document.getElementById('skipMgrNewName').value.trim();
+  const entry = ensureSkipEntry(key);
+  entry.segments.push({id: uuid(), name, start, end, enabled:true});
+  saveLib();
+  openModal(renderSkipManagerHtml());
+  toast('Skip segment added');
+}
+function startSkipManagerAddTitle(){
+  state.skipManager.view = 'addPick';
+  state.skipManager.addPickQuery = '';
+  state.skipManager.addPickItemId = null;
+  openModal(renderSkipManagerHtml());
+}
+function backToSkipManagerAddSearch(){
+  state.skipManager.addPickItemId = null;
+  openModal(renderSkipManagerHtml());
+}
+function renderSkipManagerAddPickHtml(){
+  const sm = state.skipManager;
+  if(sm.addPickItemId){
+    const item = getItem(sm.addPickItemId);
+    if(item) return renderSkipManagerEpisodePickHtml(item);
+    sm.addPickItemId = null;
+  }
+  const q = (sm.addPickQuery||'').toLowerCase();
+  const results = q ? rankedTitleSearch(state.lib.items, q, i=>i.title, libItemTieBreak).slice(0,30) : [];
+  return `
+    <div class="modal-head">
+      <button class="btn-icon" title="Back" onclick="backToSkipManagerList()">${ICON.chevronLeft}</button>
+      <h2>Add Skip Segment</h2>
+      <button class="btn-icon" onclick="closeModal()">${ICON.close}</button>
+    </div>
+    <div class="field" style="margin-bottom:12px;">
+      <input id="skipManagerAddSearch" placeholder="Search your library..." value="${esc(sm.addPickQuery||'')}" oninput="filterSkipManagerAddPick(this.value)">
+    </div>
+    <div id="skipManagerAddResults" style="display:flex; flex-direction:column; gap:8px; max-height:380px; overflow-y:auto;">
+      ${skipManagerAddResultsHtml(results)}
+    </div>
+  `;
+}
+function skipManagerAddResultsHtml(results){
+  if(!results.length) return `<div class="field-hint">Type a title to search your library.</div>`;
+  return results.map(i=>`
+    <div class="link-health-row" style="cursor:pointer;" onclick="pickSkipManagerLibraryItem('${i.id}')">
+      <div style="min-width:0;">
+        <div class="link-health-title">${esc(i.title)}</div>
+        <div class="link-health-url">${i.type==='series'?'TV Show':'Movie'}${i.year?' · '+esc(i.year):''}</div>
+      </div>
+    </div>`).join('');
+}
+function filterSkipManagerAddPick(query){
+  state.skipManager.addPickQuery = query;
+  const el = document.getElementById('skipManagerAddResults');
+  if(!el) return;
+  const q = (query||'').toLowerCase();
+  const results = q ? rankedTitleSearch(state.lib.items, q, i=>i.title, libItemTieBreak).slice(0,30) : [];
+  el.innerHTML = skipManagerAddResultsHtml(results);
+}
+function pickSkipManagerLibraryItem(itemId){
+  const item = getItem(itemId);
+  if(!item) return;
+  if(item.type === 'series'){
+    state.skipManager.addPickItemId = itemId;
+    openModal(renderSkipManagerHtml());
+    renderSkipManagerEpisodeSelect(itemId);
+  } else {
+    const key = skipDataKey(item, null, null);
+    state.skipManager.view = 'detail';
+    state.skipManager.openKey = key;
+    state.skipManager.editingSegId = null;
+    openModal(renderSkipManagerHtml());
+  }
+}
+function renderSkipManagerEpisodePickHtml(item){
+  const seasons = item.seasons || [];
+  return `
+    <div class="modal-head">
+      <button class="btn-icon" title="Back" onclick="backToSkipManagerAddSearch()">${ICON.chevronLeft}</button>
+      <h2 style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(item.title)}</h2>
+      <button class="btn-icon" onclick="closeModal()">${ICON.close}</button>
+    </div>
+    ${seasons.length ? `
+    <div class="field-hint" style="margin-bottom:12px;">Pick the episode to add a skip segment to.</div>
+    <div class="field-row">
+      <div class="field" style="flex:1;">
+        <label>Season</label>
+        <select id="skipMgrPickSeason" class="select-input" style="width:100%; border-radius:8px;" onchange="renderSkipManagerEpisodeSelect('${item.id}')">
+          ${seasons.map(s=>`<option value="${s.number}">Season ${s.number}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field" style="flex:1;">
+        <label>Episode</label>
+        <select id="skipMgrPickEpisode" class="select-input" style="width:100%; border-radius:8px;"></select>
+      </div>
+    </div>
+    <button class="btn btn-primary" style="width:100%; justify-content:center; margin-top:8px;" onclick="confirmSkipManagerEpisodePick('${item.id}')">Continue</button>
+    ` : `<div class="field-hint">This show has no season/episode data yet — add it from the show's edit page first.</div>`}
+  `;
+}
+function renderSkipManagerEpisodeSelect(itemId){
+  const item = getItem(itemId);
+  const seasonSel = document.getElementById('skipMgrPickSeason');
+  const epSel = document.getElementById('skipMgrPickEpisode');
+  if(!item || !seasonSel || !epSel) return;
+  const seasonNum = Number(seasonSel.value);
+  const season = (item.seasons||[]).find(s=>s.number===seasonNum);
+  const episodes = (season && season.episodes) || [];
+  epSel.innerHTML = episodes.map(e=>`<option value="${e.number}">Episode ${e.number}${e.title?' — '+esc(e.title):''}</option>`).join('');
+}
+function confirmSkipManagerEpisodePick(itemId){
+  const item = getItem(itemId);
+  const seasonSel = document.getElementById('skipMgrPickSeason');
+  const epSel = document.getElementById('skipMgrPickEpisode');
+  if(!item || !seasonSel || !epSel || !epSel.value){ toast('Pick a season and episode first'); return; }
+  const key = skipDataKey(item, Number(seasonSel.value), Number(epSel.value));
+  state.skipManager.view = 'detail';
+  state.skipManager.openKey = key;
+  state.skipManager.editingSegId = null;
+  openModal(renderSkipManagerHtml());
 }
 // Only shown when state.editCast has entries (i.e. TMDB-sourced cast with photos) — plain hand-typed
 // actor names in editActors have no photo to blur in the first place. Applies per-person, entirely at
@@ -8812,8 +9920,14 @@ function renderMovieUpdateReport(results){
   `);
 }
 function saveEditModal(){
+  const errEl = document.getElementById('editModalError');
+  if(errEl){ errEl.style.display = 'none'; errEl.textContent = ''; }
+  const showBlockedError = (msg)=>{
+    toast(msg);
+    if(errEl){ errEl.textContent = msg; errEl.style.display = 'block'; }
+  };
   const title = document.getElementById('f_title').value.trim();
-  if(!title){ toast('Title is required'); return; }
+  if(!title){ showBlockedError('Title is required'); return; }
   const payload = {
     type: state.editType,
     title,
@@ -8866,7 +9980,7 @@ function saveEditModal(){
   if(!state.editingId){
     const blockedReason = getBlockedReason(payload.title, payload.genre);
     if(blockedReason){
-      toast(`Can't add "${payload.title}" — ${blockedReason}`);
+      showBlockedError(`Can't add "${payload.title}" — ${blockedReason}`);
       return;
     }
   }
@@ -8878,7 +9992,7 @@ function saveEditModal(){
   if(payload.imdbId){
     const dupe = state.lib.items.find(i=>i.imdbId===payload.imdbId && i.id!==state.editingId);
     if(dupe){
-      toast(`"${dupe.title}" is already in your library with this IMDb ID`);
+      showBlockedError(`"${dupe.title}" is already in your library with this IMDb ID`);
       return;
     }
   }
@@ -9183,6 +10297,7 @@ function renderPlayer(){
       <div class="player-top-actions">
         <div class="player-top-pinned">
           <button class="btn-icon${p.subtitleCues?' is-active':''}" id="playerSubtitleBtn" title="Subtitles" onclick="toggleSubtitlePanel()">${ICON.subtitles}</button>
+          ${!isLive ? `<button class="btn-icon" id="playerSkipSegmentBtn" title="Add Skip Segment" onclick="event.stopPropagation(); toggleSkipPanel();">${ICON.scissors}</button>` : ''}
           <button class="btn-icon" id="playerBrightnessBtn" title="Brightness" onclick="event.stopPropagation(); toggleBrightnessPanel();">${ICON.brightness}</button>
           <button class="btn-icon" id="playerHideScreenBtn" title="Hide screen" onclick="togglePlayerHide()">${ICON.eyeOff}</button>
           <button class="btn-icon" id="playerLockBtn" title="Lock controls" onclick="event.stopPropagation(); togglePlayerLock();">${ICON.lock}</button>
@@ -9238,6 +10353,27 @@ function renderPlayer(){
           Powered by <a href="https://subdl.com" target="_blank" rel="noopener">SubDL</a> — needs a free API key in Settings.
         </div>
       </div>
+      ${!isLive ? `
+      <div class="player-subtitle-panel player-skip-panel" id="skipSegmentPanel">
+        <div class="player-subtitle-panel-head">
+          <b>Add Skip Segment</b>
+          <button class="btn-icon" onclick="closeSkipPanel()">${ICON.close}</button>
+        </div>
+        <div class="field-row" style="align-items:flex-end; margin-bottom:10px;">
+          <div class="field" style="flex:1; margin-bottom:0;"><label>Start</label><input id="skipDraftStart" placeholder="MM:SS or HH:MM:SS"></div>
+          <button type="button" class="btn btn-ghost" style="flex-shrink:0;" onclick="markSkipStart()">Mark Start</button>
+        </div>
+        <div class="field-row" style="align-items:flex-end; margin-bottom:10px;">
+          <div class="field" style="flex:1; margin-bottom:0;"><label>End</label><input id="skipDraftEnd" placeholder="MM:SS or HH:MM:SS"></div>
+          <button type="button" class="btn btn-ghost" style="flex-shrink:0;" onclick="markSkipEnd()">Mark End</button>
+        </div>
+        <div class="field">
+          <label>Name <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional)</span></label>
+          <input id="skipDraftName" placeholder="e.g. Opening Scene">
+        </div>
+        <div class="field-hint" style="margin-bottom:12px;">Press <b>Mark Start</b> now, keep watching, then <b>Mark End</b> once the unwanted part is over — or just type both times in directly. Next time playback reaches Start, it jumps straight to End.</div>
+        <button class="btn btn-primary" style="width:100%; justify-content:center;" onclick="saveSkipSegmentFromPanel()">Save Skip Segment</button>
+      </div>` : ''}
       <div class="player-brightness-panel" id="brightnessPanel" onmouseenter="clearTimeout(brightnessHideTimer)" onmouseleave="scheduleBrightnessPanelHide()">
         <span class="player-brightness-value" id="brightnessValueLabel">${Math.round(state.settings.playerBrightness*100)}%</span>
         <div class="brightness-slider-track">
@@ -9358,6 +10494,12 @@ function renderPlayer(){
       if(!vid.duration || !isFinite(vid.duration)) return;
       saveProgress(item, p.key, vid.currentTime, vid.duration, vid.currentTime >= vid.duration*getWatchedThreshold(p.seasonNum));
     }, 5000);
+    // Custom Skip Segments (see CUSTOM SKIP SEGMENTS, near the CONTENT FILTERS module): native
+    // <video>/hls sources have a real, continuously-updating currentTime, so timeupdate is the exact
+    // right hook — no polling interval needed the way iframe embeds require.
+    vid.addEventListener('timeupdate', ()=>{
+      checkSkipSegments(vid.currentTime, (target)=>{ vid.currentTime = target; });
+    });
     vid.addEventListener('ended', ()=>{
       if(isFinite(vid.duration)) saveProgress(item, p.key, vid.duration, vid.duration, true);
       p.playbackState = 'stopped';
@@ -9516,8 +10658,9 @@ function initPlayerHideGesture(){
       return;
     }
     // Leave the subtitle search panel's own controls (input/select/buttons) alone — this gesture is
-    // for "anywhere on the video", not for double-clicking inside a text field.
-    if(e.target.closest('#subtitlePanel')) return;
+    // for "anywhere on the video", not for double-clicking inside a text field. Same for the Add
+    // Skip Segment panel's own Mark Start/End/Save controls.
+    if(e.target.closest('#subtitlePanel') || e.target.closest('#skipSegmentPanel')) return;
     // ACTIVATING Hide Screen still needs the double-tap below (so a normal single tap on the video
     // — pause, reveal skip buttons, etc — never triggers it by accident). DEACTIVATING it, though,
     // is a single tap anywhere: once the cover is up there's nothing else on the stage a tap could
@@ -10084,7 +11227,7 @@ function toggleSubtitlePanel(){
   const panel = document.getElementById('subtitlePanel');
   if(!panel) return;
   const opening = !panel.classList.contains('open');
-  if(opening) closeBrightnessPanel(); // only one popover open at a time
+  if(opening) { closeBrightnessPanel(); closeSkipPanel(); } // only one popover open at a time
   panel.classList.toggle('open');
   if(opening && !panel.dataset.primed){
     panel.dataset.primed = '1';
@@ -10101,6 +11244,60 @@ function toggleSubtitlePanel(){
 function closeSubtitlePanel(){
   const panel = document.getElementById('subtitlePanel');
   if(panel) panel.classList.remove('open');
+}
+/* ---- Custom Skip Segments — in-player "Add Skip Segment" panel (Mark Start / Mark End) ---- */
+// Reads the truest currently-available position: a real <video>/hls element's own currentTime when
+// one exists, otherwise the iframe embed's last-synced p._elapsedSeconds (good enough for marking a
+// skip point by eye — a couple seconds of drift doesn't matter for "mark roughly where this starts").
+function getCurrentPlayerElapsedSeconds(){
+  const p = state.player;
+  if(!p) return 0;
+  const vid = document.getElementById('playerVideoEl');
+  if(vid && isFinite(vid.currentTime)) return vid.currentTime;
+  return p._elapsedSeconds || 0;
+}
+function toggleSkipPanel(){
+  const p = state.player;
+  if(!p || p.isLive) return;
+  const panel = document.getElementById('skipSegmentPanel');
+  if(!panel) return;
+  const opening = !panel.classList.contains('open');
+  if(opening){
+    closeSubtitlePanel(); closeBrightnessPanel(); // only one popover open at a time
+    document.getElementById('skipDraftStart').value = '';
+    document.getElementById('skipDraftEnd').value = '';
+    document.getElementById('skipDraftName').value = '';
+  }
+  panel.classList.toggle('open');
+}
+function closeSkipPanel(){
+  const panel = document.getElementById('skipSegmentPanel');
+  if(panel) panel.classList.remove('open');
+}
+function markSkipStart(){
+  const el = document.getElementById('skipDraftStart');
+  if(el) el.value = formatResumeTime(getCurrentPlayerElapsedSeconds());
+}
+function markSkipEnd(){
+  const el = document.getElementById('skipDraftEnd');
+  if(el) el.value = formatResumeTime(getCurrentPlayerElapsedSeconds());
+}
+function saveSkipSegmentFromPanel(){
+  const p = state.player;
+  if(!p) return;
+  const item = getItem(p.itemId);
+  if(!item){ toast('Nothing playing to add a skip to'); return; }
+  const start = parseSkipTime(document.getElementById('skipDraftStart').value);
+  const end = parseSkipTime(document.getElementById('skipDraftEnd').value);
+  if(start==null || end==null){ toast('Enter both Start and End as MM:SS or HH:MM:SS'); return; }
+  if(end <= start){ toast('End must be after Start'); return; }
+  const name = document.getElementById('skipDraftName').value.trim();
+  const key = skipDataKey(item, p.seasonNum, p.epNum);
+  const entry = ensureSkipEntry(key);
+  entry.segments.push({id: uuid(), name, start, end, enabled: true});
+  saveLib();
+  closeSkipPanel();
+  toast(name ? `Skip segment "${name}" saved` : 'Skip segment saved');
 }
 
 /* =========================================================
@@ -10120,7 +11317,7 @@ function toggleBrightnessPanel(){
   if(!panel) return;
   const opening = !panel.classList.contains('open');
   if(!opening){ closeBrightnessPanel(); return; }
-  closeSubtitlePanel(); // only one popover open at a time
+  closeSubtitlePanel(); closeSkipPanel(); // only one popover open at a time
   panel.classList.add('open');
   const btn = document.getElementById('playerBrightnessBtn');
   if(btn) btn.classList.add('is-active');
@@ -10963,6 +12160,11 @@ function startProgressInterpolation(){
     const elapsedSinceSync = Math.max(0, (now - (p._syncedAt || now)) / 1000);
     let displayed = (p._elapsedSeconds || 0) + elapsedSinceSync;
     if(p._totalSeconds > 0) displayed = Math.min(displayed, p._totalSeconds);
+    // Custom Skip Segments: this rAF loop is the one place an iframe embed's position advances
+    // continuously between the real ~5s-apart PLAYER_EVENT updates, so it's the right spot to check
+    // for a skip too — performPlayerSeek() is the exact same seek performPlayerSeek()-driven ±20s/
+    // progress-bar clicks use, so an auto-skip looks identical to a manual seek to anyone watching.
+    checkSkipSegments(displayed, (target)=> performPlayerSeek(target));
     updatePlayerProgressUI(displayed);
     progressAnimFrameId = requestAnimationFrame(tick);
   };
