@@ -1169,6 +1169,10 @@ body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
 .chip-select .chip-btn{padding:7px 13px; font-size:12.5px;}
 #wizardGenreChips.chip-select{gap:6px;}
 #wizardGenreChips .chip-btn{padding:5px 11px; font-size:11.5px;}
+/* Banned-genre picker (Settings > Content Filters) reuses .chip-select/.chip-btn but overrides the
+   active state to a red/danger tint instead of the teal "selected" look elsewhere — a banned genre
+   isn't a positive selection, so it shouldn't read like one. */
+#bannedGenreChips .chip-btn.active{background:rgba(255,107,129,.14); color:#ff6b81; border-color:rgba(255,107,129,.4);}
 
 .actor-chips-wrap{display:flex; flex-wrap:wrap; gap:8px;}
 .actor-chip{
@@ -2461,8 +2465,14 @@ function loadSettings(){
     // card's top edge (see the ARTWORK NOTE in the .featured-* CSS block). Defaults on; off falls
     // back to a clean, fully-contained card if the bleed effect looks awkward for a given title.
     if(typeof s.featuredArtworkBleed !== 'boolean') s.featuredArtworkBleed = true;
+    // Content Filters (see SETTINGS > Content Filters and enforceContentFilters()) — titles whose
+    // name contains one of these words (case-insensitive, substring match), or whose genre list
+    // includes one of these banned genres, are refused at add-time across every add path (manual
+    // add/edit, IMDb single import, bulk import, and the multi-title wizard).
+    if(!Array.isArray(s.bannedWords)) s.bannedWords = [];
+    if(!Array.isArray(s.bannedGenres)) s.bannedGenres = [];
     return s;
-  }catch(e){ return {omdb:'',tmdb:'',subdl:'',vidsrcDomain:'vidsrc-embed.su', streamingProviders:[], blockPopupAds:false, contentBlur:false, contentBlurLevel:'moderate', contentBlurModelUrl:'', scheduleCountry:'US', recentSearches:[], supabaseUrl:'', supabaseKey:'', playerBrightness:1, subtitleSize:'medium', subtitleColor:'#ffffff', subtitleBgColor:'#000000', subtitleBgOpacity:72, tmdbTop100Excluded:{movie:[],tv:[]}, featuredArtworkBleed:true}; }
+  }catch(e){ return {omdb:'',tmdb:'',subdl:'',vidsrcDomain:'vidsrc-embed.su', streamingProviders:[], blockPopupAds:false, contentBlur:false, contentBlurLevel:'moderate', contentBlurModelUrl:'', scheduleCountry:'US', recentSearches:[], supabaseUrl:'', supabaseKey:'', playerBrightness:1, subtitleSize:'medium', subtitleColor:'#ffffff', subtitleBgColor:'#000000', subtitleBgOpacity:72, tmdbTop100Excluded:{movie:[],tv:[]}, featuredArtworkBleed:true, bannedWords:[], bannedGenres:[]}; }
 }
 function saveSettings(){ localStorage.setItem(SET_KEY, JSON.stringify(state.settings)); }
 
@@ -2666,6 +2676,31 @@ function allGenres(){
   return [...set];
 }
 const DEFAULT_GENRES = ['Action','Drama','Comedy','Sci-Fi','Thriller','Horror','Romance','Animation','Documentary','Fantasy','Crime','Adventure','Arabic'];
+
+/* =========================================================
+   CONTENT FILTERS
+   ---------------------------------------------------------
+   Banned words (matched case-insensitively as a substring of the title) and banned genres (matched
+   against the title's genre list), configured in Settings > Content Filters. Checked at every point
+   a title is actually added to the library — manual add/edit (saveEditModal), single IMDb import
+   (importFromImdb, as an early warning before the OMDb/TMDB lookups even run), bulk IMDb import
+   (runBulkImdbImport), and the multi-title wizard (wizardFinish) — so there's no add path that can
+   slip past it. Returns a short human-readable reason string, or null if the title is allowed.
+========================================================= */
+function getBlockedReason(title, genres){
+  const words = (state.settings.bannedWords||[]).map(w=>w.toLowerCase()).filter(Boolean);
+  if(words.length && title){
+    const lower = title.toLowerCase();
+    const hit = words.find(w=>lower.includes(w));
+    if(hit) return `title contains banned word "${hit}"`;
+  }
+  const bannedGenres = state.settings.bannedGenres||[];
+  if(bannedGenres.length && genres && genres.length){
+    const hit = genres.find(g=>bannedGenres.includes(g));
+    if(hit) return `genre "${hit}" is banned`;
+  }
+  return null;
+}
 
 // Dominant-color extraction — samples the poster on a tiny offscreen canvas and averages the non-neutral
 // pixels, giving a rough "album art glow" color (Spotify/Plex-style) with no API calls involved. Purely
@@ -5808,6 +5843,25 @@ function renderSettings(){
         </div>
         </div>
       </div>
+      <div class="settings-section${settingsSectionClass('contentFilters')}" data-section="contentFilters">
+        <h3 onclick="toggleSettingsSection('contentFilters')"><span class="settings-title-text">Content Filters</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
+        <div class="settings-section-body">
+        <div class="field">
+          <label>Banned Words</label>
+          <div class="actor-chips-wrap" id="bannedWordChips">${bannedWordChipsHtml()}</div>
+          <div style="display:flex; gap:8px; margin-top:10px;">
+            <input id="bannedWordInput" placeholder="Add a word and press Enter" onkeydown="if(event.key==='Enter'){event.preventDefault(); addBannedWordFromInput();}">
+            <button type="button" class="btn-icon" title="Add word" onclick="addBannedWordFromInput()">${ICON.plus}</button>
+          </div>
+          <div class="field-hint">Any title whose name contains one of these words (matched anywhere in the title, not case-sensitive) is refused when adding — via manual add, IMDb import, bulk import, or the import wizard. Doesn't affect titles already in your library.</div>
+        </div>
+        <div class="field">
+          <label>Banned Genres</label>
+          <div class="chip-select" id="bannedGenreChips">${[...new Set([...DEFAULT_GENRES, ...allGenres()])].map(g=>`<button type="button" class="chip-btn ${(state.settings.bannedGenres||[]).includes(g)?'active':''}" onclick="toggleBannedGenre('${g.replace(/'/g,"\\'")}')">${esc(g)}</button>`).join('')}</div>
+          <div class="field-hint">Any title tagged with one of these genres is refused when adding, the same way as a banned word.</div>
+        </div>
+        </div>
+      </div>
       <div class="settings-section${settingsSectionClass('featuredRelease')}" data-section="featuredRelease">
         <h3 onclick="toggleSettingsSection('featuredRelease')"><span class="settings-title-text">Featured Release</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
         <div class="settings-section-body">
@@ -6913,6 +6967,51 @@ function removeActor(i){
   state.editActors.splice(i,1);
   refreshActorChips();
 }
+/* =========================================================
+   CONTENT FILTERS — Settings UI
+   ---------------------------------------------------------
+   Banned words are tag chips (add/remove pattern mirrors actor-chip cast tags above), saved to
+   state.settings.bannedWords immediately on each add/remove (no separate Save button, consistent
+   with the other always-on Settings toggles). Banned genres reuse the same chip-btn multi-select
+   toggle grid as the edit modal's Genre field. Enforcement itself lives in getBlockedReason()
+   (see CONTENT FILTERS, near DEFAULT_GENRES) and is called from every add path.
+========================================================= */
+function bannedWordChipsHtml(){
+  const words = state.settings.bannedWords||[];
+  if(!words.length) return `<span style="color:var(--muted); font-size:12.5px;">No banned words yet.</span>`;
+  return words.map((w,i)=>`<span class="actor-chip">${esc(w)}<button type="button" title="Remove" onclick="removeBannedWord(${i})">${ICON.close}</button></span>`).join('');
+}
+function refreshBannedWordChips(){
+  const el = document.getElementById('bannedWordChips');
+  if(el) el.innerHTML = bannedWordChipsHtml();
+}
+function addBannedWordFromInput(){
+  const input = document.getElementById('bannedWordInput');
+  if(!input) return;
+  const word = input.value.trim().toLowerCase();
+  if(!word) return;
+  if(!state.settings.bannedWords.includes(word)){
+    state.settings.bannedWords.push(word);
+    saveSettings();
+  }
+  input.value = '';
+  refreshBannedWordChips();
+  input.focus();
+}
+function removeBannedWord(i){
+  state.settings.bannedWords.splice(i,1);
+  saveSettings();
+  refreshBannedWordChips();
+}
+function toggleBannedGenre(g){
+  const list = state.settings.bannedGenres;
+  const i = list.indexOf(g);
+  if(i>-1) list.splice(i,1); else list.push(g);
+  saveSettings();
+  document.querySelectorAll('#bannedGenreChips .chip-btn').forEach(b=>{
+    if(b.textContent.trim()===g) b.classList.toggle('active', list.includes(g));
+  });
+}
 // Only shown when state.editCast has entries (i.e. TMDB-sourced cast with photos) — plain hand-typed
 // actor names in editActors have no photo to blur in the first place. Applies per-person, entirely at
 // the user's discretion, for whatever reason they want (spoiler cameo, guest star reveal, etc.) — the
@@ -7345,6 +7444,8 @@ async function importFromImdb(){
   const idMatch = raw.match(/tt\d{6,10}/);
   if(!idMatch){ toast('Paste a valid IMDb URL (e.g. imdb.com/title/tt0111161/)'); return; }
   const imdbId = idMatch[0];
+  const existing = state.lib.items.find(i=>i.imdbId===imdbId && i.id!==state.editingId);
+  if(existing){ toast(`"${existing.title}" is already in your library with this IMDb ID`); return; }
   if(!state.settings.omdb){ toast('Add your OMDb API key in Settings first'); return; }
   if(!state.settings.tmdb){ toast('Add your TMDB API key in Settings first — needed for backdrops, logos, trailers, and season data'); return; }
 
@@ -7359,6 +7460,9 @@ async function importFromImdb(){
     const omdbRes = await fetch(`https://www.omdbapi.com/?i=${encodeURIComponent(imdbId)}&plot=full&apikey=${encodeURIComponent(state.settings.omdb)}`);
     const omdb = await omdbRes.json();
     if(omdb.Response==='False'){ toast(omdb.Error || 'IMDb ID not found on OMDb — double-check your OMDb key in Settings'); return; }
+    const earlyGenres = omdb.Genre ? omdb.Genre.split(',').map(g=>g.trim()).filter(Boolean) : [];
+    const earlyBlocked = getBlockedReason(omdb.Title, earlyGenres);
+    if(earlyBlocked){ toast(`Can't import "${omdb.Title}" — ${earlyBlocked}`); return; }
     const type = omdb.Type==='series' ? 'series' : 'movie';
     state.editType = type;
 
@@ -7598,7 +7702,7 @@ async function runBulkImdbImport(){
   const setProgress = (text)=>{ const el=document.getElementById('bulkImdbProgressText'); if(el) el.textContent = text; };
 
   const existingIds = new Set(state.lib.items.map(i=>i.imdbId).filter(Boolean));
-  const added = [], skipped = [], failed = [];
+  const added = [], skipped = [], failed = [], blocked = [];
   // Sequential, not parallel: keeps this well under OMDb/TMDB rate limits and gives each item a
   // strictly increasing dateAdded (see below) so "last in the list = newest" is exact, not a race.
   const baseTime = Date.now();
@@ -7608,6 +7712,10 @@ async function runBulkImdbImport(){
     if(existingIds.has(imdbId)){ skipped.push(imdbId); continue; }
     try{
       const payload = await buildLibraryItemFromImdb(imdbId);
+      // Content Filters (Settings > Content Filters): skip rather than throw, so one banned title
+      // doesn't stop the rest of the batch — reported separately in the summary below.
+      const blockedReason = getBlockedReason(payload.title, payload.genre);
+      if(blockedReason){ blocked.push({imdbId, title: payload.title, reason: blockedReason}); continue; }
       const item = {
         id: uuid(), dateAdded: new Date(baseTime + i*1000).toISOString(), lastWatched: null, progress:{},
         ...payload
@@ -7620,14 +7728,27 @@ async function runBulkImdbImport(){
     }
   }
   if(added.length) saveLib();
-  renderBulkImdbImportReport(added, skipped, failed);
+  renderBulkImdbImportReport(added, skipped, failed, blocked);
 }
-function renderBulkImdbImportReport(added, skipped, failed){
+function renderBulkImdbImportReport(added, skipped, failed, blocked){
+  blocked = blocked || [];
   openModal(`
     <div class="modal-head"><h2>Import Complete</h2><button class="btn-icon" onclick="closeModal(); router();">${ICON.close}</button></div>
     <div class="field-hint" style="margin-bottom:16px;">
-      ${added.length} added, ${skipped.length} already in your library, ${failed.length} failed.
+      ${added.length} added, ${skipped.length} already in your library, ${blocked.length} blocked by content filters, ${failed.length} failed.
     </div>
+    ${blocked.length ? `
+      <div class="field-hint" style="margin-bottom:8px;">Blocked:</div>
+      <div style="display:flex; flex-direction:column; gap:6px; max-height:200px; overflow-y:auto; margin-bottom:16px;">
+        ${blocked.map(b=>`
+          <div class="link-health-row">
+            <div style="min-width:0;">
+              <div class="link-health-title">${esc(b.title||b.imdbId)}</div>
+              <div class="link-health-url">${esc(b.reason)}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+    ` : ''}
     ${added.length ? `
       <div style="display:flex; flex-direction:column; gap:6px; max-height:260px; overflow-y:auto; margin-bottom:16px;">
         ${added.map(it=>`
@@ -8377,7 +8498,12 @@ function wizardFinish(){
   const ready = w.items.filter(i=>i.status==='ready');
   if(!ready.length){ toast('Nothing to add'); return; }
   const baseTime = Date.now();
+  let addedCount = 0, blockedCount = 0;
   ready.forEach((it,i)=>{
+    // Content Filters (Settings > Content Filters): quietly skip a banned title rather than adding
+    // it — the wizard has already moved past its per-title steps by this point, so there's no field
+    // left to correct; the person can adjust the filter or the title's genre/name and re-import.
+    if(getBlockedReason(it.title, it.genre)){ blockedCount++; return; }
     const clean = Object.assign({}, it);
     delete clean.status; delete clean.error;
     delete clean.posterCandidates; delete clean.backdropCandidates; delete clean.logoCandidates;
@@ -8386,12 +8512,13 @@ function wizardFinish(){
       id: uuid(), dateAdded: new Date(baseTime + i*1000).toISOString(), lastWatched:null, progress:{},
       ...clean
     });
+    addedCount++;
   });
   saveLib();
   state.wizard = null;
   closeModal();
   router();
-  toast(`${ready.length} title${ready.length===1?'':'s'} added to your library`);
+  toast(`${addedCount} title${addedCount===1?'':'s'} added to your library${blockedCount ? ` (${blockedCount} blocked by content filters)` : ''}`);
 }
 
 // Bulk "Update Info" (Settings → Library Metadata): re-pulls TMDB metadata for a TV show you
@@ -8730,6 +8857,30 @@ function saveEditModal(){
         sources:(e.sources||[]).filter(src=>src.url.trim()).map(src=>({label:src.label.trim()||'Source', url:src.url.trim()}))
       }))
     }));
+  }
+
+  // Content Filters (Settings > Content Filters): refuse NEW titles matching a banned word or
+  // genre. Only applies when adding — editing a title already in the library isn't blocked just
+  // because a filter was added afterward, so people can still fix up an existing entry's other
+  // fields without being locked out of their own edit form.
+  if(!state.editingId){
+    const blockedReason = getBlockedReason(payload.title, payload.genre);
+    if(blockedReason){
+      toast(`Can't add "${payload.title}" — ${blockedReason}`);
+      return;
+    }
+  }
+
+  // Block duplicate IMDb IDs: the same title shouldn't exist twice in the library. Checks
+  // against every OTHER item (excludes the item currently being edited, so re-saving an
+  // existing item with its own IMDb ID unchanged is still fine), and only fires when this
+  // save actually carries an imdbId at all.
+  if(payload.imdbId){
+    const dupe = state.lib.items.find(i=>i.imdbId===payload.imdbId && i.id!==state.editingId);
+    if(dupe){
+      toast(`"${dupe.title}" is already in your library with this IMDb ID`);
+      return;
+    }
   }
 
   if(state.editingId){
