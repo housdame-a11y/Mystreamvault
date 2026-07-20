@@ -17,7 +17,6 @@
   --highlight-dim:rgba(61,219,217,.16);
   --text:#e8f0ef;
   --muted:#5a7a78;
-  --radius:10px;
   --display-font:'Inter Tight','Inter',system-ui,sans-serif;
   --transition: .25s cubic-bezier(.4,0,.2,1);
 }
@@ -152,6 +151,11 @@ a{color:inherit; text-decoration:none;}
   position:absolute; top:-4px; right:-4px; min-width:16px; height:16px; padding:0 3px; border-radius:8px;
   background:#ff6b81; color:#1a0508; font-size:9.5px; font-weight:800; line-height:16px; text-align:center;
   box-shadow:0 0 0 2px var(--surface);
+  animation:notifBadgePulse 2.4s ease-in-out infinite;
+}
+@keyframes notifBadgePulse{
+  0%,100%{box-shadow:0 0 0 2px var(--surface), 0 0 0 0 rgba(255,107,129,.55);}
+  50%{box-shadow:0 0 0 2px var(--surface), 0 0 0 5px rgba(255,107,129,0);}
 }
 
 .topbar-search{
@@ -189,6 +193,27 @@ a{color:inherit; text-decoration:none;}
 .gsr-meta{font-size:11px; color:var(--muted); margin-top:3px; display:flex; align-items:center;}
 .search-hl{background:none; color:var(--highlight); font-weight:800;}
 .gsr-empty{padding:16px; text-align:center; color:var(--muted); font-size:13px;}
+.gsr-empty-hint{display:block; margin-top:6px; font-size:11.5px; color:var(--muted); opacity:.75;}
+/* ---- TMDB fallback ("not in your library yet") — desktop dropdown ---- */
+.gsr-section-label{
+  padding:12px 8px 6px; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.06em;
+  color:var(--muted); border-top:1px solid #1a1d26; margin-top:4px;
+}
+.gsr-section-label:first-child{border-top:0; margin-top:0;}
+.gsr-item.gsr-tmdb{border:1px dashed #2a3040; margin-bottom:2px;}
+.gsr-item.gsr-tmdb:hover, .gsr-item.gsr-tmdb.kbd-active{background:var(--highlight-dim); border-color:rgba(61,219,217,.4);}
+.gsr-tmdb-badge{
+  display:inline-flex; align-items:center; gap:3px; margin-top:4px; padding:2px 7px 2px 5px; border-radius:6px;
+  background:var(--highlight-dim); color:var(--highlight); font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.03em;
+}
+.gsr-tmdb-badge svg{width:10px; height:10px;}
+.gsr-tmdb-skel{display:flex; gap:12px; align-items:center; padding:8px;}
+.gsr-tmdb-skel .gsr-poster, .gsr-skel-line{
+  background:linear-gradient(100deg,#12141c 0%,#1c1f2b 40%,#12141c 80%); background-size:220% 100%;
+  animation:skeletonShimmer 1.7s ease-in-out infinite;
+}
+.gsr-skel-line{height:10px; border-radius:4px; margin-top:6px;}
+.gsr-skel-line.w1{width:70%;} .gsr-skel-line.w2{width:45%; margin-top:8px;}
 @media (max-width:860px){
   .global-search-results{right:16px; left:16px; width:auto;}
   .topbar-search.open .global-search-input{width:130px;}
@@ -252,11 +277,29 @@ a{color:inherit; text-decoration:none;}
 .msearch-row-title{font-size:14.5px; font-weight:700; color:var(--text); line-height:1.3;}
 .msearch-row-meta{font-size:12.5px; color:var(--muted); margin-top:3px;}
 .msearch-empty{padding:40px 20px; text-align:center; color:var(--muted); font-size:13.5px;}
+.msearch-empty-hint{display:block; margin-top:8px; font-size:12.5px; opacity:.75;}
+/* ---- TMDB fallback ("not in your library yet") — mobile full-screen search ---- */
+.msearch-section-label{
+  padding:16px 16px 8px; font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.3px;
+  color:var(--muted); border-top:1px solid #14161f; margin-top:6px;
+}
+.msearch-row.msearch-tmdb{border-top:1px dashed #232837; border-bottom:1px dashed #232837; margin-top:-1px;}
+.msearch-row.msearch-tmdb:active{background:var(--highlight-dim);}
+.msearch-tmdb-badge{
+  display:inline-flex; align-items:center; gap:3px; margin-top:5px; padding:2px 8px 2px 6px; border-radius:6px;
+  background:var(--highlight-dim); color:var(--highlight); font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.03em;
+}
+.msearch-tmdb-badge svg{width:11px; height:11px;}
+.msearch-tmdb-skel{display:flex; align-items:center; gap:14px; padding:10px 16px;}
+.msearch-tmdb-skel .msearch-row-poster, .msearch-skel-line{
+  background:linear-gradient(100deg,#12141c 0%,#1c1f2b 40%,#12141c 80%); background-size:220% 100%;
+  animation:skeletonShimmer 1.7s ease-in-out infinite;
+}
+.msearch-skel-line{height:11px; border-radius:4px; margin-top:8px;}
+.msearch-skel-line.w1{width:65%;} .msearch-skel-line.w2{width:40%; margin-top:9px;}
 .msearch-adv-section{padding:16px 16px 4px;}
-.msearch-adv-row{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
 .msearch-adv-label{font-size:12.5px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; margin-bottom:10px;}
 .msearch-adv-label small{text-transform:none; letter-spacing:0; font-weight:600; color:var(--muted); opacity:.75;}
-.msearch-adv-clearlink{background:none; border:0; color:var(--highlight); font-family:inherit; font-size:12.5px; font-weight:700;}
 .msearch-adv-chips{
   display:flex; flex-wrap:nowrap; gap:8px; margin-bottom:22px;
   overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; scrollbar-width:none;
@@ -274,7 +317,6 @@ a{color:inherit; text-decoration:none;}
 .msearch-adv-chip.fav-chip.active{background:rgba(255,107,129,.12); border-color:rgba(255,107,129,.4); color:#ff6b81;}
 .msearch-adv-sort{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:24px;}
 .msearch-adv-sort .select-input{flex-shrink:0; min-width:150px;}
-.msearch-adv-divider{height:1px; background:#14161f; margin:0 0 20px;}
 .msearch-adv-footer{
   position:sticky; bottom:0; display:flex; gap:10px; padding:12px 16px calc(12px + env(safe-area-inset-bottom));
   background:linear-gradient(180deg, transparent, var(--bg) 22%); border-top:1px solid #14161f; flex-shrink:0;
@@ -300,19 +342,37 @@ a{color:inherit; text-decoration:none;}
 .hero-carousel{
   position:relative; height:64vh; min-height:420px; max-height:600px;
   border-radius:18px; overflow:hidden; margin:20px 32px 8px 32px;
-  border:1px solid #171a24; background:#0c0e13;
+  border:1px solid rgba(61,219,217,.14); background:#0c0e13;
+  box-shadow:0 0 0 1px rgba(61,219,217,.04), 0 40px 80px -20px rgba(0,0,0,.6);
   animation:fadeIn .4s cubic-bezier(.16,1,.3,1);
 }
 .hero-track{display:flex; height:100%; transition:transform .65s cubic-bezier(.65,0,.35,1); cursor:grab; touch-action:pan-y;}
 .hero-track.dragging{transition:none; cursor:grabbing;}
 .hero-slide{position:relative; flex:0 0 100%; width:100%; height:100%; display:flex; align-items:flex-end; cursor:pointer;}
 .hero-slide > img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.6; filter:var(--cinematic-grade);}
+/* Low-opacity cyan wash bleeding in from the top-right corner -- echoes the same radial-gradient
+   motif already used on the page body, so the hero reads as part of the app's ambient color rather
+   than a sealed-off photo. Sits above the backdrop image but below the darkening scrim so it never
+   fights text legibility. */
+.hero-slide::before{
+  content:''; position:absolute; inset:0; z-index:1;
+  background:radial-gradient(60% 50% at 100% 0%, rgba(61,219,217,.10), transparent 70%);
+  pointer-events:none;
+}
 .hero-slide::after{
-  content:''; position:absolute; inset:0;
+  content:''; position:absolute; inset:0; z-index:1;
   background:linear-gradient(0deg, var(--bg) 2%, rgba(8,9,13,.45) 42%, rgba(8,9,13,.1) 100%),
              linear-gradient(90deg, rgba(8,9,13,.92) 0%, rgba(8,9,13,.35) 55%, rgba(8,9,13,.05) 100%);
 }
-.hero-content{position:relative; z-index:2; padding:44px; max-width:600px;}
+/* Faint cyan-tinted glass panel behind the text block -- gives the content its own subtle surface
+   instead of sitting directly on the darkened photo. Kept very low-opacity so it reads as "premium
+   glass", not a colored box; rounded only on the top-right corner so it doesn't fight the carousel's
+   own corner radius on the bottom-left where the text starts. */
+.hero-content{
+  position:relative; z-index:2; padding:44px; max-width:600px;
+  background:rgba(13,74,74,.10); backdrop-filter:blur(2px);
+  border-radius:0 18px 0 0;
+}
 .hero-badge{
   position:absolute; top:20px; left:20px; z-index:3;
   display:inline-flex; align-items:center; gap:6px; background:var(--highlight-dim); color:var(--highlight);
@@ -738,23 +798,86 @@ body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
 .see-all-label svg{width:13px; height:13px; color:var(--highlight);}
 
 .notifications-panel{
-  position:absolute; top:66px; right:80px; width:340px; max-height:420px; overflow-y:auto;
-  background:var(--surface); border:1px solid #1e2330; border-radius:14px; box-shadow:0 24px 60px rgba(0,0,0,.5);
-  z-index:60; display:none; padding:8px;
+  position:absolute; top:66px; right:80px; width:388px; max-height:min(72vh,560px); overflow-y:auto; overflow-x:hidden;
+  background:
+    radial-gradient(220px 140px at 100% 0%, rgba(61,219,217,.07), transparent 60%),
+    linear-gradient(180deg, #141722 0%, var(--surface) 100%);
+  border:1px solid #1e2330; border-radius:16px;
+  box-shadow:0 30px 70px rgba(0,0,0,.55), 0 2px 0 rgba(255,255,255,.02) inset;
+  z-index:60; padding:8px;
+  opacity:0; visibility:hidden; transform:translateY(-10px) scale(.96); transform-origin:top right;
+  pointer-events:none; transition:opacity .22s cubic-bezier(.16,1,.3,1), transform .22s cubic-bezier(.16,1,.3,1), visibility .22s;
 }
-.notifications-panel.show{display:block;}
+.notifications-panel.show{opacity:1; visibility:visible; transform:translateY(0) scale(1); pointer-events:auto;}
+/* .notif-header / .notif-clear are shared with the Recent Searches dropdown (renderGlobalSearchResults)
+   so they keep their original plain/uppercase styling here — the notifications panel's richer header
+   below uses its own .notif-panel-* namespace instead of overloading those two. */
 .notif-header{display:flex; align-items:center; justify-content:space-between; padding:8px 8px 12px 8px; font-size:12.5px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.06em;}
 .notif-clear{font-size:11.5px; font-weight:700; color:var(--highlight); text-transform:none; letter-spacing:0;}
 .notif-clear:hover{text-decoration:underline;}
-.notif-empty{padding:20px 16px; text-align:center; color:var(--muted); font-size:13px;}
-.notif-item{display:flex; gap:11px; align-items:flex-start; padding:10px 8px; border-radius:10px; cursor:pointer; transition:background var(--transition);}
-.notif-item:hover{background:#161923;}
-.notif-item.unread{background:rgba(61,219,217,.06);}
-.notif-icon{width:30px; height:30px; border-radius:50%; background:var(--highlight-dim); color:var(--highlight); flex-shrink:0; display:flex; align-items:center; justify-content:center;}
-.notif-icon svg{width:14px; height:14px;}
-.notif-body{min-width:0;}
-.notif-msg{font-size:12.5px; font-weight:600; line-height:1.4;}
-.notif-time{font-size:10.5px; color:var(--muted); margin-top:3px;}
+.notif-panel-header{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:10px 10px 12px 10px; margin-bottom:4px; border-bottom:1px solid #1a1d26;
+  position:sticky; top:0; background:inherit; z-index:1;
+}
+.notif-panel-title{
+  display:flex; align-items:center; gap:8px; font-size:14.5px; font-weight:800; color:var(--text);
+  font-family:var(--display-font); letter-spacing:0; text-transform:none;
+}
+.notif-panel-count{
+  min-width:19px; height:19px; padding:0 6px; border-radius:20px; background:var(--highlight-dim); color:var(--highlight);
+  font-size:10.5px; font-weight:800; line-height:19px; text-align:center;
+}
+.notif-panel-actions{display:flex; align-items:center; gap:13px;}
+.notif-panel-markread, .notif-panel-clear{
+  font-size:11px; font-weight:700; color:var(--muted); text-transform:none; letter-spacing:0;
+  transition:color var(--transition); display:flex; align-items:center; gap:4px;
+}
+.notif-panel-markread svg{width:12px; height:12px;}
+.notif-panel-markread:hover{color:var(--highlight);}
+.notif-panel-clear:hover{color:#ff6b81;}
+.notif-empty{
+  display:flex; flex-direction:column; align-items:center; gap:12px; padding:46px 22px 40px; text-align:center;
+}
+.notif-empty-icon{
+  width:52px; height:52px; border-radius:50%; background:var(--highlight-dim); color:var(--highlight);
+  display:flex; align-items:center; justify-content:center; opacity:.7;
+}
+.notif-empty-icon svg{width:22px; height:22px;}
+.notif-empty-title{font-size:13.5px; font-weight:700; color:var(--text);}
+.notif-empty-sub{font-size:12px; color:var(--muted); line-height:1.5;}
+.notif-list{display:flex; flex-direction:column; gap:1px;}
+.notif-item{
+  --notif-accent:var(--highlight); --notif-accent-dim:var(--highlight-dim);
+  display:flex; gap:12px; align-items:flex-start; padding:11px 10px; border-radius:12px; cursor:pointer;
+  position:relative; transition:background var(--transition), transform var(--transition);
+  animation:notifItemIn .32s cubic-bezier(.16,1,.3,1) backwards;
+}
+@keyframes notifItemIn{ from{opacity:0; transform:translateY(-6px);} to{opacity:1; transform:translateY(0);} }
+.notif-item:hover{background:#161923; transform:translateX(2px);}
+.notif-item:hover .notif-dismiss{opacity:1; transform:scale(1);}
+.notif-item.unread{background:linear-gradient(90deg, var(--notif-accent-dim), transparent 85%);}
+.notif-item.unread::before{
+  content:''; position:absolute; left:0; top:9px; bottom:9px; width:3px; border-radius:3px; background:var(--notif-accent);
+}
+.notif-icon{
+  width:37px; height:37px; border-radius:11px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  background:var(--notif-accent-dim); color:var(--notif-accent); box-shadow:0 0 0 1px rgba(255,255,255,.03) inset;
+}
+.notif-icon svg{width:16.5px; height:16.5px;}
+.notif-body{min-width:0; flex:1; padding-top:1px; padding-right:16px;}
+.notif-msg{font-size:12.8px; font-weight:600; line-height:1.46; color:var(--text);}
+.notif-item:not(.unread) .notif-msg{color:#9aa7ae;}
+.notif-time-row{display:flex; align-items:center; gap:6px; margin-top:4px;}
+.notif-time{font-size:10.5px; color:var(--muted); font-weight:700; letter-spacing:.02em;}
+.notif-unread-dot{width:6px; height:6px; border-radius:50%; background:var(--notif-accent); box-shadow:0 0 8px var(--notif-accent); flex-shrink:0;}
+.notif-dismiss{
+  position:absolute; top:9px; right:8px; width:22px; height:22px; border-radius:7px; display:flex; align-items:center;
+  justify-content:center; color:var(--muted); background:#1a1d26; opacity:0; transform:scale(.85);
+  transition:opacity .16s ease, transform .16s ease, background var(--transition), color var(--transition);
+}
+.notif-dismiss:hover{background:#232837; color:#ff8b93;}
+.notif-dismiss svg{width:11px; height:11px;}
 @media (max-width:860px){
   .notifications-panel{right:16px; left:16px; width:auto;}
 }
@@ -1810,7 +1933,6 @@ kbd.key{
   background:rgba(0,0,0,.4);
 }
 .pns-play-icon svg{width:18px; height:18px; color:#fff; filter:drop-shadow(0 2px 4px rgba(0,0,0,.5));}
-.pns-meta{display:none;}
 .player-hover-zone{position:absolute; top:0; left:0; right:0; height:90px; z-index:4;}
 /* Centered ±20s buttons — sit above the click shield (z-index 3 > 2) so they're always clickable
    themselves, but stay invisible/inert until the screen is tapped (see revealCenterSkipButtons). */
@@ -2012,25 +2134,9 @@ kbd.key{
   opacity:0; pointer-events:none;
 }
 #playerLockBtn.is-active{background:var(--highlight-dim); border-color:var(--highlight); color:var(--highlight);}
-.up-next{
-  position:absolute; bottom:100px; right:24px; z-index:6; display:flex; align-items:center; gap:14px;
-  background:rgba(10,11,16,.94); border:1px solid #232837; border-radius:14px; padding:14px; max-width:400px;
-  box-shadow:0 24px 60px rgba(0,0,0,.55); font-size:13px; animation:upNextRise .4s cubic-bezier(.16,1,.3,1) both;
-}
-@keyframes upNextRise{from{opacity:0; transform:translateY(12px);} to{opacity:1; transform:translateY(0);}}
-.up-next-thumb{width:84px; height:47px; border-radius:8px; overflow:hidden; flex-shrink:0; background:var(--surface2);}
-.up-next-thumb img{width:100%; height:100%; object-fit:cover;}
-.up-next-info{flex:1; min-width:0; display:flex; flex-direction:column; gap:5px;}
-.up-next-label{font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--highlight);}
-.up-next-title{font-size:13px; font-weight:700; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-.up-next-progress{height:3px; border-radius:3px; background:rgba(255,255,255,.12); overflow:hidden; margin-top:2px;}
-.up-next-progress > div{height:100%; width:0%; background:linear-gradient(90deg,var(--highlight),#2bc4c1);}
-.up-next-actions{display:flex; flex-direction:column; gap:6px; flex-shrink:0;}
-.up-next-actions .btn{padding:7px 12px; font-size:11.5px; white-space:nowrap; justify-content:center;}
 @media (max-width:860px){
   .player-next-side{right:14px; width:44px; height:44px;}
   .pns-play-icon svg{width:15px; height:15px;}
-  .up-next{right:12px; left:12px; max-width:none; bottom:88px; flex-wrap:wrap;}
   /* Progress bar takes priority on narrow screens — tighten the transport-button spacing and
      drop the wide "Try Next Source" label so the scrubber keeps most of the row's width. */
   .player-bottom{gap:8px; padding:10px 12px 14px;}
@@ -2219,12 +2325,16 @@ kbd.key{
   background:var(--surface2); border:1px solid #232837; padding:12px 20px; border-radius:8px; font-size:13.5px; font-weight:600;
   opacity:0; transition:all var(--transition); pointer-events:none; box-shadow:0 10px 30px rgba(0,0,0,.4);
   display:flex; align-items:center; gap:14px;
+  /* Was previously only ever fed short action-confirmation strings ("Removed from Watchlist"); now
+     pushNotification() also routes full notification messages through here, which run noticeably
+     longer, so this needs an explicit cap + wrap instead of shrink-to-fit-content's unbounded width. */
+  max-width:min(440px, calc(100vw - 32px)); white-space:normal; line-height:1.4;
 }
 #toast.show{opacity:1; transform:translateX(-50%) translateY(0); bottom:76px;}
 #toast.has-action{pointer-events:auto;}
 .toast-undo-btn{
   background:none; border:none; color:var(--highlight); font-size:13px; font-weight:800;
-  white-space:nowrap; letter-spacing:.02em; padding:2px; cursor:pointer;
+  white-space:nowrap; letter-spacing:.02em; padding:2px; cursor:pointer; flex-shrink:0;
 }
 .toast-undo-btn:hover{text-decoration:underline;}
 
@@ -2604,6 +2714,9 @@ const state = {
   editSeasons: [],
   wizard: null, // set by openAddWizard() — see ADD TITLE WIZARD section
   player: null,
+  // TMDB "not in your library yet" fallback for the global/mobile search dropdowns — see
+  // SHARED TITLE SEARCH section below for queueTmdbFallbackSearch()/runTmdbFallbackSearch().
+  searchTmdb: { query:'', loading:false, results:[], error:false },
 };
 
 function uuid(){
@@ -3810,11 +3923,6 @@ function heroSlideClick(id){
   if(heroDidDrag) return;
   location.hash = 'detail/'+id;
 }
-function setHeroSlide(i){
-  state.heroIndex = i;
-  updateHeroTrack();
-  startHeroAutoplay();
-}
 function nextHeroSlide(){
   if(!state.heroItems || !state.heroItems.length) return;
   state.heroIndex = (state.heroIndex+1) % state.heroItems.length;
@@ -4088,6 +4196,7 @@ function toggleGlobalSearch(){
   if(!state.globalSearchOpen){
     state.globalSearchQuery = '';
     if(input) input.value = '';
+    resetTmdbFallback();
     const box = document.getElementById('globalSearchResults');
     if(box){ box.innerHTML=''; box.classList.remove('show'); }
   } else {
@@ -4120,9 +4229,141 @@ function moveSearchHighlight(containerSelector, itemSelector, dir){
   active.scrollIntoView({block:'nearest'});
   return active;
 }
+/* =========================================================
+   TMDB "not in your library yet" SEARCH FALLBACK
+   Runs alongside the instant local library search above: once a query is
+   long enough and a TMDB key is configured, a separately-debounced network
+   call hits TMDB search/multi and any movie/show not already in state.lib
+   is offered as a distinct, dashed-border "Discover on TMDB" row. Shared by
+   both the desktop dropdown (renderGlobalSearchResults) and the mobile
+   full-screen search (renderMobileSearchBody) — state.searchTmdb holds the
+   latest query/loading/results/error so either renderer can read it
+   without re-fetching, and tmdbFallbackToken discards any response that's
+   no longer for the current query (fast typing can fire several in a row).
+========================================================= */
+let tmdbFallbackDebounceTimer = null;
+let tmdbFallbackToken = 0;
+const TMDB_FALLBACK_MIN_CHARS = 2;
+const TMDB_FALLBACK_DEBOUNCE_MS = 450;
+function renderActiveSearchSurface(){
+  if(state.globalSearchOpen) renderGlobalSearchResults();
+  if(state.mobileSearchOpen) renderMobileSearchBody();
+}
+// A TMDB multi-search hit counts as "already in your library" if a lib item was previously
+// fetched from that exact TMDB id, or — for items added before a TMDB key existed, which never
+// got a tmdbId — if its title and release year line up. Either way it's left out of the fallback
+// section so the same title never appears in both "Your Library" and "Discover on TMDB" at once.
+function isTmdbResultInLibrary(r, mediaType){
+  const type = mediaType==='tv' ? 'series' : 'movie';
+  const title = ((mediaType==='tv' ? r.name : r.title)||'').trim().toLowerCase();
+  const year = ((mediaType==='tv' ? r.first_air_date : r.release_date)||'').split('-')[0];
+  return state.lib.items.some(i=>{
+    if(i.tmdbId!=null && String(i.tmdbId)===String(r.id)) return true;
+    if(i.type!==type) return false;
+    if((i.title||'').trim().toLowerCase()!==title) return false;
+    return !year || String(i.year||'')===String(year);
+  });
+}
+function resetTmdbFallback(){
+  clearTimeout(tmdbFallbackDebounceTimer);
+  tmdbFallbackToken++;
+  state.searchTmdb = { query:'', loading:false, results:[], error:false };
+}
+// Called on every keystroke alongside the instant local search — schedules (or cancels) the
+// network call without blocking the local results, which render immediately regardless.
+function queueTmdbFallbackSearch(q){
+  clearTimeout(tmdbFallbackDebounceTimer);
+  q = (q||'').trim();
+  if(q.length < TMDB_FALLBACK_MIN_CHARS || !state.settings.tmdb){
+    tmdbFallbackToken++;
+    state.searchTmdb = { query:q, loading:false, results:[], error:false };
+    return;
+  }
+  tmdbFallbackDebounceTimer = setTimeout(()=> runTmdbFallbackSearch(q), TMDB_FALLBACK_DEBOUNCE_MS);
+}
+async function runTmdbFallbackSearch(q){
+  const myToken = ++tmdbFallbackToken;
+  state.searchTmdb = { query:q, loading:true, results:[], error:false };
+  renderActiveSearchSurface();
+  try{
+    const data = await fetch(`https://api.themoviedb.org/3/search/multi?api_key=${encodeURIComponent(state.settings.tmdb)}&query=${encodeURIComponent(q)}&include_adult=false`).then(r=>r.json());
+    if(myToken !== tmdbFallbackToken) return; // a newer keystroke superseded this response
+    const results = (data.results||[])
+      .filter(r=> (r.media_type==='movie' || r.media_type==='tv') && r.poster_path)
+      .filter(r=> !isTmdbResultInLibrary(r, r.media_type))
+      .slice(0,5);
+    state.searchTmdb = { query:q, loading:false, results, error:false };
+  }catch(e){
+    if(myToken !== tmdbFallbackToken) return;
+    state.searchTmdb = { query:q, loading:false, results:[], error:true };
+  }
+  renderActiveSearchSurface();
+}
+// One TMDB fallback result row. `variant` picks the desktop (.gsr-item) or mobile (.msearch-row)
+// markup so it slots into either results list and inherits that list's hover/keyboard-nav CSS.
+function tmdbFallbackRowHtml(r, variant){
+  const mediaType = r.media_type;
+  const title = mediaType==='tv' ? r.name : r.title;
+  const year = ((mediaType==='tv' ? r.first_air_date : r.release_date)||'').split('-')[0];
+  const poster = r.poster_path ? `https://image.tmdb.org/t/p/w185${r.poster_path}` : '';
+  const q = (state.searchTmdb.query||'');
+  const badge = `<span class="${variant==='mobile'?'msearch-tmdb-badge':'gsr-tmdb-badge'}">${ICON.plus}Add to Library</span>`;
+  if(variant==='mobile'){
+    return `
+    <div class="msearch-row msearch-tmdb" onclick="addFromSearchTmdb(${r.id}, '${mediaType}')">
+      <div class="msearch-row-poster">${poster?`<img src="${esc(poster)}" alt="" loading="lazy">`:fallbackHtml(title||'')}</div>
+      <div>
+        <div class="msearch-row-title">${q?highlightMatch(title||'',q.toLowerCase()):esc(title||'')}</div>
+        <div class="msearch-row-meta">${mediaType==='tv'?'Series':'Movie'}${year?' · '+esc(year):''} · Not in your library</div>
+        ${badge}
+      </div>
+    </div>`;
+  }
+  return `
+    <div class="gsr-item gsr-tmdb" onclick="addFromSearchTmdb(${r.id}, '${mediaType}')">
+      <div class="gsr-poster">${poster?`<img src="${esc(poster)}" alt="" loading="lazy" onload="this.classList.add('loaded')">`:fallbackHtml(title||'')}</div>
+      <div>
+        <div class="gsr-title">${q?highlightMatch(title||'',q.toLowerCase()):esc(title||'')}</div>
+        <div class="gsr-meta">${mediaType==='tv'?'Series':'Movie'}${year?' · '+esc(year):''}</div>
+        ${badge}
+      </div>
+    </div>`;
+}
+// Skeleton placeholder rows shown while the debounced TMDB call is in flight, so the dropdown
+// doesn't sit frozen for the ~450ms debounce + round-trip after local results have already settled.
+function tmdbFallbackSkeletonHtml(variant, count){
+  const row = variant==='mobile'
+    ? `<div class="msearch-tmdb-skel"><div class="msearch-row-poster"></div><div style="flex:1;"><div class="msearch-skel-line w1"></div><div class="msearch-skel-line w2"></div></div></div>`
+    : `<div class="gsr-tmdb-skel"><div class="gsr-poster"></div><div style="flex:1;"><div class="gsr-skel-line w1"></div><div class="gsr-skel-line w2"></div></div></div>`;
+  return Array.from({length:count||2}).map(()=>row).join('');
+}
+// Renders the whole "Discover on TMDB" section (label + rows/skeleton) for the current query, or
+// '' when there's nothing to show — no TMDB key, query too short, or a settled empty result.
+function tmdbFallbackSectionHtml(variant){
+  const q = (state.globalSearchQuery||'').trim();
+  if(q.length < TMDB_FALLBACK_MIN_CHARS || !state.settings.tmdb) return '';
+  const t = state.searchTmdb;
+  if(t.query !== q) return ''; // stale — the debounce for this query hasn't fired yet
+  const labelCls = variant==='mobile' ? 'msearch-section-label' : 'gsr-section-label';
+  if(t.loading) return `<div class="${labelCls}">Discover on TMDB</div>${tmdbFallbackSkeletonHtml(variant,2)}`;
+  if(t.error || !t.results.length) return '';
+  return `<div class="${labelCls}">Not in your library yet</div>${t.results.map(r=>tmdbFallbackRowHtml(r,variant)).join('')}`;
+}
+// What happens when you tap a "Discover on TMDB" row: close whichever search surface is open,
+// then hand off straight into the same TMDB-prefilled add-to-library modal the TMDB Top 100
+// browsing grids use (quickAddFromTmdb) — search becomes a second way into that same flow rather
+// than a separate "info only" dead end.
+function addFromSearchTmdb(tmdbId, mediaType){
+  const q = state.globalSearchQuery;
+  if(state.globalSearchOpen) toggleGlobalSearch();
+  if(state.mobileSearchOpen) closeMobileSearch();
+  addRecentSearch(q);
+  quickAddFromTmdb(tmdbId, mediaType==='tv' ? 'tv' : 'movie');
+}
 function onGlobalSearchInput(v){
   state.globalSearchQuery = v;
   debounceSearch(renderGlobalSearchResults);
+  queueTmdbFallbackSearch(v);
 }
 function addRecentSearch(term){
   term = (term||'').trim();
@@ -4143,6 +4384,7 @@ function applyRecentSearch(term){
   const input = document.getElementById('globalSearchInput');
   if(input){ input.value = term; input.focus(); }
   renderGlobalSearchResults();
+  queueTmdbFallbackSearch(term);
 }
 function renderGlobalSearchResults(){
   const q = (state.globalSearchQuery||'').trim().toLowerCase();
@@ -4163,8 +4405,10 @@ function renderGlobalSearchResults(){
   }
   const itemMatches = rankedTitleSearch(state.lib.items, q, i=>i.title, libItemTieBreak, libItemExtraSearchText).slice(0,6);
   const channelMatches = rankedTitleSearch(state.lib.channels||[], q, c=>c.name).slice(0,4);
-  if(!itemMatches.length && !channelMatches.length){
-    box.innerHTML = `<div class="gsr-empty">No matches for "${esc(q)}"</div>`;
+  const tmdbSection = tmdbFallbackSectionHtml('desktop');
+  if(!itemMatches.length && !channelMatches.length && !tmdbSection){
+    const hint = state.settings.tmdb ? '' : `<span class="gsr-empty-hint">Add a TMDB API key in Settings to also discover titles you don't have yet.</span>`;
+    box.innerHTML = `<div class="gsr-empty">No matches for "${esc(q)}"${hint}</div>`;
     box.classList.add('show');
     return;
   }
@@ -4181,7 +4425,8 @@ function renderGlobalSearchResults(){
     <div class="gsr-item" onclick="goToChannelResult('${c.id}')">
       <div class="gsr-poster">${c.logo?`<img src="${esc(c.logo)}" alt="" style="object-fit:contain;">`:fallbackHtml(c.name)}</div>
       <div><div class="gsr-title">${esc(c.name)}</div><div class="gsr-meta"><span class="channel-live-dot" style="display:inline-block; margin-right:5px; vertical-align:middle;"></span>Live · ${esc(c.category||'General')}</div></div>
-    </div>`).join('');
+    </div>`).join('') +
+    tmdbSection;
   box.classList.add('show');
 }
 function goToSearchResult(id){
@@ -4235,6 +4480,7 @@ function openMobileSearch(){
   state.mobileSearchOpen = true;
   state.mobileSearchTab = state.mobileSearchTab || 'recent';
   state.globalSearchQuery = '';
+  resetTmdbFallback();
   state.mobileSearchAdv = state.mobileSearchAdv || defaultMobileSearchAdv();
   state.mobileSearchAdvResults = false;
   renderMobileSearch();
@@ -4245,6 +4491,7 @@ function openMobileSearch(){
 function closeMobileSearch(){
   state.mobileSearchOpen = false;
   state.globalSearchQuery = '';
+  resetTmdbFallback();
   const overlay = document.getElementById('mobileSearchOverlay');
   if(overlay){ overlay.classList.remove('show'); overlay.innerHTML=''; }
 }
@@ -4259,9 +4506,11 @@ function onMobileSearchInput(v){
   const clearBtn = document.getElementById('mobileSearchClear');
   if(clearBtn) clearBtn.style.display = v ? 'flex' : 'none';
   debounceSearch(renderMobileSearchBody);
+  queueTmdbFallbackSearch(v);
 }
 function clearMobileSearchInput(){
   state.globalSearchQuery = '';
+  resetTmdbFallback();
   const input = document.getElementById('mobileSearchInput');
   if(input){ input.value=''; input.focus(); }
   renderMobileSearchBody();
@@ -4404,11 +4653,13 @@ function renderMobileSearchBody(){
   if(q){
     const itemMatches = rankedTitleSearch(state.lib.items, q, i=>i.title, libItemTieBreak, libItemExtraSearchText).slice(0,20);
     const channelMatches = rankedTitleSearch(state.lib.channels||[], q, c=>c.name).slice(0,10);
-    if(!itemMatches.length && !channelMatches.length){
-      body.innerHTML = `<div class="msearch-empty">No matches for "${esc(q)}"</div>`;
+    const tmdbSection = tmdbFallbackSectionHtml('mobile');
+    if(!itemMatches.length && !channelMatches.length && !tmdbSection){
+      const hint = state.settings.tmdb ? '' : `<span class="msearch-empty-hint">Add a TMDB API key in Settings to also discover titles you don't have yet.</span>`;
+      body.innerHTML = `<div class="msearch-empty">No matches for "${esc(q)}"${hint}</div>`;
       return;
     }
-    body.innerHTML = itemMatches.map(i=>mobileSearchRowHtml(i,q)).join('') + channelMatches.map(mobileChannelRowHtml).join('');
+    body.innerHTML = itemMatches.map(i=>mobileSearchRowHtml(i,q)).join('') + channelMatches.map(mobileChannelRowHtml).join('') + tmdbSection;
     return;
   }
 
@@ -4512,6 +4763,7 @@ function applyMobileRecentSearch(term){
   const clearBtn = document.getElementById('mobileSearchClear');
   if(clearBtn) clearBtn.style.display = 'flex';
   renderMobileSearchBody();
+  queueTmdbFallbackSearch(term);
 }
 function goToMobileSearchResult(id){
   addRecentSearch(state.globalSearchQuery);
@@ -4561,6 +4813,16 @@ function toggleNotifications(){
   if(state.notificationsOpen){ renderNotificationsPanel(); panel.classList.add('show'); }
   else panel.classList.remove('show');
 }
+// Unlike toggleNotifications(), always ends with the panel closed regardless of its prior state.
+// openNotification() needs this rather than a blind toggle — it can be reached two ways: clicking a
+// row inside an already-open panel (where a toggle would correctly close it), or clicking "View" on
+// a toast fired by pushNotification while the panel was never open at all (where a toggle would
+// incorrectly *open* it right before navigating away).
+function closeNotifications(){
+  state.notificationsOpen = false;
+  const panel = document.getElementById('notificationsPanel');
+  if(panel) panel.classList.remove('show');
+}
 function timeAgo(iso){
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff/60000);
@@ -4570,43 +4832,426 @@ function timeAgo(iso){
   if(hrs<24) return hrs+'h ago';
   return Math.floor(hrs/24)+'d ago';
 }
+// One icon per notification type, shown in the panel row — falls back to the link icon for
+// anything saved before the `type` field existed (only ever the "needs a stream link" case).
+const NOTIF_TYPE_ICON = {
+  needsLink: ICON.link,
+  missingSource: ICON.link,
+  rateIt: ICON.award,
+  newSeason: ICON.tv,
+  airingToday: ICON.schedule,
+  continueWatching: ICON.play,
+  youMayLike: ICON.sparkles,
+  welcomeBack: ICON.home,
+  watchlistReminder: ICON.watchlist,
+  endingSoon: ICON.lock,
+};
+// A distinct accent color per notification type — used for the icon tile, the unread left-edge
+// bar, and the unread row tint (via the --notif-accent/--notif-accent-dim CSS vars set inline per
+// row in renderNotificationsPanel below). Purely cosmetic grouping so the panel reads at a glance
+// (gold=rate it, purple=new season, teal=continue watching, etc) rather than one flat highlight
+// color for every row. Falls back to the app's default highlight/highlight-dim for anything
+// missing a type, same fallback renderNotificationsPanel already used before this map existed.
+const NOTIF_TYPE_COLOR = {
+  needsLink:         {fg:'#ff9f5a', dim:'rgba(255,159,90,.16)'},
+  missingSource:     {fg:'#ff9f5a', dim:'rgba(255,159,90,.16)'},
+  rateIt:            {fg:'#ffd166', dim:'rgba(255,209,102,.16)'},
+  newSeason:         {fg:'#b18cff', dim:'rgba(177,140,255,.16)'},
+  airingToday:       {fg:'#5aa9ff', dim:'rgba(90,169,255,.16)'},
+  continueWatching:  {fg:'#3ddbd9', dim:'rgba(61,219,217,.16)'},
+  youMayLike:        {fg:'#f472b6', dim:'rgba(244,114,182,.16)'},
+  welcomeBack:       {fg:'#4ade80', dim:'rgba(74,222,128,.16)'},
+  watchlistReminder: {fg:'#818cf8', dim:'rgba(129,140,248,.16)'},
+  endingSoon:        {fg:'#f87171', dim:'rgba(248,113,113,.16)'},
+};
 function renderNotificationsPanel(){
   const panel = document.getElementById('notificationsPanel');
   if(!panel) return;
   const list = state.lib.notifications||[];
-  if(!list.length){ panel.innerHTML = `<div class="notif-empty">No notifications yet</div>`; return; }
+  if(!list.length){
+    panel.innerHTML = `
+      <div class="notif-empty">
+        <div class="notif-empty-icon">${ICON.bell}</div>
+        <div class="notif-empty-title">You're all caught up</div>
+        <div class="notif-empty-sub">New activity — episodes, ratings, recommendations —<br>will show up here.</div>
+      </div>`;
+    return;
+  }
+  const unread = unreadNotifCount();
   panel.innerHTML = `
-    <div class="notif-header"><span>Notifications</span><button type="button" class="notif-clear" onclick="event.stopPropagation(); clearAllNotifications()">Clear all</button></div>
-    ${list.map(n=>`
-    <div class="notif-item ${n.read?'':'unread'}" onclick="openNotification('${n.id}')">
-      <div class="notif-icon">${ICON.link}</div>
-      <div class="notif-body"><div class="notif-msg">${esc(n.message)}</div><div class="notif-time">${timeAgo(n.createdAt)}</div></div>
-    </div>`).join('')}`;
+    <div class="notif-panel-header">
+      <div class="notif-panel-title">Notifications ${unread>0 ? `<span class="notif-panel-count">${unread}</span>` : ''}</div>
+      <div class="notif-panel-actions">
+        ${unread>0 ? `<button type="button" class="notif-panel-markread" onclick="event.stopPropagation(); markAllNotificationsRead()">${ICON.check} Mark all read</button>` : ''}
+        <button type="button" class="notif-panel-clear" onclick="event.stopPropagation(); clearAllNotifications()">Clear all</button>
+      </div>
+    </div>
+    <div class="notif-list">
+      ${list.map((n,i)=>{
+        const color = NOTIF_TYPE_COLOR[n.type] || {fg:'var(--highlight)', dim:'var(--highlight-dim)'};
+        return `
+        <div class="notif-item ${n.read?'':'unread'}" style="--notif-accent:${color.fg}; --notif-accent-dim:${color.dim}; animation-delay:${Math.min(i,8)*28}ms;" onclick="openNotification('${n.id}')">
+          <div class="notif-icon">${NOTIF_TYPE_ICON[n.type] || ICON.link}</div>
+          <div class="notif-body">
+            <div class="notif-msg">${esc(n.message)}</div>
+            <div class="notif-time-row">
+              <span class="notif-time">${timeAgo(n.createdAt)}</span>
+              ${n.read?'':'<span class="notif-unread-dot"></span>'}
+            </div>
+          </div>
+          <button type="button" class="notif-dismiss" title="Dismiss" onclick="event.stopPropagation(); dismissNotification('${n.id}')">${ICON.close}</button>
+        </div>`;
+      }).join('')}
+    </div>`;
 }
-function addNeedsLinkNotification(item, seasonNum){
+function markAllNotificationsRead(){
+  (state.lib.notifications||[]).forEach(n=> n.read = true);
+  saveLib();
+  renderNotificationsPanel();
+  renderShell();
+}
+function dismissNotification(id){
+  state.lib.notifications = (state.lib.notifications||[]).filter(n=>n.id!==id);
+  saveLib();
+  renderNotificationsPanel();
+  renderShell();
+}
+/* =========================================================
+   NOTIFICATION GENERATORS
+   Every notification shares the {id, type, itemId, dedupeKey, message, createdAt, read} shape.
+   dedupeKey is how each generator avoids re-raising the same thing on a later check/re-render —
+   see notificationExists()/pushNotification() below. openNotification() branches on `type` to
+   decide where a click should land (see further down).
+========================================================= */
+// True if a notification with this exact dedupeKey already exists (read or unread) — every
+// generator below calls this before pushing so re-running a check never creates duplicates.
+function notificationExists(dedupeKey){
+  return (state.lib.notifications||[]).some(n=> n.dedupeKey===dedupeKey);
+}
+// Shared push: fills in id/createdAt/read, saves, and (by default) repaints the shell so the bell
+// badge updates immediately. Batch scans that might fire many of these in one synchronous pass
+// (see checkAirDateReminders) build their own array and skip this instead, so a big batch doesn't
+// re-render once per item — see that function's own comment. Every call here is by definition a
+// single, "live" notification (rateIt/youMayLike/needsLink/missingSource fire from a user action
+// mid-session; newSeason/endingSoon fire from an awaited network call that resolves well after
+// startup) — batch scans never call this — so it's also the right, non-spammy place for the toast
+// that makes a fresh notification feel alive instead of only bumping the bell badge silently.
+function pushNotification(n){
   state.lib.notifications = state.lib.notifications || [];
-  state.lib.notifications.unshift({
-    id: uuid(),
-    itemId: item.id,
-    seasonNumber: seasonNum,
-    message: `Season ${seasonNum} of "${item.title}" was added automatically — it needs a stream link before you can watch it.`,
-    createdAt: new Date().toISOString(),
-    read: false
-  });
+  const entry = Object.assign({id:uuid(), createdAt:new Date().toISOString(), read:false}, n);
+  state.lib.notifications.unshift(entry);
   saveLib();
   renderShell();
+  toast(entry.message, {undoLabel:'View', onUndo:()=> openNotification(entry.id)});
+}
+function addNeedsLinkNotification(item, seasonNum){
+  pushNotification({
+    type:'needsLink', itemId:item.id, seasonNumber:seasonNum,
+    dedupeKey:`needsLink:${item.id}:s${seasonNum}`,
+    message: `Season ${seasonNum} of "${item.title}" was added automatically — it needs a stream link before you can watch it.`,
+  });
+}
+// Checks a freshly-added library item for any playable stream link at all — a movie with no
+// sources, or a series where every episode in every season has none. Only meant to run once, right
+// when an item is newly added (see the three add paths that call it: saveEditModal, wizardFinish,
+// runBulkImdbImport) — never on a plain edit, so deliberately clearing a source mid-edit doesn't nag.
+function checkMissingSourceNotification(item){
+  const hasAnySource = item.type==='movie'
+    ? (item.sources||[]).some(s=>s.url && s.url.trim())
+    : (item.seasons||[]).some(s=>(s.episodes||[]).some(e=>(e.sources||[]).some(src=>src.url && src.url.trim())));
+  if(hasAnySource) return;
+  const dedupeKey = `missingSource:${item.id}`;
+  if(notificationExists(dedupeKey)) return;
+  pushNotification({
+    type:'missingSource', itemId:item.id, dedupeKey,
+    message: `"${item.title}" was added without a stream link — add one to watch it.`,
+  });
+}
+// Fires the moment something finishes (called from saveProgress, right where maybeAutoAddNextSeason
+// already hooks "just became watched"): a movie with no rating, or a season finale going
+// unwatched-to-watched while that last episode has no rating. Never fires on a re-watch, since the
+// caller only invokes this when watched newly flips true.
+function maybeNotifyRateIt(item, key){
+  if(key==='movie'){
+    if(item.myRating) return;
+    const dedupeKey = `rateIt:${item.id}:movie`;
+    if(notificationExists(dedupeKey)) return;
+    pushNotification({ type:'rateIt', itemId:item.id, seasonNumber:null, dedupeKey,
+      message: `You finished "${item.title}" — rate it?` });
+    return;
+  }
+  const m = /^s(\d+)e(\d+)$/.exec(key);
+  if(!m) return;
+  const seasonNum = parseInt(m[1],10);
+  if(!isSeasonFullyWatched(item, seasonNum)) return;
+  const season = (item.seasons||[]).find(s=>s.number===seasonNum);
+  const finale = season && season.episodes && season.episodes[season.episodes.length-1];
+  if(!finale || finale.myRating) return;
+  const dedupeKey = `rateIt:${item.id}:s${seasonNum}`;
+  if(notificationExists(dedupeKey)) return;
+  pushNotification({ type:'rateIt', itemId:item.id, seasonNumber:seasonNum, dedupeKey,
+    message: `You finished Season ${seasonNum} of "${item.title}" — rate the finale?` });
+}
+// Fires at the same moment as maybeNotifyRateIt (called right alongside it from saveProgress, on
+// the exact instant a movie or season finale newly becomes watched) — looks at what genres the
+// just-finished title carries and, if another library title sharing at least one of those genres
+// hasn't been started yet (isStarted false), suggests it. The genre-overlap ranking mirrors
+// getBecauseYouLikedRow (Home's "Because You Liked" row), but is seeded by what was just finished
+// rather than by favorites, and — like rateIt — only ever fires once per finish event via dedupeKey.
+function maybeNotifyYouMayLike(item, key){
+  const genres = item.genre || [];
+  if(!genres.length) return;
+  let dedupeKey, finishedLabel;
+  if(key==='movie'){
+    dedupeKey = `youMayLike:${item.id}:movie`;
+    finishedLabel = `Finished "${item.title}"?`;
+  } else {
+    const m = /^s(\d+)e(\d+)$/.exec(key);
+    if(!m) return;
+    const seasonNum = parseInt(m[1],10);
+    if(!isSeasonFullyWatched(item, seasonNum)) return;
+    dedupeKey = `youMayLike:${item.id}:s${seasonNum}`;
+    finishedLabel = `Finished Season ${seasonNum} of "${item.title}"?`;
+  }
+  if(notificationExists(dedupeKey)) return;
+  const candidates = state.lib.items.filter(i=> i.id!==item.id && !isStarted(i) && (i.genre||[]).some(g=>genres.includes(g)));
+  if(!candidates.length) return;
+  const pick = candidates.sort((a,b)=>{
+    const overlapA = (a.genre||[]).filter(g=>genres.includes(g)).length;
+    const overlapB = (b.genre||[]).filter(g=>genres.includes(g)).length;
+    if(overlapB!==overlapA) return overlapB-overlapA;
+    return new Date(b.dateAdded||0)-new Date(a.dateAdded||0);
+  })[0];
+  pushNotification({ type:'youMayLike', itemId:pick.id, dedupeKey,
+    message: `${finishedLabel} You might also like "${pick.title}".` });
+}
+// Once per app load, scans every library series' already-known episode air dates (from TMDB season
+// fetches — no network call here, purely local) for anything airing today. Fully synchronous and
+// could in principle match many episodes in one pass, so unlike the other generators it builds its
+// own list and does a single save+repaint at the end instead of one per match — see pushNotification's
+// comment. Runs before the very first router() call in the init sequence at the bottom of this file,
+// which repaints the shell right after anyway, so it skips renderShell() itself entirely here.
+function checkAirDateReminders(){
+  const today = todayISO();
+  const fresh = [];
+  state.lib.items.forEach(item=>{
+    if(item.type!=='series') return;
+    (item.seasons||[]).forEach(season=>{
+      (season.episodes||[]).forEach(ep=>{
+        if(ep.airDate !== today) return;
+        const dedupeKey = `airingToday:${item.id}:s${season.number}e${ep.number}`;
+        if(notificationExists(dedupeKey)) return;
+        fresh.push({
+          id: uuid(), type:'airingToday', itemId:item.id, seasonNumber:season.number, episodeNumber:ep.number, dedupeKey,
+          message: `"${item.title}" S${season.number}E${ep.number}${ep.title?` — "${ep.title}"`:''} airs today.`,
+          createdAt: new Date().toISOString(), read:false
+        });
+      });
+    });
+  });
+  if(!fresh.length) return;
+  state.lib.notifications = fresh.concat(state.lib.notifications||[]);
+  saveLib();
+}
+const NEW_SEASON_CHECK_INTERVAL_MS = 20*60*60*1000; // ~20h — about once/day with normal daily use
+const NEW_SEASON_CHECK_MAX_PER_LOAD = 15; // caps how many shows get TMDB-checked per app load
+// Once per app load, asks TMDB whether any library series (with a tmdbId and API key set) now has
+// more seasons than we've locally tracked — the "it's out, but you haven't finished the current
+// season yet (or auto-add never got the chance to run)" case, distinct from maybeAutoAddNextSeason's
+// reactive one. Purely informational: never adds anything to the library itself, just notifies.
+// item.lastNewSeasonCheckAt throttles each show to roughly once a day, and only the least-recently-
+// checked shows are picked per load, so a large library can't turn every app open into a burst of
+// requests. Async and awaited sequentially, so — unlike checkAirDateReminders — each push here is
+// naturally spaced out by network latency rather than a tight loop, so it's fine for it to save and
+// repaint (via pushNotification) as each one resolves rather than batching.
+//
+// This same per-show fetch also carries d.status, so it doubles as the "ending soon" check: if a
+// show's status flips to Ended/Canceled on TMDB while the viewer is mid-way through it (started but
+// not finished), that's the "no more episodes are ever coming" moment worth a notification for — the
+// mirror image of newSeason. Reusing this fetch means it costs zero extra network calls; it's only
+// ever the *transition* into ended (the `due` filter above already excludes already-ended shows, so
+// this loop can only ever see a show go from not-ended to ended, never re-fire on one that already
+// was).
+async function checkForNewSeasons(){
+  if(!state.settings.tmdb) return;
+  const now = Date.now();
+  const due = state.lib.items
+    .filter(i=> i.type==='series' && i.tmdbId && !isEndedSeries(i) &&
+      (!i.lastNewSeasonCheckAt || now - new Date(i.lastNewSeasonCheckAt).getTime() > NEW_SEASON_CHECK_INTERVAL_MS))
+    .sort((a,b)=> new Date(a.lastNewSeasonCheckAt||0) - new Date(b.lastNewSeasonCheckAt||0))
+    .slice(0, NEW_SEASON_CHECK_MAX_PER_LOAD);
+  for(const item of due){
+    item.lastNewSeasonCheckAt = new Date().toISOString();
+    try{
+      const d = await fetch(`https://api.themoviedb.org/3/tv/${item.tmdbId}?api_key=${encodeURIComponent(state.settings.tmdb)}`).then(r=>r.json());
+      if(d.success===false) continue;
+      const realSeasonNums = (d.seasons||[]).filter(s=>s.season_number>0 && s.episode_count>0).map(s=>s.season_number);
+      const tmdbMax = realSeasonNums.length ? Math.max(...realSeasonNums) : 0;
+      const localMax = (item.seasons||[]).reduce((m,s)=>Math.max(m,s.number), 0);
+      if(tmdbMax > localMax){
+        const dedupeKey = `newSeason:${item.id}:s${tmdbMax}`;
+        if(!notificationExists(dedupeKey)){
+          pushNotification({ type:'newSeason', itemId:item.id, seasonNumber:tmdbMax, dedupeKey,
+            message: `Season ${tmdbMax} of "${item.title}" is now available on TMDB.` });
+        }
+      }
+      if(d.status) item.tvStatus = d.status;
+      if(isEndedSeries(item) && isStarted(item) && !isFullyWatched(item)){
+        const dedupeKey = `endingSoon:${item.id}`;
+        if(!notificationExists(dedupeKey)){
+          pushNotification({ type:'endingSoon', itemId:item.id, dedupeKey,
+            message: `"${item.title}" has ended on TMDB — no more episodes are coming.` });
+        }
+      }
+    }catch(e){ /* stay quiet — this is a background convenience check, not a user-initiated action */ }
+  }
+  saveLib(); // persists lastNewSeasonCheckAt (and any tvStatus updates) even for shows with no notification
+}
+const CONTINUE_WATCHING_REMINDER_MS = 3*24*60*60*1000; // ~3 days of no activity before nudging
+// Once per app load, looks for anything the viewer started but never finished (isStarted &&
+// !isFullyWatched — same pair the Home "Continue Watching" row itself uses) where item.lastWatched
+// (set by every saveProgress call, movie or episode alike — see saveProgress) is older than the
+// threshold above, i.e. they picked it up and then went quiet. Local-only, purely informational,
+// same batched-push shape as checkAirDateReminders since it can match many items in one synchronous
+// pass. dedupeKey is keyed to the exact lastWatched timestamp rather than just the item id, so if
+// the viewer comes back, watches a bit more, and then goes quiet again, a fresh nudge can fire for
+// that new stale period instead of being permanently suppressed by the first one.
+function checkContinueWatchingNudges(){
+  const cutoff = Date.now() - CONTINUE_WATCHING_REMINDER_MS;
+  const fresh = [];
+  state.lib.items.forEach(item=>{
+    if(!item.lastWatched || !isStarted(item) || isFullyWatched(item)) return;
+    const lastWatchedMs = new Date(item.lastWatched).getTime();
+    if(!lastWatchedMs || lastWatchedMs > cutoff) return;
+    const dedupeKey = `continueWatching:${item.id}:${item.lastWatched}`;
+    if(notificationExists(dedupeKey)) return;
+    const days = Math.floor((Date.now()-lastWatchedMs)/(24*60*60*1000));
+    fresh.push({
+      id: uuid(), type:'continueWatching', itemId:item.id, dedupeKey,
+      message: `You haven't watched "${item.title}" in ${days} day${days===1?'':'s'} — pick up where you left off?`,
+      createdAt: new Date().toISOString(), read:false
+    });
+  });
+  if(!fresh.length) return;
+  state.lib.notifications = fresh.concat(state.lib.notifications||[]);
+  saveLib();
+}
+// ---- Watchlist Reminder ----
+// Mirrors checkContinueWatchingNudges but for the opposite case: something added to the watchlist
+// that was never started at all (isStarted false), sitting untouched since item.watchlistedAt (set
+// by toggleWatchlist/removeFromWatchlistRow's undo/openPlayer's auto-add — see those call sites).
+// Falls back to item.dateAdded for anything watchlisted before this field existed, same fallback
+// getBecauseYouLikedRow already uses for favoritedAt. dedupeKey buckets by which 30-day period the
+// item is currently in (days-since / 30, floored) rather than a single fixed timestamp, so if it's
+// still sitting there untouched 60 or 90 days on, a fresh reminder can fire for each new period
+// instead of only ever nagging once.
+const WATCHLIST_REMINDER_MS = 30*24*60*60*1000; // ~30 days untouched before nudging
+function checkWatchlistReminders(){
+  const fresh = [];
+  state.lib.items.forEach(item=>{
+    if(!item.watchlist || isStarted(item)) return;
+    const sinceRaw = item.watchlistedAt || item.dateAdded;
+    if(!sinceRaw) return;
+    const sinceMs = new Date(sinceRaw).getTime();
+    if(!sinceMs) return;
+    const age = Date.now() - sinceMs;
+    if(age < WATCHLIST_REMINDER_MS) return;
+    const bucket = Math.floor(age / WATCHLIST_REMINDER_MS);
+    const dedupeKey = `watchlistReminder:${item.id}:${bucket}`;
+    if(notificationExists(dedupeKey)) return;
+    const days = Math.floor(age/(24*60*60*1000));
+    fresh.push({
+      id: uuid(), type:'watchlistReminder', itemId:item.id, dedupeKey,
+      message: `"${item.title}" has been on your watchlist for ${days} days — still interested?`,
+      createdAt: new Date().toISOString(), read:false
+    });
+  });
+  if(!fresh.length) return;
+  state.lib.notifications = fresh.concat(state.lib.notifications||[]);
+  saveLib();
+}
+// ---- Welcome Back ----
+// Tracks how long it's actually been since the app was last open, independent of anything in
+// state.lib (this is session bookkeeping, not library data, so it gets its own localStorage key
+// rather than living in the synced/exported library blob). LAST_ACTIVE_KEY is refreshed while the
+// app is in use — on load, and whenever the tab goes into the background — so "gap since last
+// active" reflects real away-time rather than just time-since-last-page-load (which a simple
+// refresh would otherwise trigger on its own).
+const LAST_ACTIVE_KEY = 'sv_last_active_at';
+const WELCOME_BACK_THRESHOLD_MS = 8*60*60*1000; // ~8h — a real gap (overnight, a day away), not a quick reload
+function markAppActiveNow(){
+  try{ localStorage.setItem(LAST_ACTIVE_KEY, new Date().toISOString()); }catch(e){ /* private mode etc — just skip */ }
+}
+// Runs once per app load, before markAppActiveNow() below overwrites the stored timestamp — so it's
+// comparing "now" against the moment the app was last genuinely active, not against itself. Single
+// notification per gap (dedupeKey is keyed to that exact stored timestamp), so re-checking on the
+// same load or a same-session hash change never duplicates it.
+function checkWelcomeBackNotification(){
+  let lastActiveRaw = null;
+  try{ lastActiveRaw = localStorage.getItem(LAST_ACTIVE_KEY); }catch(e){ /* private mode etc */ }
+  if(lastActiveRaw){
+    const gap = Date.now() - new Date(lastActiveRaw).getTime();
+    if(gap >= WELCOME_BACK_THRESHOLD_MS){
+      const dedupeKey = `welcomeBack:${lastActiveRaw}`;
+      if(!notificationExists(dedupeKey)){
+        const days = Math.floor(gap/(24*60*60*1000));
+        const away = days>=1 ? `${days} day${days===1?'':'s'}` : `${Math.max(1,Math.floor(gap/(60*60*1000)))} hour${Math.floor(gap/(60*60*1000))===1?'':'s'}`;
+        pushNotification({ type:'welcomeBack', itemId:null, dedupeKey,
+          message: `Welcome back! It's been ${away} since your last visit.` });
+      }
+    }
+  }
+  markAppActiveNow();
+}
+// Keeps LAST_ACTIVE_KEY current while the app is actually being used, so a long-open-but-idle tab
+// doesn't quietly rack up "away" time, and a background tab does.
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) markAppActiveNow(); });
+window.addEventListener('beforeunload', markAppActiveNow);
+// Runs once per app load, right before the first router() call — see the init sequence at the
+// bottom of this file. checkAirDateReminders, checkContinueWatchingNudges, checkWatchlistReminders,
+// and checkWelcomeBackNotification are all local-only and always run; checkForNewSeasons (which also
+// covers endingSoon — see its own comment) no-ops on its own when there's no TMDB key, so it's
+// always safe to call.
+function runStartupNotificationChecks(){
+  checkAirDateReminders();
+  checkContinueWatchingNudges();
+  checkWatchlistReminders();
+  checkWelcomeBackNotification();
+  checkForNewSeasons();
 }
 function openNotification(id){
   const n = (state.lib.notifications||[]).find(x=>x.id===id);
   if(!n) return;
   n.read = true;
   saveLib();
-  toggleNotifications();
+  closeNotifications();
   renderShell();
+  // welcomeBack carries no itemId at all (it's not about any one title) — mark it read, close the
+  // panel, and stop, same as everything above just did. Falling through would hit getItem(null) and
+  // show the "That title no longer exists" toast, which is wrong for a notification that was never
+  // about a title in the first place.
+  if(n.type==='welcomeBack') return;
   const item = getItem(n.itemId);
   if(!item){ toast('That title no longer exists'); return; }
+  // needsLink/missingSource both want the edit modal open right away — that's where a stream link
+  // gets added. rateIt/airingToday just want the right season in view (rating happens on the detail
+  // page itself; airing-today is informational). newSeason, continueWatching, youMayLike,
+  // watchlistReminder, endingSoon, and anything without a type (notifications saved before this
+  // field existed — only ever the original needsLink case) fall through to a plain detail-page visit
+  // — continueWatching has no single season to jump to (progress can span several), youMayLike's
+  // itemId is the *recommended* title rather than the one just finished, and watchlistReminder/
+  // endingSoon are both simple "go look at this title" prompts with no season of their own either.
+  const type = n.type || 'needsLink';
+  if(type==='needsLink' || type==='missingSource'){
+    location.hash = 'detail/'+n.itemId;
+    setTimeout(()=> openEditModal(n.itemId), 120);
+    return;
+  }
+  if((type==='rateIt' || type==='airingToday') && n.seasonNumber!=null){
+    location.hash = 'detail/'+n.itemId+'/'+n.seasonNumber;
+    return;
+  }
   location.hash = 'detail/'+n.itemId;
-  setTimeout(()=> openEditModal(n.itemId), 120);
 }
 function clearAllNotifications(){
   state.lib.notifications = [];
@@ -4959,6 +5604,9 @@ function toggleWatchlist(itemId){
   const item = getItem(itemId);
   if(!item) return;
   item.watchlist = !item.watchlist;
+  // Mirrors toggleFavorite's favoritedAt — needed so checkWatchlistReminders can measure how long
+  // something has sat untouched on the watchlist, not just whether it's currently on it.
+  if(item.watchlist) item.watchlistedAt = new Date().toISOString();
   saveLib();
   const root = document.getElementById('pageRoot');
   if(root && state.route==='detail') root.innerHTML = renderDetail(state.routeParam);
@@ -5021,6 +5669,7 @@ function removeFromWatchlistRow(itemId){
     const it = getItem(itemId);
     if(!it) return;
     it.watchlist = true;
+    it.watchlistedAt = new Date().toISOString();
     saveLib();
     if(state.route==='collections' && state.routeParam==='watchlist'){
       document.getElementById('pageRoot').innerHTML = renderWatchlistView();
@@ -5076,7 +5725,6 @@ function renderCollectionDetail(id){
    concatenating. Shared between the Shows and Movies versions via the mediaType param ('tv' | 'movie').
    Render the shell synchronously (so the back button/header show up immediately) and let
    loadTmdbTopListGrid() fill #tmdbTopListGrid once the fetch resolves. */
-const TMDB_TOP_LIST_PAGES = 5; // 5 pages x 20 results = up to 100 titles
 function tmdbTopListLabel(mediaType){ return mediaType==='movie' ? 'TMDB Top 100 Movies' : 'TMDB Top 100 Shows'; }
 function renderTmdbTopListShell(mediaType){
   const label = tmdbTopListLabel(mediaType);
@@ -6436,12 +7084,6 @@ function setPlayerRating(rating){
   const starsEl = document.getElementById('playerEndCardStars');
   if(starsEl) starsEl.innerHTML = playerEndCardStarsHtml(item);
   toast(newRating ? `Rated ${newRating} star${newRating>1?'s':''}` : 'Rating cleared');
-}
-function deleteItem(id){
-  if(!confirm('Delete this title permanently?')) return;
-  state.lib.items = state.lib.items.filter(i=>i.id!==id);
-  state.lib.collections.forEach(c=> c.itemIds = c.itemIds.filter(x=>x!==id));
-  saveLib(); location.hash='home'; toast('Title deleted');
 }
 function openAddToCollection(itemId){
   if(!state.lib.collections.length){
@@ -8831,6 +9473,7 @@ async function runBulkImdbImport(){
       state.lib.items.push(item);
       existingIds.add(imdbId);
       added.push(item);
+      checkMissingSourceNotification(item);
     }catch(e){
       failed.push({imdbId, message: e.message || 'unknown error'});
     }
@@ -9616,10 +10259,12 @@ function wizardFinish(){
     delete clean.status; delete clean.error;
     delete clean.posterCandidates; delete clean.backdropCandidates; delete clean.logoCandidates;
     delete clean._sourcesSeasonIdx;
-    state.lib.items.push({
+    const newItem = {
       id: uuid(), dateAdded: new Date(baseTime + i*1000).toISOString(), lastWatched:null, progress:{},
       ...clean
-    });
+    };
+    state.lib.items.push(newItem);
+    checkMissingSourceNotification(newItem);
     addedCount++;
   });
   saveLib();
@@ -10007,10 +10652,12 @@ function saveEditModal(){
     delete item.panoramicBanner;
     Object.assign(item, payload);
   } else {
-    state.lib.items.push({
+    const newItem = {
       id: uuid(), dateAdded: new Date().toISOString(), lastWatched: null, progress:{},
       ...payload
-    });
+    };
+    state.lib.items.push(newItem);
+    checkMissingSourceNotification(newItem);
   }
   saveLib(); state.editFormDraft = null; closeModal(); router(); toast(state.editingId?'Changes saved':'Title added');
 }
@@ -10192,6 +10839,7 @@ function openPlayer(item, seasonNum, epNum, sources){
   if(!sources.length){ toast('No sources available'); return; }
   if(seasonNum!=null && item.type==='series' && !item.watchlist){
     item.watchlist = true;
+    item.watchlistedAt = new Date().toISOString();
     toast('Added to Watchlist — tracking your progress');
   }
   // cleanupPlayerTimers() reads the *current* state.player (about to be replaced below) — safe to
@@ -10976,7 +11624,11 @@ function saveProgress(item, key, timestamp, duration, watched){
   syncProgressToCloud(item, key);
   // Only check on the moment an episode newly becomes watched — not on every 5-10s progress tick —
   // so this can't fire repeatedly while the same episode keeps playing.
-  if(watched && !prevWatched) maybeAutoAddNextSeason(item, key);
+  if(watched && !prevWatched){
+    maybeAutoAddNextSeason(item, key);
+    maybeNotifyRateIt(item, key);
+    maybeNotifyYouMayLike(item, key);
+  }
 }
 // Wipes the saved watch-progress entry for this exact playback session (movie, or one episode key)
 // entirely — not just reset to a zero timestamp. Used by restartPlayer() so a restart genuinely
@@ -12837,10 +13489,7 @@ function makeFocusable(){
 }
 
 // Re-run makeFocusable whenever the page re-renders
-const _origRouter = router;
 window.addEventListener('hashchange', ()=> setTimeout(makeFocusable, 120));
-// Patch router to always re-apply after render
-const _patchedRouter = router;
 
 // D-pad / keyboard navigation in TV mode
 document.addEventListener('keydown', e=>{
@@ -12940,6 +13589,7 @@ setTimeout(makeFocusable, 200);
 window.addEventListener('hashchange', ()=> setTimeout(makeFocusable, 200));
 
 applySubtitleDisplayStyle(); // apply saved subtitle size/color/opacity before first render
+runStartupNotificationChecks(); // local air-date scan (sync) + TMDB new-season check (async, no-ops without a key)
 router();
 </script>
 </body>
