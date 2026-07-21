@@ -346,10 +346,16 @@ a{color:inherit; text-decoration:none;}
   box-shadow:0 0 0 1px rgba(61,219,217,.04), 0 40px 80px -20px rgba(0,0,0,.6);
   animation:fadeIn .4s cubic-bezier(.16,1,.3,1);
 }
-.hero-track{display:flex; height:100%; transition:transform .65s cubic-bezier(.65,0,.35,1); cursor:grab; touch-action:pan-y;}
+.hero-track{display:flex; height:100%; transition:transform .7s cubic-bezier(.22,1,.36,1); cursor:grab; touch-action:pan-y;}
 .hero-track.dragging{transition:none; cursor:grabbing;}
-.hero-slide{position:relative; flex:0 0 100%; width:100%; height:100%; display:flex; align-items:flex-end; cursor:pointer;}
-.hero-slide > img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.6; filter:var(--cinematic-grade);}
+.hero-slide{position:relative; flex:0 0 100%; width:100%; height:100%; display:flex; align-items:flex-end; cursor:pointer; overflow:hidden;}
+/* Ken Burns drift: a slow scale-up on whichever slide is current, so a still backdrop reads as alive
+   rather than static. Only .is-active gets the transform, and the transition duration (20s) is far
+   longer than the ~6.5s autoplay interval, so the drift never visibly completes or resets mid-view --
+   it's always subtly mid-motion. Non-active slides sit at their resting scale so nothing jumps when
+   the track swaps which slide is showing. */
+.hero-slide > img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.6; filter:var(--cinematic-grade); transform:scale(1); transition:transform 20s linear;}
+.hero-slide.is-active > img{transform:scale(1.06);}
 /* Low-opacity cyan wash bleeding in from the top-right corner -- echoes the same radial-gradient
    motif already used on the page body, so the hero reads as part of the app's ambient color rather
    than a sealed-off photo. Sits above the backdrop image but below the darkening scrim so it never
@@ -359,20 +365,36 @@ a{color:inherit; text-decoration:none;}
   background:radial-gradient(60% 50% at 100% 0%, rgba(61,219,217,.10), transparent 70%);
   pointer-events:none;
 }
+/* Same darkening scrim as before, but the lighter/outer stops (away from the text, where full-black
+   darkening isn't needed for legibility) are tinted toward the brand teal instead of pure black --
+   the darkening itself now carries a little color rather than being purely neutral. The stops nearest
+   the text stay neutral black so contrast/legibility is unaffected. */
 .hero-slide::after{
   content:''; position:absolute; inset:0; z-index:1;
-  background:linear-gradient(0deg, var(--bg) 2%, rgba(8,9,13,.45) 42%, rgba(8,9,13,.1) 100%),
-             linear-gradient(90deg, rgba(8,9,13,.92) 0%, rgba(8,9,13,.35) 55%, rgba(8,9,13,.05) 100%);
+  background:linear-gradient(0deg, var(--bg) 2%, rgba(8,9,13,.45) 42%, rgba(13,74,74,.16) 100%),
+             linear-gradient(90deg, rgba(8,9,13,.92) 0%, rgba(8,9,13,.35) 55%, rgba(13,74,74,.10) 100%);
 }
 /* Faint cyan-tinted glass panel behind the text block -- gives the content its own subtle surface
    instead of sitting directly on the darkened photo. Kept very low-opacity so it reads as "premium
    glass", not a colored box; rounded only on the top-right corner so it doesn't fight the carousel's
    own corner radius on the bottom-left where the text starts. */
-.hero-content{
-  position:relative; z-index:2; padding:44px; max-width:600px;
-  background:rgba(13,74,74,.10); backdrop-filter:blur(2px);
-  border-radius:0 18px 0 0;
-}
+.hero-content{position:relative; z-index:2; padding:44px; max-width:600px;}
+/* Staggered entrance for the content block -- badge, then title/logo, then description, then
+   buttons, each ~70ms behind the last. Only fires on .is-active (toggled in updateHeroTrack()), so it
+   replays every time a slide becomes current rather than just once on first paint. opacity:0 by
+   default on these elements when NOT active prevents a flash of unstyled content on slides that
+   haven't been activated yet. */
+.hero-slide:not(.is-active) .hero-badge,
+.hero-slide:not(.is-active) .hero-content h2,
+.hero-slide:not(.is-active) .hero-logo-slot,
+.hero-slide:not(.is-active) .hero-content p,
+.hero-slide:not(.is-active) .hero-btns{opacity:0;}
+.hero-slide.is-active .hero-badge{animation:heroRise .5s cubic-bezier(.22,1,.36,1) .05s both;}
+.hero-slide.is-active .hero-content h2,
+.hero-slide.is-active .hero-logo-slot{animation:heroRise .5s cubic-bezier(.22,1,.36,1) .12s both;}
+.hero-slide.is-active .hero-content p{animation:heroRise .5s cubic-bezier(.22,1,.36,1) .19s both;}
+.hero-slide.is-active .hero-btns{animation:heroRise .5s cubic-bezier(.22,1,.36,1) .26s both;}
+@keyframes heroRise{from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:translateY(0);}}
 .hero-badge{
   position:absolute; top:20px; left:20px; z-index:3;
   display:inline-flex; align-items:center; gap:6px; background:var(--highlight-dim); color:var(--highlight);
@@ -2636,7 +2658,31 @@ function loadLib(){
     return d;
   }catch(e){ return {items:[], collections:[], channels:[], notifications:[], skipData:{}}; }
 }
-function saveLib(){ localStorage.setItem(LIB_KEY, JSON.stringify(state.lib)); }
+// saveLib() writes the ENTIRE library (every item's metadata, seasons, episodes, progress, everything)
+// to localStorage as one JSON string. Called ~58 places throughout this file, including once every
+// 5s during video playback (see saveProgress()) -- with a small library that's cheap, but the cost of
+// JSON.stringify + localStorage.setItem scales with total library size, not with what actually
+// changed. Debouncing coalesces bursts of calls (e.g. several field updates from one user action, or
+// back-to-back progress ticks) into a single write ~800ms later, so a big library doesn't pay the
+// full serialize cost repeatedly for what's often the same underlying save. state.lib itself is
+// updated synchronously as before -- only the disk write is deferred, so nothing that reads
+// state.lib in-memory (which is everything in this app) is affected. Flushed immediately on tab
+// hide/unload so a closed tab never loses the last few seconds of progress.
+let saveLibTimer = null, saveLibDirty = false;
+function saveLib(){
+  saveLibDirty = true;
+  if(saveLibTimer) return;
+  saveLibTimer = setTimeout(flushSaveLib, 800);
+}
+function flushSaveLib(){
+  saveLibTimer = null;
+  if(!saveLibDirty) return;
+  saveLibDirty = false;
+  try{ localStorage.setItem(LIB_KEY, JSON.stringify(state.lib)); }
+  catch(e){ /* quota exceeded or private-mode storage -- surfaced elsewhere on explicit save actions, not worth a toast on every silent progress tick */ }
+}
+window.addEventListener('beforeunload', flushSaveLib);
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') flushSaveLib(); });
 function loadSettings(){
   try{
     const s = JSON.parse(localStorage.getItem(SET_KEY)) || {};
@@ -2678,6 +2724,12 @@ function loadSettings(){
     if(!s.tmdbTop100Excluded || typeof s.tmdbTop100Excluded !== 'object') s.tmdbTop100Excluded = {};
     if(!Array.isArray(s.tmdbTop100Excluded.movie)) s.tmdbTop100Excluded.movie = [];
     if(!Array.isArray(s.tmdbTop100Excluded.tv)) s.tmdbTop100Excluded.tv = [];
+    // Titles dismissed from the detail page's "You Might Also Like" row (see loadTmdbSimilarRow /
+    // removeFromSimilarRow below) — same shape/idea as tmdbTop100Excluded above, but scoped to the
+    // per-title recommendations row rather than the Top 100 collection.
+    if(!s.similarExcluded || typeof s.similarExcluded !== 'object') s.similarExcluded = {};
+    if(!Array.isArray(s.similarExcluded.movie)) s.similarExcluded.movie = [];
+    if(!Array.isArray(s.similarExcluded.tv)) s.similarExcluded.tv = [];
     // Whether the Home/Movies/TV "Featured Release" card lets its artwork bleed slightly above the
     // card's top edge (see the ARTWORK NOTE in the .featured-* CSS block). Defaults on; off falls
     // back to a clean, fully-contained card if the bleed effect looks awkward for a given title.
@@ -2694,7 +2746,7 @@ function loadSettings(){
     if(typeof s.skipSegmentsEnabled !== 'boolean') s.skipSegmentsEnabled = true;
     if(typeof s.skipNotify !== 'boolean') s.skipNotify = true;
     return s;
-  }catch(e){ return {omdb:'',tmdb:'',subdl:'',vidsrcDomain:'vidsrc-embed.su', streamingProviders:[], blockPopupAds:false, contentBlur:false, contentBlurLevel:'moderate', contentBlurModelUrl:'', scheduleCountry:'US', recentSearches:[], supabaseUrl:'', supabaseKey:'', playerBrightness:1, subtitleSize:'medium', subtitleColor:'#ffffff', subtitleBgColor:'#000000', subtitleBgOpacity:72, tmdbTop100Excluded:{movie:[],tv:[]}, featuredArtworkBleed:true, bannedWords:[], bannedGenres:[], skipSegmentsEnabled:true, skipNotify:true}; }
+  }catch(e){ return {omdb:'',tmdb:'',subdl:'',vidsrcDomain:'vidsrc-embed.su', streamingProviders:[], blockPopupAds:false, contentBlur:false, contentBlurLevel:'moderate', contentBlurModelUrl:'', scheduleCountry:'US', recentSearches:[], supabaseUrl:'', supabaseKey:'', playerBrightness:1, subtitleSize:'medium', subtitleColor:'#ffffff', subtitleBgColor:'#000000', subtitleBgOpacity:72, tmdbTop100Excluded:{movie:[],tv:[]}, similarExcluded:{movie:[],tv:[]}, featuredArtworkBleed:true, bannedWords:[], bannedGenres:[], skipSegmentsEnabled:true, skipNotify:true}; }
 }
 function saveSettings(){ localStorage.setItem(SET_KEY, JSON.stringify(state.settings)); }
 
@@ -3467,6 +3519,13 @@ function renderShell(){
 
 function router(){
   const hash = location.hash.replace('#','') || 'home';
+  // router() is called both on real navigation (hashchange) AND as a plain refresh after in-place
+  // actions elsewhere (saving an edit, deleting a channel, importing a library, etc. -- see the many
+  // `saveLib(); router();` call sites throughout this file). Resetting scroll unconditionally used to
+  // mean deleting a channel from a long scrolled-down list, for example, would snap the page back to
+  // the top even though the route never changed. Only reset scroll when the hash actually changed.
+  const isNavigation = hash !== router._lastHash;
+  router._lastHash = hash;
   const hashParts = hash.split('/');
   const route = hashParts[0];
   const param = hashParts.slice(1).join('/'); // rejoin so multi-segment routes (e.g. genre/movie/Drama) keep every part
@@ -3504,7 +3563,7 @@ function router(){
     case 'series': root.innerHTML = renderTypePage('series'); break;
     case 'live': root.innerHTML = renderLiveTV(); break;
     case 'schedule': root.innerHTML = renderSchedule(); if((state.schedule.tab||'mine')==='mine') loadMyShowsSchedule(); else loadScheduleData(); break;
-    case 'collections': root.innerHTML = renderCollections(param); if(param==='top100shows') loadTmdbTopListGrid('tv'); else if(param==='top100movies') loadTmdbTopListGrid('movie'); break;
+    case 'collections': root.innerHTML = renderCollections(param); if(param==='top100shows') loadTmdbTopListGrid('tv'); else if(param==='top100movies') loadTmdbTopListGrid('movie'); else if(param==='watchlist') initVirtualList('watchlistRows', watchlistRowHtml); else if(param) initVirtualList('collectionDetailGrid', cardHtml); break;
     case 'bingeall': root.innerHTML = renderBingeAllPage(); break;
     case 'newseasonall': root.innerHTML = renderNewSeasonAllPage(); break;
     case 'settings': root.innerHTML = renderSettings(); break;
@@ -3513,11 +3572,13 @@ function router(){
       const genreTypeParam = genreParts[0];
       const genreName = decodeURIComponent(genreParts.slice(1).join('/') || '');
       root.innerHTML = renderGenrePage(genreTypeParam, genreName);
+      initVirtualList('genrePageGrid', cardHtml);
       break;
     }
     case 'actor': {
       const actorName = decodeURIComponent(param || '');
       root.innerHTML = renderActorPage(actorName);
+      initVirtualList('actorPageGrid', cardHtml);
       break;
     }
     case 'detail': {
@@ -3536,10 +3597,11 @@ function router(){
     }
     default: root.innerHTML = renderHome();
   }
+  requestAnimationFrame(markHeroActiveSlide);
   startHeroAutoplay();
   startFeaturedAutoplay();
   setTimeout(positionFeaturedBgRect, 0);
-  window.scrollTo({top:0});
+  if(isNavigation) window.scrollTo({top:0});
 }
 window.addEventListener('hashchange', router);
 window.addEventListener('scroll', ()=>{
@@ -3690,7 +3752,7 @@ function renderGenrePage(typeParam, genre){
         <a class="btn btn-ghost" href="#${backHref}">&larr; ${esc(backLabel)}</a>
       </div>
       <h2 style="margin-bottom:16px;">${esc(genre)}</h2>
-      ${items.length ? `<div class="grid-3col">${items.map(i=>cardHtml(i)).join('')}</div>` : emptyState(`No ${esc(genre)} titles`, 'Nothing in this genre yet.')}
+      ${items.length ? virtualListHtml('genrePageGrid', items, 'grid-3col') : emptyState(`No ${esc(genre)} titles`, 'Nothing in this genre yet.')}
     </div>`;
 }
 // Same pattern as renderGenrePage, filtering by cast member instead of genre. Checks both the
@@ -3706,7 +3768,7 @@ function renderActorPage(actor){
         <a class="btn btn-ghost" href="#home">&larr; Home</a>
       </div>
       <h2 style="margin-bottom:16px;">${esc(actor)}</h2>
-      ${items.length ? `<div class="grid">${items.map(i=>cardHtml(i)).join('')}</div>` : emptyState(`Nothing with ${esc(actor)}`, 'No titles in your library feature this person.')}
+      ${items.length ? virtualListHtml('actorPageGrid', items, 'grid') : emptyState(`Nothing with ${esc(actor)}`, 'No titles in your library feature this person.')}
     </div>`;
 }
 /* Up to 6 panoramic banner URLs per title. Falls back to the old single `panoramicBanner`
@@ -3938,6 +4000,16 @@ function prevHeroSlide(){
 function updateHeroTrack(){
   const track = document.getElementById('heroTrack');
   if(track) track.style.transform = `translateX(-${state.heroIndex*100}%)`;
+  markHeroActiveSlide();
+}
+// Toggles .is-active onto whichever slide matches state.heroIndex -- this is what drives the content
+// stagger animation and the Ken Burns image drift (both keyed off .hero-slide.is-active in CSS).
+// Slide order in the DOM always matches state.heroItems order, so index lookup is enough; no
+// data-index attribute needed.
+function markHeroActiveSlide(){
+  const track = document.getElementById('heroTrack');
+  if(!track) return;
+  track.querySelectorAll('.hero-slide').forEach((el,i)=> el.classList.toggle('is-active', i===state.heroIndex));
 }
 
 function rowHtml(title, items, opts){
@@ -3989,6 +4061,41 @@ function isNew(item){
   return (Date.now() - new Date(item.dateAdded).getTime()) < 7*24*60*60*1000;
 }
 
+// ---- Incremental (virtualized-ish) list/grid rendering ----
+// Genre pages, actor pages, collection pages, and the watchlist all render "every item matching X"
+// with no cap -- fine for a small library, but with a very large one, building thousands of card/row
+// elements into the DOM in one innerHTML write is real, measurable lag (parse + layout + paint all
+// scale with total item count). This renders an initial batch immediately (so the page never opens
+// empty) and appends more as a sentinel element scrolls into view, so DOM node count -- and the cost
+// of opening the page -- tracks what's actually been scrolled to, not the size of the underlying list.
+// Usage: return virtualListHtml('someId', items, 'grid-3col') from a render* function, then call
+// initVirtualList('someId', cardHtml) right after that HTML lands in the DOM (see router()).
+const VIRTUAL_BATCH_SIZE = 60;
+const virtualLists = {};
+function virtualListHtml(id, items, wrapperClass){
+  virtualLists[id] = {items, rendered:0};
+  return `<div class="${wrapperClass}" id="${id}"></div><div id="${id}_sentinel" style="height:1px;"></div>`;
+}
+function initVirtualList(id, renderFn){
+  const vl = virtualLists[id];
+  const container = document.getElementById(id);
+  const sentinel = document.getElementById(id+'_sentinel');
+  if(!vl || !container || !sentinel) return;
+  function renderNextBatch(){
+    if(vl.rendered >= vl.items.length) return;
+    const next = vl.items.slice(vl.rendered, vl.rendered + VIRTUAL_BATCH_SIZE);
+    container.insertAdjacentHTML('beforeend', next.map(renderFn).join(''));
+    vl.rendered += next.length;
+    makeFocusable(); // no-op outside tv-mode; in tv-mode, newly-appended cards need tabindex too
+    if(vl.rendered >= vl.items.length && vl.observer) vl.observer.disconnect();
+  }
+  renderNextBatch(); // first screenful right away, no waiting on IntersectionObserver's first tick
+  const observer = new IntersectionObserver(entries=>{
+    if(entries[0].isIntersecting) renderNextBatch();
+  }, {rootMargin:'1000px'}); // generous margin so the next batch is ready before the user reaches it
+  observer.observe(sentinel);
+  vl.observer = observer;
+}
 function cardHtml(item, opts){
   opts = opts || {};
   const pct = item.type==='movie' ? movieProgressPct(item) : itemProgressPct(item);
@@ -5633,7 +5740,7 @@ function renderWatchlistView(){
         <a class="btn btn-ghost" href="#collections">&larr; All Collections</a>
       </div>
       <h2 style="margin-bottom:16px; display:flex; align-items:center; gap:10px;">${ICON.watchlist} Watchlist</h2>
-      ${sorted.length ? `<div class="watchlist-rows">${sorted.map(watchlistRowHtml).join('')}</div>` : emptyState('Your watchlist is empty', "Tap the clock icon on any title's detail page to add it here.", 'Browse Movies', "location.hash='movies'")}
+      ${sorted.length ? virtualListHtml('watchlistRows', sorted, 'watchlist-rows') : emptyState('Your watchlist is empty', "Tap the clock icon on any title's detail page to add it here.", 'Browse Movies', "location.hash='movies'")}
     </div>`;
 }
 function watchlistRowHtml(item){
@@ -5665,6 +5772,7 @@ function removeFromWatchlistRow(itemId){
   item.watchlist = false;
   saveLib();
   document.getElementById('pageRoot').innerHTML = renderWatchlistView();
+  initVirtualList('watchlistRows', watchlistRowHtml);
   toast('Removed from Watchlist', {undoLabel:'Undo', onUndo:()=>{
     const it = getItem(itemId);
     if(!it) return;
@@ -5673,6 +5781,7 @@ function removeFromWatchlistRow(itemId){
     saveLib();
     if(state.route==='collections' && state.routeParam==='watchlist'){
       document.getElementById('pageRoot').innerHTML = renderWatchlistView();
+      initVirtualList('watchlistRows', watchlistRowHtml);
     }
   }});
 }
@@ -5716,7 +5825,7 @@ function renderCollectionDetail(id){
         <button class="btn btn-danger" onclick="deleteCollection('${col.id}')">${ICON.trash} Delete Collection</button>
       </div>
       <h2 style="margin-bottom:16px;">${esc(col.name)}</h2>
-      ${items.length ? `<div class="grid-3col">${items.map(cardHtml).join('')}</div>` : emptyState('This collection is empty','Add titles to it from any detail page.')}
+      ${items.length ? virtualListHtml('collectionDetailGrid', items, 'grid-3col') : emptyState('This collection is empty','Add titles to it from any detail page.')}
     </div>`;
 }
 /* Default, always-there "collections" that aren't stored in state.lib — fetched live from TMDB's
@@ -6577,6 +6686,9 @@ function getSimilarLibraryItems(item, limit){
 }
 // TMDB's own "recommendations" for this title — external discovery, not yet in the library. Cards
 // open the Add Title flow pre-filled via TMDB rather than a player, since there's no source for them yet.
+// Titles the user has dismissed (via the X on the card) are filtered out here so they stay hidden
+// wherever they'd otherwise be recommended, not just on the detail page they were removed from --
+// same behavior/storage shape as the TMDB Top 100 exclude list above.
 async function loadTmdbSimilarRow(item){
   const container = document.getElementById('tmdbSimilarRow');
   if(!container) return;
@@ -6585,7 +6697,8 @@ async function loadTmdbSimilarRow(item){
   try{
     const res = await fetch(`https://api.themoviedb.org/3/${type}/${item.tmdbId}/recommendations?api_key=${encodeURIComponent(state.settings.tmdb)}`);
     const data = await res.json();
-    const results = (data.results||[]).filter(r=>r.poster_path).slice(0,12);
+    const excluded = new Set((state.settings.similarExcluded && state.settings.similarExcluded[type])||[]);
+    const results = (data.results||[]).filter(r=>r.poster_path && !excluded.has(r.id)).slice(0,12);
     if(!container.isConnected || !results.length) return;
     container.innerHTML = `
       <div class="row">
@@ -6598,16 +6711,30 @@ function externalSimilarCardHtml(tmdbItem, type){
   const title = type==='tv' ? tmdbItem.name : tmdbItem.title;
   const year = ((type==='tv' ? tmdbItem.first_air_date : tmdbItem.release_date)||'').split('-')[0];
   const poster = tmdbItem.poster_path ? `https://image.tmdb.org/t/p/w342${tmdbItem.poster_path}` : '';
+  const titleJs = esc(title).replace(/'/g,"&#39;");
   return `
     <div class="card" onclick="quickAddFromTmdb(${tmdbItem.id}, '${type}')" title="Add to your library">
       ${poster ? `<img src="${esc(poster)}" alt="" loading="lazy" ${contentBlurImgAttrs()}>` : fallbackHtml(title)}
       <span class="card-badge">${type==='tv'?'Series':'Movie'}</span>
+      <button type="button" class="card-remove" title="Not interested" onclick="event.stopPropagation(); removeFromSimilarRow(this, '${type}', ${tmdbItem.id}, '${titleJs}')">${ICON.close}</button>
       <div class="card-overlay">
         <div class="card-play" style="background:var(--highlight);">${ICON.plus}</div>
         <div class="card-title">${esc(title)}</div>
         <div class="card-meta">${esc(year||'')}${year?' • ':''}Add to library</div>
       </div>
     </div>`;
+}
+// Persists the dismissal (same storage shape as tmdbTop100Excluded) so the title stays filtered out
+// of every "You Might Also Like" row going forward, then removes the card from the DOM immediately
+// rather than waiting on a re-fetch -- no network round-trip needed since we already know what's left.
+function removeFromSimilarRow(btn, type, id, title){
+  if(!state.settings.similarExcluded) state.settings.similarExcluded = {movie:[], tv:[]};
+  const list = state.settings.similarExcluded[type] || (state.settings.similarExcluded[type]=[]);
+  if(!list.includes(id)) list.push(id);
+  saveSettings();
+  const card = btn.closest('.card');
+  if(card) card.remove();
+  toast(title ? `"${title}" removed from recommendations` : 'Removed from recommendations');
 }
 function quickAddFromTmdb(tmdbId, type){
   state.editingId = null;
