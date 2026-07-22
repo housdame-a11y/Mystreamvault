@@ -7868,6 +7868,25 @@ function renderSettings(){
         <button class="btn btn-primary" onclick="saveApiKeys()">Save Keys</button>
         </div>
       </div>
+      <div class="settings-section${settingsSectionClass('curatedCollections')}" data-section="curatedCollections">
+        <h3 onclick="toggleSettingsSection('curatedCollections')"><span class="settings-title-text">Curated Collections</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
+        <div class="settings-section-body">
+        <p class="field-hint" style="margin-bottom:14px;">
+          One-tap starting points — loads a hand-picked list of IMDb IDs straight into the Add Title wizard's Step 1, exactly as if you'd pasted them yourself. Nothing is added until you review and finish the wizard; requires your OMDb and TMDB keys above.
+        </p>
+        ${Object.keys(CURATED_COLLECTIONS).map(key=>{
+          const coll = CURATED_COLLECTIONS[key];
+          return `
+          <div class="settings-row" style="justify-content:space-between; align-items:center; padding:10px 0; border-top:1px solid var(--border);">
+            <div style="flex:1; min-width:0; padding-right:12px;">
+              <div style="font-weight:600;">${esc(coll.name)} <span style="font-weight:400; color:var(--muted);">(${coll.ids.length} titles)</span></div>
+              <div class="field-hint" style="margin:2px 0 0;">${esc(coll.description)}</div>
+            </div>
+            <button class="btn btn-primary" style="flex-shrink:0;" onclick="openAddWizardFromCollection('${key}')">Load into Wizard</button>
+          </div>`;
+        }).join('')}
+        </div>
+      </div>
       <div class="settings-section${settingsSectionClass('manageLibrary')}" data-section="manageLibrary">
         <h3 onclick="toggleSettingsSection('manageLibrary')"><span class="settings-title-text">Manage Library</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
         <div class="settings-section-body">
@@ -10187,6 +10206,40 @@ const WIZARD_LAST_STEP = 12;
 function openAddWizard(){
   state.wizard = { step:1, current:0, items:[], rawInput:'', duplicates:[] };
   renderWizardModal();
+}
+// Curated, hand-picked IMDb ID lists offered as one-tap starting points in Settings → Curated
+// Collections (see openAddWizardFromCollection below). Each entry drops its IDs straight into the
+// wizard's Step 1 textarea exactly as if they'd been pasted by hand, so it goes through the exact
+// same OMDb/TMDB fetch, dedupe-against-library, and per-title review as any other import — nothing
+// about the wizard flow itself changes. IDs verified individually against IMDb.
+const CURATED_COLLECTIONS = {
+  mysteryBox: {
+    name: 'The Mystery Box Collection',
+    description: 'Shows and movies in the Lost / From mold — mystery-box mythology, trapped-town horror, and mind-bending sci-fi.',
+    ids: [
+      // TV
+      'tt0411008','tt9813792','tt11041332','tt2699128','tt5753856','tt9319668','tt11280740','tt8421350',
+      'tt2618986','tt6156584','tt0475784','tt4574334','tt6548228','tt0098936','tt0061287','tt1553656',
+      'tt7049682','tt4635282','tt1119644','tt0106179','tt5210998','tt4209256','tt2661044','tt2431438',
+      'tt4643084','tt8741290','tt8134186','tt5114356','tt7008682','tt4158110','tt2234222','tt5651844',
+      'tt4159076','tt1312171','tt6763664','tt10574558','tt8068860','tt13365348','tt8778064','tt8633424',
+      // Movies
+      'tt1130884','tt0246578','tt1375666','tt0209144','tt0482571','tt0137523','tt0119174','tt0123755',
+      'tt0259711','tt0230600','tt0309698','tt2397535','tt2866360','tt1187064','tt2798920','tt2543164',
+      'tt0368447','tt0286106','tt1179933','tt1060277'
+    ]
+  }
+};
+// Loads a CURATED_COLLECTIONS entry into the wizard's Step 1 "IMDb Links or IDs" textarea and opens
+// it, same as clicking the Add Title (+) button but pre-filled. Nothing is fetched or added yet —
+// the person still reviews/continues from Step 1 like any other import, so the usual API-key check,
+// duplicate-against-library filtering, and per-title Confirm step all still apply untouched.
+function openAddWizardFromCollection(key){
+  const coll = CURATED_COLLECTIONS[key];
+  if(!coll) return;
+  state.wizard = { step:1, current:0, items:[], rawInput: coll.ids.join('\n'), duplicates:[] };
+  renderWizardModal();
+  toast(`Loaded ${coll.ids.length} titles from "${coll.name}" — review and continue when ready`);
 }
 function wizardClose(){
   if(state.wizard && state.wizard.items.length && state.wizard.step>1){
