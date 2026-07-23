@@ -10240,6 +10240,27 @@ const CURATED_COLLECTIONS = {
       'tt6548854','tt9075824','tt36374250','tt28316034','tt40104653','tt39397546','tt33811293','tt8467696',
       'tt11767922','tt36100574','tt40045814','tt36617178','tt40474022','tt36053205','tt39221290','tt40044248'
     ]
+  },
+  comedyGang: {
+    name: 'Comedy Gang',
+    description: 'Classic and modern comedy — buddy movies, sitcoms, rom-coms, and mockumentaries, from Cheers to Ted Lasso.',
+    ids: [
+      // Movies
+      'tt0829482','tt0357413','tt1478338','tt1119646','tt0838283','tt0109686','tt0080339','tt0107048',
+      'tt0118715','tt0087332','tt0091042','tt0094898','tt0942385','tt0088258','tt0196229','tt0212338',
+      'tt0129387','tt0163651','tt0374900','tt0377092','tt0250494','tt0243155','tt0332379','tt0319343',
+      'tt0443453','tt0478311','tt0910936','tt1232829','tt2704998','tt3799694','tt0112697','tt0105793',
+      'tt0118655','tt0151804','tt0302886','tt1375670','tt0415306','tt1156398','tt0365748','tt0425112',
+      'tt0780536','tt2278388','tt0467406','tt0449059','tt0396269','tt1279935','tt1570728','tt0405422',
+      'tt6264654',
+      // TV Shows
+      'tt0108778','tt0386676','tt1266020','tt2467372','tt1439629','tt0496424','tt0367279','tt0098904',
+      'tt0472954','tt0264235','tt1442437','tt0460649','tt0898266','tt3526078','tt1442464','tt10986410',
+      'tt5687612','tt1759761','tt2575988','tt14218830','tt7908628','tt3398228','tt0121955','tt0182576',
+      'tt0118375','tt1561755','tt1486217','tt0149460','tt0212671','tt0285403','tt0165598','tt0106004',
+      'tt0083399','tt0063929','tt0072500','tt0290978','tt0387764','tt0084988','tt0081912','tt7120662',
+      'tt4374208','tt2578560','tt5024912','tt4288182','tt5348176','tt13623580','tt8324422'
+    ]
   }
 };
 // Loads a CURATED_COLLECTIONS entry into the wizard's Step 1 "IMDb Links or IDs" textarea and opens
@@ -12518,10 +12539,13 @@ function closePlayer(){
   // Last-chance save: the watch timer only ticks every 10s, so up to ~10s of progress could
   // otherwise be lost if the user closes mid-tick. p._elapsedSeconds is always current (or the
   // last saved position if fake-paused), so this makes closing behave exactly like a real pause.
+  // watched is recomputed here (not hardcoded false) so closing right after crossing the 90%/95%
+  // threshold — e.g. leaving during credits — doesn't stomp the watched flag back to false right
+  // as it's saved; see computeWatchedForSave.
   const p = state.player;
   if(p && !p.isLive){
     const item = getItem(p.itemId);
-    if(item) saveProgress(item, p.key, p._elapsedSeconds || 0, p._totalSeconds || 0, false);
+    if(item) saveProgress(item, p.key, p._elapsedSeconds || 0, p._totalSeconds || 0, computeWatchedForSave(item, p));
   }
   cleanupPlayerTimers();
   // togglePlayerFullscreen() puts the whole #playerOverlay into fullscreen, not just the video —
@@ -13384,17 +13408,31 @@ window.addEventListener('message', (event)=>{
 // the most recent PLAYER_EVENT — keeps localStorage writes sane even if the embed posts events
 // rapidly (e.g. every animation frame), without ever delaying the on-screen progress bar itself
 // (that's updated on every single event via updatePlayerProgressUI, above).
-// Saves iframe watch progress at most once every ~5s of real time, using the true position from
-// the most recent PLAYER_EVENT — keeps localStorage writes sane even if the embed posts events
-// rapidly (e.g. every animation frame), without ever delaying the on-screen progress bar itself
-// (that's updated on every single event via updatePlayerProgressUI, above). The caller already
-// checked isNearPlaybackEnd before reaching here, so this only ever saves an in-progress (not yet
-// "watched") position — the end screen itself is never gated by this throttle.
+// The caller already checked isNearPlaybackEnd before reaching here — that gate is only about
+// whether to pop the "up next" end screen right now (deliberately based on real remaining seconds,
+// not a percentage — see isNearPlaybackEnd for why). "Watched", on the other hand, uses the SAME
+// percentage threshold as the direct-video path (getWatchedThreshold) so it flips true as soon as
+// you cross 90%/95% of the runtime, whether or not you stick around for the last 15 seconds. This
+// is what makes an episode you exited during credits still count as watched instead of lingering in
+// Continue Watching forever, waiting for an end screen that never gets the chance to fire.
+// Shared by every "save progress right now, playback might not resume" spot (pause, app
+// backgrounded, close) plus the regular throttled save — computes whether this position counts as
+// watched using the same percentage threshold as the direct-video path (getWatchedThreshold), and
+// never downgrades an episode that was already marked watched a moment ago back to unwatched. That
+// last part matters: without it, leaving during credits (switching apps, or just closing the
+// player) would stomp a watched:true set 1-2 throttled-saves ago straight back to false, which is
+// exactly what made an episode you'd actually finished linger in Continue Watching forever.
+function computeWatchedForSave(item, p){
+  const total = p._totalSeconds || 0;
+  const elapsed = p._elapsedSeconds || 0;
+  const alreadyWatched = !!(item.progress && item.progress[p.key] && item.progress[p.key].watched);
+  return alreadyWatched || (total > 0 && (elapsed / total) >= getWatchedThreshold(p.seasonNum));
+}
 function saveIframeProgressThrottled(item, p){
   const now = Date.now();
   if(p._lastProgressSaveAt && (now - p._lastProgressSaveAt) < 5000) return;
   p._lastProgressSaveAt = now;
-  saveProgress(item, p.key, p._elapsedSeconds || 0, p._totalSeconds || 0, false);
+  saveProgress(item, p.key, p._elapsedSeconds || 0, p._totalSeconds || 0, computeWatchedForSave(item, p));
 }
 // Last-resort fallback for an embed that never sends a single PLAYER_EVENT (an unsupported mirror,
 // or a genuinely broken source) — without this, the loading overlay would hang forever, since
@@ -13656,7 +13694,7 @@ function fakePausePlayer(){
   stopProgressInterpolation(); // freeze the bar exactly where it is — no coasting while paused
   p.fakePaused = true;
   p.playbackState = 'paused';
-  saveProgress(item, p.key, p._elapsedSeconds || 0, p._totalSeconds || 0, false); // save immediately —
+  saveProgress(item, p.key, p._elapsedSeconds || 0, p._totalSeconds || 0, computeWatchedForSave(item, p)); // save immediately —
   // covers a refresh happening while paused, since nothing else will save again until Resume.
 
   iframe.classList.add('player-fade-out');
@@ -14041,7 +14079,7 @@ function lifecycleSaveAndFreeze(){
   if(p.isLive) return;               // nothing trackable to persist for a live channel
   const item = getItem(p.itemId);
   if(!item) return;
-  saveProgress(item, p.key, p._elapsedSeconds || 0, p._totalSeconds || 0, false);
+  saveProgress(item, p.key, p._elapsedSeconds || 0, p._totalSeconds || 0, computeWatchedForSave(item, p));
 }
 // Authoritative "app actually left" — arms the health-check/rebuild logic on return.
 function handleAppBackground(){
