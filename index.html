@@ -1462,6 +1462,32 @@ body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
   color:var(--highlight); display:flex; align-items:center; justify-content:center;
   font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.02em;
 }
+/* Magnet Link sources — a distinct source type (see "MAGNET LINK SOURCES" in the script below).
+   Detected purely from the magnet: URI scheme, so it reuses the exact same .source-row list as any
+   other source — just visually tagged with an amber magnet icon so it reads as clearly different
+   from an embed/direct-video source at a glance, both while editing and when picking what to play. */
+.source-row-magnet input{border-color:rgba(230,178,64,.35);}
+.source-type-icon{
+  width:32px; height:32px; flex-shrink:0; border-radius:6px; display:flex; align-items:center; justify-content:center;
+  font-size:15px; color:var(--muted); background:#161923; border:1px solid #232837;
+}
+.source-row-magnet .source-type-icon{background:rgba(230,178,64,.14); color:#e6b240; border-color:rgba(230,178,64,.3);}
+.source-type-icon svg{width:15px; height:15px;}
+.magnet-add-btn{color:#e6b240;}
+.magnet-add-btn svg{color:#e6b240;}
+/* Magnet links row on the movie detail page — its own section, kept apart from the Play button so a
+   magnet link is never confused for something this in-page player can stream directly yet (see
+   openMagnetSource). Reappears verbatim inside the episode-info modal for TV episodes. */
+.magnet-sources-row{display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; width:100%;}
+.magnet-chip{
+  display:inline-flex; align-items:center; gap:7px; padding:8px 14px; border-radius:8px;
+  background:rgba(230,178,64,.1); border:1px solid rgba(230,178,64,.32); color:#e6b240;
+  font-size:12.5px; font-weight:700; transition:background var(--transition), transform var(--transition);
+}
+.magnet-chip:hover{background:rgba(230,178,64,.18); transform:translateY(-1px);}
+.magnet-chip svg{width:14px; height:14px;}
+.episode-modal-source-btn-magnet{color:#e6b240 !important; border-color:rgba(230,178,64,.32) !important; background:rgba(230,178,64,.08) !important;}
+.episode-modal-source-btn-magnet:hover{background:rgba(230,178,64,.16) !important;}
 
 .season-block{border:1px solid #1e2330; border-radius:10px; padding:14px; margin-bottom:14px; background:#0c0e14;}
 .season-block-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
@@ -2654,6 +2680,7 @@ const ICON = {
   brightness:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>',
   award:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="m9 13.5-1.5 7L12 18l4.5 2.5-1.5-7"/></svg>',
   scissors:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.5 8 20 20M20 4 8.5 16"/></svg>',
+  magnet:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15V6a2 2 0 0 1 2-2h1v9a3 3 0 0 0 6 0V4h1a2 2 0 0 1 2 2v9a6 6 0 0 1-12 0Z"/><path d="M6 9H2M22 9h-4"/></svg>',
 };
 function heartSvg(filled){
   return `<svg viewBox="0 0 24 24" fill="${filled?'currentColor':'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-10-9.1C.5 8.6 2 5 5.5 5c2 0 3.3 1 4.5 2.5C11.2 6 12.5 5 14.5 5 18 5 19.5 8.6 22 11.9 19.5 16.4 12 21 12 21z"/></svg>`;
@@ -3279,8 +3306,12 @@ function loadSettings(){
     // per-title library content rather than a preference.
     if(typeof s.skipSegmentsEnabled !== 'boolean') s.skipSegmentsEnabled = true;
     if(typeof s.skipNotify !== 'boolean') s.skipNotify = true;
+    // Torrent Streaming Server (see MAGNET LINK SOURCES / resolveAndPlayMagnet) — a companion
+    // Node.js process (webtorrent + HTTP range-serving) that turns a magnet link into a normal
+    // playable HTTP URL. Left blank by default; magnet playback is disabled until it's set.
+    if(typeof s.torrentServerUrl !== 'string') s.torrentServerUrl = '';
     return s;
-  }catch(e){ return {omdb:'',tmdb:'',subdl:'',vidsrcDomain:'vidsrc-embed.su', streamingProviders:[], blockPopupAds:false, contentBlur:false, contentBlurLevel:'moderate', contentBlurModelUrl:'', scheduleCountry:'US', recentSearches:[], supabaseUrl:'', supabaseKey:'', playerBrightness:1, subtitleSize:'medium', subtitleColor:'#ffffff', subtitleBgColor:'#000000', subtitleBgOpacity:72, tmdbTop100Excluded:{movie:[],tv:[]}, similarExcluded:{movie:[],tv:[]}, featuredArtworkBleed:true, bannedWords:[], bannedGenres:[], skipSegmentsEnabled:true, skipNotify:true}; }
+  }catch(e){ return {omdb:'',tmdb:'',subdl:'',vidsrcDomain:'vidsrc-embed.su', streamingProviders:[], blockPopupAds:false, contentBlur:false, contentBlurLevel:'moderate', contentBlurModelUrl:'', scheduleCountry:'US', recentSearches:[], supabaseUrl:'', supabaseKey:'', playerBrightness:1, subtitleSize:'medium', subtitleColor:'#ffffff', subtitleBgColor:'#000000', subtitleBgOpacity:72, tmdbTop100Excluded:{movie:[],tv:[]}, similarExcluded:{movie:[],tv:[]}, featuredArtworkBleed:true, bannedWords:[], bannedGenres:[], skipSegmentsEnabled:true, skipNotify:true, torrentServerUrl:''}; }
 }
 function saveSettings(){ localStorage.setItem(SET_KEY, JSON.stringify(state.settings)); }
 
@@ -5975,7 +6006,11 @@ function quickPlay(id){
   const item = getItem(id);
   if(!item) return;
   if(item.type==='movie'){
-    requestPlayback(item, null, null, getMovieSources(item));
+    // Magnet links never enter the direct-play pipeline — if that's all this movie has, hand off to
+    // the magnet flow instead of letting the embed/video player try (and fail) to open one.
+    const { playable, magnets } = splitPlayableSources(getMovieSources(item));
+    if(!playable.length && magnets.length){ openMagnetSource(magnets[0].url, item.title, {itemId:item.id, seasonNum:null, epNum:null}); return; }
+    requestPlayback(item, null, null, playable);
   } else {
     // find first unwatched episode, else first episode
     const flat = [];
@@ -5985,7 +6020,11 @@ function quickPlay(id){
       const p = (item.progress||{})[key];
       return !p || !p.watched;
     }) || flat[0];
-    if(target) requestPlayback(item, target.s, target.e.number, getEpisodeSources(item, target.e, target.s));
+    if(target){
+      const { playable, magnets } = splitPlayableSources(getEpisodeSources(item, target.e, target.s));
+      if(!playable.length && magnets.length){ openMagnetSource(magnets[0].url, target.e.title || ('Episode '+target.e.number), {itemId:item.id, seasonNum:target.s, epNum:target.e.number}); return; }
+      requestPlayback(item, target.s, target.e.number, playable);
+    }
     else toast('No episodes added yet');
   }
 }
@@ -6894,10 +6933,12 @@ function applyChannelsJsonImport(){
 function moviePrimaryActionsHtml(item){
   const watched = isFullyWatched(item);
   const hasTrailer = item.trailerKey || (!item.trailerChecked && state.settings.tmdb);
+  const { magnets } = splitPlayableSources(getMovieSources(item));
   return `<div class="detail-primary-actions">
     <button class="btn btn-primary detail-play-btn" onclick="quickPlay('${item.id}')">${ICON.play} ${isStarted(item)&&!watched?'Resume':'Play'}</button>
     ${hasTrailer ? `<button class="btn btn-ghost" onclick="openTrailerModal('${item.id}')">${ICON.play} Trailer</button>` : ''}
     ${detailActionMenuHtml(item)}
+    ${magnetSourcesRowHtml(magnets, 'Magnet', {itemId:item.id, seasonNum:null, epNum:null})}
   </div>`;
 }
 // TV-show counterpart to moviePrimaryActionsHtml — same look/position (right under the tagline), but a
@@ -7647,6 +7688,7 @@ function episodeInfoModalHtml(itemId, seasonNum, epNum){
   const canResume = !!(p && !watched && p.timestamp>0);
   const sources = getEpisodeSources(item, ep, seasonNum);
   const sourceCount = sources.length;
+  const { playable, magnets } = splitPlayableSources(sources);
   const prev = getPrevEpisode(item, seasonNum, epNum);
   const next = getNextEpisode(item, seasonNum, epNum);
   // Air date badge: only worth showing once we know it, and "Airs <date>" only makes sense while
@@ -7679,12 +7721,13 @@ function episodeInfoModalHtml(itemId, seasonNum, epNum){
       </div>
       ${canResume ? `<div class="episode-modal-resume-hint">${ICON.play} Continue from ${formatResumeTime(p.timestamp)}</div>` : ''}
       <div class="episode-modal-actions">
-        ${sourceCount>1 ? `
+        ${playable.length>1 ? `
           <div class="episode-modal-source-list">
-            ${sources.map((src,i)=>`<button type="button" class="btn btn-ghost episode-modal-source-btn" onclick="playEpisodeFromModal('${itemId}', ${seasonNum}, ${ep.number}, ${i})">${ICON.play} ${esc(src.label||'Source '+(i+1))}</button>`).join('')}
+            ${playable.map((src,i)=>`<button type="button" class="btn btn-ghost episode-modal-source-btn" onclick="playEpisodeFromModal('${itemId}', ${seasonNum}, ${ep.number}, ${i})">${ICON.play} ${esc(src.label||'Source '+(i+1))}</button>`).join('')}
           </div>
-        ` : `<button class="btn btn-primary" ${sourceCount?'':'disabled style="opacity:.5; cursor:not-allowed;"'} onclick="playEpisodeFromModal('${itemId}', ${seasonNum}, ${ep.number}, 0)">${ICON.play} ${canResume?`Continue from ${formatResumeTime(p.timestamp)}`:'Play Episode'}</button>`}
+        ` : `<button class="btn btn-primary" ${playable.length?'':'disabled style="opacity:.5; cursor:not-allowed;"'} onclick="playEpisodeFromModal('${itemId}', ${seasonNum}, ${ep.number}, 0)">${ICON.play} ${canResume?`Continue from ${formatResumeTime(p.timestamp)}`:'Play Episode'}</button>`}
         <button class="btn btn-ghost btn-icon-only" title="${watched?'Mark as Unwatched':(next?'Mark as Watched & Go to Next':'Mark as Watched')}" onclick="toggleEpisodeWatchedInModal('${itemId}', ${seasonNum}, ${ep.number})">${watched?ICON.close:ICON.check}</button>
+        ${magnetSourcesRowHtml(magnets, 'Magnet', {itemId, seasonNum, epNum:ep.number})}
       </div>
     </div>
   `;
@@ -7697,8 +7740,12 @@ function playEpisodeFromModal(itemId, seasonNum, epNum, sourceIdx){
   const item = getItem(itemId);
   const ep = item && findPlayerEpisode(item, seasonNum, epNum);
   if(!item || !ep) return;
-  const sources = getEpisodeSources(item, ep, seasonNum);
-  const ordered = sourceIdx>0 ? [sources[sourceIdx], ...sources.slice(0,sourceIdx), ...sources.slice(sourceIdx+1)] : sources;
+  // Magnet links are surfaced separately (magnetSourcesRowHtml) and never enter this pipeline — see
+  // splitPlayableSources in MAGNET LINK SOURCES. sourceIdx indexes into that same filtered list, so
+  // it lines up with whichever episode-modal-source-btn was actually clicked.
+  const { playable } = splitPlayableSources(getEpisodeSources(item, ep, seasonNum));
+  if(!playable.length){ toast('No playable sources available'); return; }
+  const ordered = sourceIdx>0 ? [playable[sourceIdx], ...playable.slice(0,sourceIdx), ...playable.slice(sourceIdx+1)] : playable;
   closeModal();
   requestPlayback(item, seasonNum, epNum, ordered);
 }
@@ -7912,6 +7959,14 @@ function renderSettings(){
           <div class="field-hint">Any VidSrc link you paste (any mirror, any format) is automatically rewritten to this domain before playback.</div>
         </div>
         <button class="btn btn-primary" onclick="saveVidsrcDomain()">Save Domain</button>
+        <div class="field" style="margin-top:20px;">
+          <label>Torrent Streaming Server</label>
+          <input id="torrentServerUrl" value="${esc(s.torrentServerUrl)}" placeholder="http://localhost:8888">
+          <div class="field-hint">
+            URL of the companion streaming-server process (magnet &rarr; playable HTTP video). Required for the "Play in Video Player" button on magnet links — without it, magnet links can still be opened in an external torrent app, but won't play inside this app's own player. See the setup guide included with this build.
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveTorrentServerUrl()">Save Server URL</button>
         <div class="field" style="margin-top:20px;">
           <label>Block Popup / Redirect Ads</label>
           <div class="toggle-row">
@@ -8267,6 +8322,10 @@ function resetSubtitleDisplay(){
 function saveVidsrcDomain(){
   state.settings.vidsrcDomain = document.getElementById('vidsrcDomain').value;
   saveSettings(); toast('VidSrc domain saved');
+}
+function saveTorrentServerUrl(){
+  state.settings.torrentServerUrl = document.getElementById('torrentServerUrl').value.trim().replace(/\/+$/,'');
+  saveSettings(); toast('Torrent streaming server URL saved');
 }
 // Working draft of the domain list while Settings is open, so add/remove rows don't need a full
 // page re-render. Lazily seeded from the saved list (or a single blank row) the first time it's
@@ -8630,13 +8689,15 @@ function collectAllSources(onlyItemId){
     if(onlyItemId && item.id!==onlyItemId) return;
     if(item.type==='movie'){
       (item.sources||[]).forEach(s=>{
-        if(s.url) list.push({scope:'movie', itemId:item.id, title:item.title, label:s.label, url:s.url});
+        // Magnet links aren't fetchable over HTTP — a magnet: URI would abort instantly and always
+        // misreport as a dead link here, so the (HTTP-only) health checker skips them entirely.
+        if(s.url && !isMagnetUrl(s.url)) list.push({scope:'movie', itemId:item.id, title:item.title, label:s.label, url:s.url});
       });
     } else {
       (item.seasons||[]).forEach(season=>{
         (season.episodes||[]).forEach(ep=>{
           (ep.sources||[]).forEach(s=>{
-            if(s.url) list.push({scope:'episode', itemId:item.id, title:`${item.title} — S${season.number}E${ep.number}`, label:s.label, url:s.url});
+            if(s.url && !isMagnetUrl(s.url)) list.push({scope:'episode', itemId:item.id, title:`${item.title} — S${season.number}E${ep.number}`, label:s.label, url:s.url});
           });
         });
       });
@@ -8645,7 +8706,7 @@ function collectAllSources(onlyItemId){
   if(!onlyItemId){
     (state.lib.channels||[]).forEach(ch=>{
       (ch.sources||[]).forEach(s=>{
-        if(s.url) list.push({scope:'channel', channelId:ch.id, title:ch.name, label:s.label, url:s.url});
+        if(s.url && !isMagnetUrl(s.url)) list.push({scope:'channel', channelId:ch.id, title:ch.name, label:s.label, url:s.url});
       });
     });
   }
@@ -9000,7 +9061,7 @@ function renderEditModal(item){
         <input id="imdbUrlInput" placeholder="Paste an IMDb URL, e.g. https://www.imdb.com/title/tt0111161/">
         <button type="button" class="btn btn-primary" id="imdbImportBtn" style="flex-shrink:0;" onclick="importFromImdb()">Import</button>
       </div>
-      <div class="field-hint">Pulls title, poster, backdrop, logo, genres, rating, runtime, cast, trailer — and for TV shows, every season and episode — from OMDb + TMDB. Movie/TV type is detected automatically. ${(state.settings.streamingProviders||[]).length ? 'Since Streaming Provider domains are set in Settings, playable links are generated automatically from this IMDb ID for the movie (or every episode) — no need to paste one; they will show up below once imported. You can still add extra sources as fallback mirrors.' : 'Set a Streaming Provider domain in Settings &rarr; Playback to auto-generate playable links from this IMDb ID — otherwise, paste your own links below (VidSrc-style and .m3u8 links are recognized automatically).'}</div>
+      <div class="field-hint">Pulls title, poster, backdrop, logo, genres, rating, runtime, cast, trailer — and for TV shows, every season and episode — from OMDb + TMDB. Movie/TV type is detected automatically. ${(state.settings.streamingProviders||[]).length ? 'Since Streaming Provider domains are set in Settings, playable links are generated automatically from this IMDb ID for the movie (or every episode) — no need to paste one; they will show up below once imported. You can still add extra sources as fallback mirrors.' : 'Set a Streaming Provider domain in Settings &rarr; Playback to auto-generate playable links from this IMDb ID — otherwise, paste your own links below (VidSrc-style, .m3u8, and magnet: links are all recognized automatically).'}</div>
     </div>
     <div class="type-toggle">
       <button class="${state.editType==='movie'?'active':''}" onclick="setEditType('movie')">Movie</button>
@@ -9549,15 +9610,41 @@ function sourcesEditorHtml(){
     <div class="field">
       <label>Sources</label>
       ${autoSourcesPreviewHtml(auto, state.editExcludedAutoProviders)}
-      ${state.editSources.map((s,i)=>`
-        <div class="source-row">
-          <input placeholder="Label (e.g. VidSrc)" value="${esc(s.label)}" oninput="state.editSources[${i}].label=this.value">
-          <input placeholder="https://..." value="${esc(s.url)}" oninput="state.editSources[${i}].url=this.value">
-          <button type="button" class="rm" onclick="removeSource(${i})">${ICON.close}</button>
-        </div>`).join('')}
-      <button type="button" class="btn btn-ghost" onclick="addSource()">${ICON.plus} Add Source</button>
-      <div class="field-hint">Add multiple as fallback sources (YouTube, mp4, VidSrc, Dailymotion, etc).</div>
+      ${state.editSources.map((s,i)=>sourceRowHtml(s, i, 'state.editSources', `removeSource(${i})`)).join('')}
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button type="button" class="btn btn-ghost" onclick="addSource()">${ICON.plus} Add Source</button>
+        <button type="button" class="btn btn-ghost magnet-add-btn" onclick="addMagnetSource()">${ICON.magnet} Add Magnet Link</button>
+      </div>
+      <div class="field-hint">Add multiple as fallback sources (YouTube, mp4, VidSrc, Dailymotion, etc.) or one or more magnet links — pasting a magnet: URI into any source's URL field is picked up automatically.</div>
     </div>`;
+}
+// Shared row markup for a single editable source (movie sourcesEditorHtml + per-episode
+// seasonsEditorHtml both use this) — a magnet: URI in the URL field is detected live as it's typed
+// and swaps in the amber magnet icon/border, without needing a full list re-render on every
+// keystroke (same "reach into the DOM directly" pattern the label/url inputs already use elsewhere).
+function sourceRowHtml(s, i, arrPath, removeCall){
+  const magnet = isMagnetUrl(s.url);
+  return `
+    <div class="source-row${magnet?' source-row-magnet':''}">
+      <span class="source-type-icon" title="${magnet?'Magnet Link':'Streaming source'}">${magnet?ICON.magnet:''}</span>
+      <input placeholder="Label (e.g. VidSrc)" value="${esc(s.label)}" oninput="${arrPath}[${i}].label=this.value">
+      <input placeholder="https://... or magnet:?xt=..." value="${esc(s.url)}" oninput="updateSourceRowUrl(this, ${arrPath}, ${i})">
+      <button type="button" class="rm" onclick="${removeCall}">${ICON.close}</button>
+    </div>`;
+}
+// Live-updates a source row's magnet styling as the URL is typed/pasted, without re-rendering the
+// whole editor (keeps typing smooth, matches how the label input already behaves).
+function updateSourceRowUrl(inputEl, arr, i){
+  arr[i].url = inputEl.value;
+  const row = inputEl.closest('.source-row');
+  if(!row) return;
+  const magnet = isMagnetUrl(inputEl.value);
+  row.classList.toggle('source-row-magnet', magnet);
+  const iconEl = row.querySelector('.source-type-icon');
+  if(iconEl){
+    iconEl.innerHTML = magnet ? ICON.magnet : '';
+    iconEl.title = magnet ? 'Magnet Link' : 'Streaming source';
+  }
 }
 // Shared by the movie editor and each episode editor: a preview of the auto-generated Streaming
 // Provider link(s), so it's clear at a glance what will actually play without having to leave the
@@ -9594,6 +9681,10 @@ function restoreAutoProviderSources(){
   document.getElementById('typeSpecific').innerHTML = state.editType==='movie' ? sourcesEditorHtml() : seasonsEditorHtml();
 }
 function addSource(){ state.editSources.push({label:'',url:''}); document.getElementById('typeSpecific').innerHTML = sourcesEditorHtml(); }
+// Adds a row pre-labeled "Magnet" — the row itself is a completely ordinary source row (see
+// sourceRowHtml); only the label differs at creation time, since the amber magnet styling is
+// applied automatically the moment its URL field actually contains a magnet: URI.
+function addMagnetSource(){ state.editSources.push({label:'Magnet', url:''}); document.getElementById('typeSpecific').innerHTML = sourcesEditorHtml(); }
 function removeSource(i){ state.editSources.splice(i,1); if(!state.editSources.length) state.editSources.push({label:'',url:''}); document.getElementById('typeSpecific').innerHTML = sourcesEditorHtml(); }
 
 function seasonsEditorHtml(){
@@ -9616,13 +9707,11 @@ function seasonsEditorHtml(){
             <button type="button" class="btn-icon" onclick="removeEpisode(${si},${ei})">${ICON.close}</button>
           </div>
           ${autoSourcesPreviewHtml(getEditAutoSources(s.number, e.number), state.editExcludedAutoProviders)}
-          ${(e.sources||[]).map((src,oi)=>`
-            <div class="source-row">
-              <input placeholder="Label" value="${esc(src.label)}" oninput="state.editSeasons[${si}].episodes[${ei}].sources[${oi}].label=this.value">
-              <input placeholder="https://..." value="${esc(src.url)}" oninput="state.editSeasons[${si}].episodes[${ei}].sources[${oi}].url=this.value">
-              <button type="button" class="rm" onclick="removeEpSource(${si},${ei},${oi})">${ICON.close}</button>
-            </div>`).join('')}
-          <button type="button" class="btn btn-ghost" style="padding:6px 10px;font-size:12px;" onclick="addEpSource(${si},${ei})">${ICON.plus} Add Source</button>
+          ${(e.sources||[]).map((src,oi)=>sourceRowHtml(src, oi, `state.editSeasons[${si}].episodes[${ei}].sources`, `removeEpSource(${si},${ei},${oi})`)).join('')}
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-ghost" style="padding:6px 10px;font-size:12px;" onclick="addEpSource(${si},${ei})">${ICON.plus} Add Source</button>
+            <button type="button" class="btn btn-ghost magnet-add-btn" style="padding:6px 10px;font-size:12px;" onclick="addMagnetEpSource(${si},${ei})">${ICON.magnet} Add Magnet Link</button>
+          </div>
         </div>`).join('')}
       <button type="button" class="btn btn-ghost" onclick="addEpisode(${si})">${ICON.plus} Add Episode</button>
     </div>`).join('');
@@ -9640,6 +9729,7 @@ function addEpisode(si){
 }
 function removeEpisode(si,ei){ state.editSeasons[si].episodes.splice(ei,1); refreshSeasons(); }
 function addEpSource(si,ei){ state.editSeasons[si].episodes[ei].sources.push({label:'',url:''}); refreshSeasons(); }
+function addMagnetEpSource(si,ei){ state.editSeasons[si].episodes[ei].sources.push({label:'Magnet', url:''}); refreshSeasons(); }
 function removeEpSource(si,ei,oi){
   const arr = state.editSeasons[si].episodes[ei].sources;
   arr.splice(oi,1); if(!arr.length) arr.push({label:'',url:''});
@@ -11500,9 +11590,115 @@ function getEditAutoSources(seasonNum, epNum){
   return getAutoProviderSources({imdbId, excludedAutoProviders: state.editExcludedAutoProviders||[]}, seasonNum, epNum);
 }
 
+/* =========================================================
+   MAGNET LINK SOURCES
+   Magnet Link is a first-class source type sitting alongside embeds/direct video/HLS. It's
+   identified purely by the `magnet:` URI scheme — no schema migration, no separate storage array,
+   no changes to import/export formats. Drop a magnet link into any existing "url" field (manual
+   entry, Bulk Paste, Seasons JSON import, Channels JSON import) and it's picked up automatically by
+   isMagnetUrl() below, then rendered as its own kind of source everywhere sources are listed.
+
+   PLAYBACK: browsers can't speak raw BitTorrent (no TCP/UDP socket access), so a magnet link can't
+   be turned into video frames by JS running in this page alone. Instead, this app talks to a small
+   companion Node.js process (Settings → Playback → Torrent Streaming Server, running `webtorrent` —
+   see the setup guide shipped alongside this build) that joins the swarm and serves the torrent's
+   video file back over plain HTTP with byte-range support. Once resolveAndPlayMagnet() gets that
+   HTTP URL back, it's just a normal video source from here on — handed to requestPlayback exactly
+   like a direct .mp4/.m3u8 link, going through the exact same openPlayer/renderPlayer/tryNextSource
+   pipeline every other source already uses. Nothing in that pipeline needed to change.
+========================================================= */
+function isMagnetUrl(url){
+  return /^magnet:/i.test((url||'').trim());
+}
+function isMagnetSource(src){
+  return !!(src && isMagnetUrl(src.url));
+}
+// Splits any source list (movie or episode, auto-generated + manually added combined) into sources
+// today's embed/video/HLS player can open directly, and magnet links kept alongside them — those go
+// through resolveAndPlayMagnet() instead. Every entry point that hands a source list to
+// openPlayer/requestPlayback runs it through here first — that's the entire integration with the
+// existing playback source system.
+function splitPlayableSources(sources){
+  sources = sources || [];
+  return {
+    playable: sources.filter(s=>!isMagnetSource(s)),
+    magnets: sources.filter(isMagnetSource),
+  };
+}
+// ctx carries which library title/episode this magnet belongs to ({itemId, seasonNum, epNum}) so
+// "Play in Video Player" can hand the resolved stream to requestPlayback with the right watch-
+// progress/resume key attached, same as playing any other source for that title would.
+function openMagnetSource(url, label, ctx){
+  const serverUrl = (state.settings.torrentServerUrl||'').trim();
+  openModal(`
+    <div class="modal-head"><h2>${ICON.magnet} ${esc(label||'Magnet Link')}</h2><button class="btn-icon" onclick="closeModal()">${ICON.close}</button></div>
+    <div class="field">
+      <label>Magnet URI</label>
+      <textarea id="magnetLinkText" readonly style="min-height:90px; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px;">${esc(url)}</textarea>
+      ${serverUrl ? '' : `<div class="field-hint">Set a Torrent Streaming Server URL in Settings &rarr; Playback to play this inside the app's own player — otherwise it can only be opened in an external torrent app.</div>`}
+    </div>
+    <div class="modal-footer" style="flex-wrap:wrap;">
+      <button class="btn btn-ghost" onclick="copyMagnetLink()">${ICON.link} Copy Link</button>
+      <a class="btn btn-ghost" href="${esc(url)}" style="text-decoration:none;">${ICON.magnet} Open in Torrent App</a>
+      ${serverUrl ? `<button id="magnetPlayBtn" class="btn btn-primary" onclick='resolveAndPlayMagnet(${esc(JSON.stringify(url))}, ${esc(JSON.stringify(label))}, ${esc(JSON.stringify(ctx||null))})'>${ICON.play} Play in Video Player</button>` : ''}
+    </div>
+  `);
+}
+function copyMagnetLink(){
+  const el = document.getElementById('magnetLinkText');
+  if(!el) return;
+  navigator.clipboard.writeText(el.value).then(()=>toast('Magnet link copied')).catch(()=>toast('Could not copy link'));
+}
+// Calls the companion streaming server's /resolve endpoint, which joins the torrent swarm, picks the
+// largest video file inside it, and returns an HTTP URL this app's own player can open directly —
+// same as GET /resolve?magnet=... documented in the server's setup guide. Finding peers/metadata can
+// take anywhere from a couple seconds to (rarely) a minute or more depending on swarm health, so the
+// button shows a connecting state rather than looking stuck.
+async function resolveAndPlayMagnet(url, label, ctx){
+  const serverUrl = (state.settings.torrentServerUrl||'').trim().replace(/\/+$/,'');
+  if(!serverUrl){ toast('Set a Torrent Streaming Server URL in Settings → Playback first'); return; }
+  const btn = document.getElementById('magnetPlayBtn');
+  const originalBtnHtml = btn ? btn.innerHTML : '';
+  if(btn){ btn.disabled = true; btn.innerHTML = `${ICON.magnet} Connecting to swarm…`; }
+  try{
+    const res = await fetch(`${serverUrl}/resolve?magnet=${encodeURIComponent(url)}`);
+    if(!res.ok){
+      let msg = 'Server returned ' + res.status;
+      try{ const err = await res.json(); if(err && err.error) msg = err.error; }catch(e){}
+      throw new Error(msg);
+    }
+    const data = await res.json();
+    if(!data.streamUrl) throw new Error('Server did not return a stream URL');
+    const item = ctx && ctx.itemId ? getItem(ctx.itemId) : null;
+    closeModal();
+    const source = {label: label || data.fileName || 'Magnet Stream', url: data.streamUrl};
+    if(item){
+      requestPlayback(item, ctx.seasonNum ?? null, ctx.epNum ?? null, [source]);
+    } else {
+      toast('Resolved — but this magnet has no title attached to play it against');
+    }
+  }catch(e){
+    toast('Could not resolve magnet link: ' + e.message);
+    if(btn){ btn.disabled = false; btn.innerHTML = originalBtnHtml; }
+  }
+}
+// Reusable chip list for any set of magnet sources — used on the movie detail page and inside the
+// episode-info modal, so both places render/behave identically. ctx is passed straight through to
+// openMagnetSource so the Play button there knows which title/episode to attach playback to.
+function magnetSourcesRowHtml(magnets, fallbackLabel, ctx){
+  if(!magnets || !magnets.length) return '';
+  return `<div class="magnet-sources-row">${magnets.map((m,i)=>{
+    const label = m.label && m.label.trim() ? m.label.trim() : `${fallbackLabel||'Magnet'} ${magnets.length>1?i+1:''}`.trim();
+    return `<button type="button" class="magnet-chip" onclick='openMagnetSource(${esc(JSON.stringify(m.url))}, ${esc(JSON.stringify(label))}, ${esc(JSON.stringify(ctx||null))})'>${ICON.magnet} ${esc(label)}</button>`;
+  }).join('')}</div>`;
+}
+
 function detectEmbed(url){
   url = url.trim();
   let m;
+  if(isMagnetUrl(url)){
+    return {kind:'magnet', src:url};
+  }
   if((m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/live\/)([\w-]{6,})/))){
     return {kind:'iframe', src:`https://www.youtube.com/embed/${m[1]}?autoplay=1`, isYoutube:true};
   }
