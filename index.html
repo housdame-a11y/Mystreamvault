@@ -3842,16 +3842,32 @@ function fallbackHtml(title){
 
 function itemProgressPct(item){
   if(item.type==='movie') return movieProgressPct(item);
-  const prog = item.progress || {};
-  let last = null;
-  (item.seasons||[]).forEach(s=>{
-    (s.episodes||[]).forEach(e=>{
-      const key = 's'+s.number+'e'+e.number;
-      if(prog[key]) last = prog[key];
-    });
-  });
-  if(!last || !last.duration) return 0;
-  return Math.min(100, Math.round((last.timestamp/last.duration)*100));
+  // Whole-show completion, not one episode's own playback position: 5 of 10 episodes watched = 50%,
+  // full stop. Moves only in whole-episode steps as episodes cross the watched threshold, instead of
+  // reflecting a single episode's in-progress timestamp (which would jump around per-episode and,
+  // right after finishing one, either sit near 100% or reset to 0% depending on what's "next" —
+  // neither of which answers "how much of this show have I actually watched").
+  // Used on plain grid cards (cardHtml) — anywhere that's showing "this show" rather than resuming
+  // one specific episode. See episodeProgressPct for the Continue Watching / Hero counterpart.
+  const summary = getWatchProgressSummary(item);
+  if(!summary || !summary.total) return 0;
+  const watchedCount = summary.total - summary.remaining;
+  return Math.round((watchedCount/summary.total)*100);
+}
+// Counterpart to itemProgressPct, used wherever the UI is resuming one specific episode rather than
+// summarizing the whole show — Continue Watching cards and the Hero "Resume" slide, both of which
+// show a "Next Up: S_E_" label right next to this bar and press Play into that exact episode. Here
+// the bar has to match THAT episode's own playback position (0% if never started, partial if you'd
+// already dipped in), not the show's overall completion — a 50%-complete show whose next episode
+// hasn't been touched should show an empty bar, not a half-full one.
+function episodeProgressPct(item){
+  if(item.type==='movie') return movieProgressPct(item);
+  const summary = getWatchProgressSummary(item);
+  if(!summary || !summary.next) return 0; // fully watched (or no episode data) — nothing to resume
+  const key = 's'+summary.next.season+'e'+summary.next.episode.number;
+  const p = (item.progress||{})[key];
+  if(!p || !p.duration) return 0;
+  return Math.min(100, Math.round((p.timestamp/p.duration)*100));
 }
 function movieProgressPct(item){
   const p = (item.progress||{}).movie;
@@ -4491,7 +4507,7 @@ function heroCarouselHtml(items){
     </div>`;
 }
 function heroSlideHtml(item){
-  const pct = item.type==='movie' ? movieProgressPct(item) : itemProgressPct(item);
+  const pct = item.type==='movie' ? movieProgressPct(item) : episodeProgressPct(item);
   const showResume = isStarted(item) && !isFullyWatched(item);
   const titleJsSafe = esc(item.title).replace(/'/g,"&#39;");
   return `
@@ -4703,7 +4719,7 @@ function removeFromContinueWatching(id){
 // the outer tile, so a hovered trailer fills just the thumbnail and doesn't stretch under the
 // always-visible title/meta text below it.
 function continueWatchingCardHtml(item){
-  const pct = item.type==='movie' ? movieProgressPct(item) : itemProgressPct(item);
+  const pct = item.type==='movie' ? movieProgressPct(item) : episodeProgressPct(item);
   let metaHtml = `${esc(item.year||'')}${item.genre&&item.genre.length?' • '+esc(item.genre[0]):''}`;
   if(item.type==='series'){
     const summary = getWatchProgressSummary(item);
@@ -6123,8 +6139,15 @@ function renderMyShowsListing(results){
   const search = (state.schedule.search||'').trim().toLowerCase();
   let list = results;
   if(search) list = rankedTitleSearch(list, search, r=> r.item.title||'');
+  // Only unfinished shows belong in a "next episode" schedule — a show TVmaze marks Ended has
+  // nothing left to air, so it would just sit here forever showing "no upcoming episode". Shows we
+  // couldn't find on TVmaze at all are kept (status:null), since we can't confirm they're actually
+  // finished — better to show them than to silently hide a show that's just unmatched.
+  list = list.filter(r => !r.show || r.show.status !== 'Ended');
   if(!list.length){
-    container.innerHTML = emptyState('Nothing found', 'Try a different search.', '', '');
+    container.innerHTML = search
+      ? emptyState('Nothing found', 'Try a different search.', '', '')
+      : emptyState('No unfinished shows', 'Every show on your watchlist has ended — nothing left to air.', '', '');
     return;
   }
   list = [...list].sort((a,b)=>{
@@ -6146,7 +6169,7 @@ function myShowRowHtml(r){
   const network = (show && ((show.network&&show.network.name)||(show.webChannel&&show.webChannel.name))) || '';
   const statusHtml = airstamp
     ? `<span class="schedule-countdown" data-airstamp="${airstamp}">--</span>`
-    : (show ? `<span class="schedule-network" style="margin-top:0;">No upcoming episode</span>` : `<span class="schedule-network" style="margin-top:0; color:#ff8b93;">Not found on TVmaze</span>`);
+    : (show ? `<span class="schedule-countdown" style="opacity:.7;">TBD</span>` : `<span class="schedule-network" style="margin-top:0; color:#ff8b93;">Not found on TVmaze</span>`);
   return `
     <div class="schedule-row" style="cursor:pointer;" onclick="openMyShowModal('${item.id}')">
       <div class="schedule-thumb">${img?`<img src="${esc(img)}" alt="" loading="lazy" ${contentBlurImgAttrs()}>`:fallbackHtml(item.title||'?')}</div>
@@ -7837,19 +7860,20 @@ function deleteItemFromManageLib(id){
   toast('Title deleted');
   filterManageLibResults();
 }
-// Settings sections default to expanded — settingsSectionClass() only returns 'is-collapsed' once
-// the person has actually clicked a header to close it, tracked per-section-key in
-// state.settingsCollapsed so it survives any full re-render of the Settings page (e.g. after saving
-// the subtitle display defaults, which calls router() to refresh its inputs).
+// Settings sections default to collapsed — settingsSectionClass() only OMITS 'is-collapsed' once
+// the person has actually clicked a header to open it, tracked per-section-key in
+// state.settingsCollapsed (false = expanded) so it survives any full re-render of the Settings page
+// (e.g. after saving the subtitle display defaults, which calls router() to refresh its inputs).
 function settingsSectionClass(key){
-  return (state.settingsCollapsed && state.settingsCollapsed[key]) ? ' is-collapsed' : '';
+  return (state.settingsCollapsed && state.settingsCollapsed[key]===false) ? '' : ' is-collapsed';
 }
 // Toggles just the one clicked section's class directly on its existing DOM node, rather than
 // re-rendering the whole Settings page — a full re-render would blow away whatever the person has
 // typed into any other section's inputs (e.g. a half-typed Manage Library search) and reset scroll.
 function toggleSettingsSection(key){
   state.settingsCollapsed = state.settingsCollapsed || {};
-  const collapsed = !state.settingsCollapsed[key];
+  const currentlyCollapsed = state.settingsCollapsed[key] !== false; // undefined or true => collapsed (the default)
+  const collapsed = !currentlyCollapsed; // toggle
   state.settingsCollapsed[key] = collapsed;
   const section = document.querySelector('.settings-section[data-section="'+key+'"]');
   if(section) section.classList.toggle('is-collapsed', collapsed);
@@ -7868,55 +7892,38 @@ function renderSettings(){
         <button class="btn btn-primary" onclick="saveApiKeys()">Save Keys</button>
         </div>
       </div>
-      <div class="settings-section${settingsSectionClass('curatedCollections')}" data-section="curatedCollections">
-        <h3 onclick="toggleSettingsSection('curatedCollections')"><span class="settings-title-text">Curated Collections</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
-        <div class="settings-section-body">
-        <p class="field-hint" style="margin-bottom:14px;">
-          One-tap starting points — loads a hand-picked list of IMDb IDs straight into the Add Title wizard's Step 1, exactly as if you'd pasted them yourself. Nothing is added until you review and finish the wizard; requires your OMDb and TMDB keys above.
-        </p>
-        ${Object.keys(CURATED_COLLECTIONS).map(key=>{
-          const coll = CURATED_COLLECTIONS[key];
-          return `
-          <div class="settings-row" style="justify-content:space-between; align-items:center; padding:10px 0; border-top:1px solid var(--border);">
-            <div style="flex:1; min-width:0; padding-right:12px;">
-              <div style="font-weight:600;">${esc(coll.name)} <span style="font-weight:400; color:var(--muted);">(${coll.ids.length} titles)</span></div>
-              <div class="field-hint" style="margin:2px 0 0;">${esc(coll.description)}</div>
-            </div>
-            <button class="btn btn-primary" style="flex-shrink:0;" onclick="openAddWizardFromCollection('${key}')">Load into Wizard</button>
-          </div>`;
-        }).join('')}
-        </div>
-      </div>
-      <div class="settings-section${settingsSectionClass('manageLibrary')}" data-section="manageLibrary">
-        <h3 onclick="toggleSettingsSection('manageLibrary')"><span class="settings-title-text">Manage Library</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
-        <div class="settings-section-body">
-        <p class="field-hint" style="margin-bottom:14px;">
-          Search your library to edit a title's details or sources, or delete it entirely.
-        </p>
-        <div class="field">
-          <input id="manageLibSearch" placeholder="Search movies and TV shows..." oninput="filterManageLibResults()">
-        </div>
-        <div class="manage-lib-rows" id="manageLibResults">
-          <div class="manage-lib-empty">Start typing a title to find it.</div>
-        </div>
-        </div>
-      </div>
-      <div class="settings-section${settingsSectionClass('contentFilters')}" data-section="contentFilters">
-        <h3 onclick="toggleSettingsSection('contentFilters')"><span class="settings-title-text">Content Filters</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
+      <div class="settings-section${settingsSectionClass('playback')}" data-section="playback">
+        <h3 onclick="toggleSettingsSection('playback')"><span class="settings-title-text">Playback</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
         <div class="settings-section-body">
         <div class="field">
-          <label>Banned Words</label>
-          <div class="actor-chips-wrap" id="bannedWordChips">${bannedWordChipsHtml()}</div>
-          <div style="display:flex; gap:8px; margin-top:10px;">
-            <input id="bannedWordInput" placeholder="Add a word and press Enter" onkeydown="if(event.key==='Enter'){event.preventDefault(); addBannedWordFromInput();}">
-            <button type="button" class="btn-icon" title="Add word" onclick="addBannedWordFromInput()">${ICON.plus}</button>
+          <label>Streaming Providers</label>
+          <div id="streamingProviderRows">${streamingProviderRowsHtml()}</div>
+          <button type="button" class="btn btn-ghost" onclick="addStreamingProviderRow()">${ICON.plus} Add Provider</button>
+          <div class="field-hint">
+            Bare domains only (no <code>https://</code>, no path) — e.g. <code>example.com</code>. Every movie/episode with an IMDb ID gets a playable link generated automatically for each domain here, built fresh each time — nothing is ever stored as a full URL. The first domain becomes "Source 1", the second "Source 2", and so on; they show up (read-only) alongside any sources you add manually when editing a title.
           </div>
-          <div class="field-hint">Any title whose name contains one of these words (matched anywhere in the title, not case-sensitive) is refused when adding — via manual add, IMDb import, bulk import, or the import wizard. Doesn't affect titles already in your library.</div>
         </div>
-        <div class="field">
-          <label>Banned Genres</label>
-          <div class="chip-select" id="bannedGenreChips">${[...new Set([...DEFAULT_GENRES, ...allGenres()])].map(g=>`<button type="button" class="chip-btn ${(state.settings.bannedGenres||[]).includes(g)?'active':''}" onclick="toggleBannedGenre('${g.replace(/'/g,"\\'")}')">${esc(g)}</button>`).join('')}</div>
-          <div class="field-hint">Any title tagged with one of these genres is refused when adding, the same way as a banned word.</div>
+        <button class="btn btn-primary" onclick="saveStreamingProviders()">Save Streaming Providers</button>
+        <div class="field" style="margin-top:20px;">
+          <label>VidSrc Embed Domain</label>
+          <select id="vidsrcDomain" class="select-input" style="width:100%; border-radius:8px;">
+            ${VIDSRC_DOMAINS.map(d=>`<option value="${d}" ${s.vidsrcDomain===d?'selected':''}>${d}</option>`).join('')}
+          </select>
+          <div class="field-hint">Any VidSrc link you paste (any mirror, any format) is automatically rewritten to this domain before playback.</div>
+        </div>
+        <button class="btn btn-primary" onclick="saveVidsrcDomain()">Save Domain</button>
+        <div class="field" style="margin-top:20px;">
+          <label>Block Popup / Redirect Ads</label>
+          <div class="toggle-row">
+            <label class="switch">
+              <input type="checkbox" id="blockPopupAdsToggle" ${s.blockPopupAds?'checked':''} onchange="toggleBlockPopupAds(this.checked)">
+              <span class="switch-slider"></span>
+            </label>
+            <span class="toggle-row-label">${s.blockPopupAds?'On':'Off'}</span>
+          </div>
+          <div class="field-hint">
+            Stops third-party embeds from opening popup tabs or redirecting the page. It can't remove ads shown <em>inside</em> the player itself — that content lives on another site's server, outside what any webpage (including this one) can see or filter; a browser extension like uBlock Origin is the only thing that actually does that. Some ad-supported sources detect this and refuse to play ("Media Unavailable") — if a specific source breaks, turn this off. Doesn't affect direct .m3u8/mp4 sources, since those don't run third-party scripts at all.
+          </div>
         </div>
         </div>
       </div>
@@ -7948,47 +7955,6 @@ function renderSettings(){
         <div class="settings-row" style="margin-top:10px;">
           <button class="btn btn-danger" onclick="resetAllSkipSegments()">${ICON.trash} Reset All Skip Segments</button>
         </div>
-        </div>
-      </div>
-      <div class="settings-section${settingsSectionClass('featuredRelease')}" data-section="featuredRelease">
-        <h3 onclick="toggleSettingsSection('featuredRelease')"><span class="settings-title-text">Featured Release</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
-        <div class="settings-section-body">
-        <div class="field">
-          <div class="toggle-row">
-            <label class="switch">
-              <input type="checkbox" id="featuredArtworkBleedToggle" ${s.featuredArtworkBleed?'checked':''} onchange="toggleFeaturedArtworkBleed(this.checked)">
-              <span class="switch-slider"></span>
-            </label>
-            <span class="toggle-row-label">${s.featuredArtworkBleed?'On':'Off'}</span>
-          </div>
-          <div class="field-hint">
-            The Home/Movies/TV "Featured Release" card lets its artwork bleed slightly above the card's top edge for a layered look. If that reads as an awkward crop for a particular title's artwork, turn this off — the card falls back to showing the artwork cleanly contained inside its bounds, no escape. For full control per-title, add a Featured Cutout URL on that title's edit page (a transparent PNG with the subject cut out) — it replaces this automatic effect entirely for that title, on or off.
-          </div>
-        </div>
-        </div>
-      </div>
-      <div class="settings-section${settingsSectionClass('tmdbTop100')}" data-section="tmdbTop100">
-        <h3 onclick="toggleSettingsSection('tmdbTop100')"><span class="settings-title-text">TMDB Top 100</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
-        <div class="settings-section-body">
-        <p class="field-hint" style="margin-bottom:14px;">
-          Search below to remove a title from the <a href="#collections/top100movies">TMDB Top 100 Movies</a> or <a href="#collections/top100shows">TMDB Top 100 Shows</a> collection. Removing one always pulls in the next best-ranked title to fill its spot. Removal is permanent — there's no restore.
-        </p>
-        <div class="settings-row" style="margin-bottom:8px; justify-content:space-between; align-items:center;">
-          <span class="toggle-row-label" id="tmdbTop100Count_movie">Movies (${(state.settings.tmdbTop100Excluded.movie||[]).length} removed)</span>
-        </div>
-        <div class="settings-row" style="gap:8px; margin-bottom:10px;">
-          <input type="text" class="search-input" id="tmdbTop100SearchInput_movie" placeholder="Search movies to remove…" oninput="debounceTmdbTop100Search('movie')" onkeydown="if(event.key==='Enter'){event.preventDefault(); searchTmdbTop100Exclude('movie');}">
-          <button type="button" class="btn btn-ghost" onclick="searchTmdbTop100Exclude('movie')">Search</button>
-        </div>
-        <div id="tmdbTop100SearchResults_movie"></div>
-        <div class="settings-row" style="margin:18px 0 8px; justify-content:space-between; align-items:center;">
-          <span class="toggle-row-label" id="tmdbTop100Count_tv">Shows (${(state.settings.tmdbTop100Excluded.tv||[]).length} removed)</span>
-        </div>
-        <div class="settings-row" style="gap:8px; margin-bottom:10px;">
-          <input type="text" class="search-input" id="tmdbTop100SearchInput_tv" placeholder="Search shows to remove…" oninput="debounceTmdbTop100Search('tv')" onkeydown="if(event.key==='Enter'){event.preventDefault(); searchTmdbTop100Exclude('tv');}">
-          <button type="button" class="btn btn-ghost" onclick="searchTmdbTop100Exclude('tv')">Search</button>
-        </div>
-        <div id="tmdbTop100SearchResults_tv"></div>
         </div>
       </div>
       <div class="settings-section${settingsSectionClass('subtitles')}" data-section="subtitles">
@@ -8081,38 +8047,22 @@ function renderSettings(){
         </div>
         </div>
       </div>
-      <div class="settings-section${settingsSectionClass('playback')}" data-section="playback">
-        <h3 onclick="toggleSettingsSection('playback')"><span class="settings-title-text">Playback</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
+      <div class="settings-section${settingsSectionClass('contentFilters')}" data-section="contentFilters">
+        <h3 onclick="toggleSettingsSection('contentFilters')"><span class="settings-title-text">Content Filters</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
         <div class="settings-section-body">
         <div class="field">
-          <label>Streaming Providers</label>
-          <div id="streamingProviderRows">${streamingProviderRowsHtml()}</div>
-          <button type="button" class="btn btn-ghost" onclick="addStreamingProviderRow()">${ICON.plus} Add Provider</button>
-          <div class="field-hint">
-            Bare domains only (no <code>https://</code>, no path) — e.g. <code>example.com</code>. Every movie/episode with an IMDb ID gets a playable link generated automatically for each domain here, built fresh each time — nothing is ever stored as a full URL. The first domain becomes "Source 1", the second "Source 2", and so on; they show up (read-only) alongside any sources you add manually when editing a title.
+          <label>Banned Words</label>
+          <div class="actor-chips-wrap" id="bannedWordChips">${bannedWordChipsHtml()}</div>
+          <div style="display:flex; gap:8px; margin-top:10px;">
+            <input id="bannedWordInput" placeholder="Add a word and press Enter" onkeydown="if(event.key==='Enter'){event.preventDefault(); addBannedWordFromInput();}">
+            <button type="button" class="btn-icon" title="Add word" onclick="addBannedWordFromInput()">${ICON.plus}</button>
           </div>
+          <div class="field-hint">Any title whose name contains one of these words (matched anywhere in the title, not case-sensitive) is refused when adding — via manual add, IMDb import, bulk import, or the import wizard. Doesn't affect titles already in your library.</div>
         </div>
-        <button class="btn btn-primary" onclick="saveStreamingProviders()">Save Streaming Providers</button>
-        <div class="field" style="margin-top:20px;">
-          <label>VidSrc Embed Domain</label>
-          <select id="vidsrcDomain" class="select-input" style="width:100%; border-radius:8px;">
-            ${VIDSRC_DOMAINS.map(d=>`<option value="${d}" ${s.vidsrcDomain===d?'selected':''}>${d}</option>`).join('')}
-          </select>
-          <div class="field-hint">Any VidSrc link you paste (any mirror, any format) is automatically rewritten to this domain before playback.</div>
-        </div>
-        <button class="btn btn-primary" onclick="saveVidsrcDomain()">Save Domain</button>
-        <div class="field" style="margin-top:20px;">
-          <label>Block Popup / Redirect Ads</label>
-          <div class="toggle-row">
-            <label class="switch">
-              <input type="checkbox" id="blockPopupAdsToggle" ${s.blockPopupAds?'checked':''} onchange="toggleBlockPopupAds(this.checked)">
-              <span class="switch-slider"></span>
-            </label>
-            <span class="toggle-row-label">${s.blockPopupAds?'On':'Off'}</span>
-          </div>
-          <div class="field-hint">
-            Stops third-party embeds from opening popup tabs or redirecting the page. It can't remove ads shown <em>inside</em> the player itself — that content lives on another site's server, outside what any webpage (including this one) can see or filter; a browser extension like uBlock Origin is the only thing that actually does that. Some ad-supported sources detect this and refuse to play ("Media Unavailable") — if a specific source breaks, turn this off. Doesn't affect direct .m3u8/mp4 sources, since those don't run third-party scripts at all.
-          </div>
+        <div class="field">
+          <label>Banned Genres</label>
+          <div class="chip-select" id="bannedGenreChips">${[...new Set([...DEFAULT_GENRES, ...allGenres()])].map(g=>`<button type="button" class="chip-btn ${(state.settings.bannedGenres||[]).includes(g)?'active':''}" onclick="toggleBannedGenre('${g.replace(/'/g,"\\'")}')">${esc(g)}</button>`).join('')}</div>
+          <div class="field-hint">Any title tagged with one of these genres is refused when adding, the same way as a banned word.</div>
         </div>
         </div>
       </div>
@@ -8129,24 +8079,78 @@ function renderSettings(){
         <button class="btn btn-primary" onclick="saveScheduleCountry()">Save</button>
         </div>
       </div>
-      <div class="settings-section${settingsSectionClass('cloudSync')}" data-section="cloudSync">
-        <h3 onclick="toggleSettingsSection('cloudSync')"><span class="settings-title-text">Cloud Progress Sync <span style="font-weight:600; color:var(--muted); text-transform:none;">(optional)</span></span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
+      <div class="settings-section${settingsSectionClass('featuredRelease')}" data-section="featuredRelease">
+        <h3 onclick="toggleSettingsSection('featuredRelease')"><span class="settings-title-text">Featured Release</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
         <div class="settings-section-body">
-        <p class="field-hint" style="margin-bottom:14px;">
-          Watch progress always saves to this device's local storage first — that's the source of truth and everything works fully offline. Fill these in to <em>also</em> mirror progress to your own Supabase project (best-effort, fails silently if unreachable). Requires a <code>watch_progress</code> table with an INSERT/UPSERT policy for the anon key. Leave blank to skip this entirely.
-        </p>
-        <div class="field"><label>Supabase Project URL</label><input id="supabaseUrlInput" value="${esc(s.supabaseUrl)}" placeholder="https://xxxx.supabase.co"></div>
-        <div class="field"><label>Supabase Anon Key</label><input id="supabaseKeyInput" value="${esc(s.supabaseKey)}" placeholder="eyJhbGciOi..."></div>
-        <button class="btn btn-primary" onclick="saveSupabaseConfig()">Save Cloud Sync Settings</button>
+        <div class="field">
+          <div class="toggle-row">
+            <label class="switch">
+              <input type="checkbox" id="featuredArtworkBleedToggle" ${s.featuredArtworkBleed?'checked':''} onchange="toggleFeaturedArtworkBleed(this.checked)">
+              <span class="switch-slider"></span>
+            </label>
+            <span class="toggle-row-label">${s.featuredArtworkBleed?'On':'Off'}</span>
+          </div>
+          <div class="field-hint">
+            The Home/Movies/TV "Featured Release" card lets its artwork bleed slightly above the card's top edge for a layered look. If that reads as an awkward crop for a particular title's artwork, turn this off — the card falls back to showing the artwork cleanly contained inside its bounds, no escape. For full control per-title, add a Featured Cutout URL on that title's edit page (a transparent PNG with the subject cut out) — it replaces this automatic effect entirely for that title, on or off.
+          </div>
+        </div>
         </div>
       </div>
-      <div class="settings-section${settingsSectionClass('linkHealth')}" data-section="linkHealth">
-        <h3 onclick="toggleSettingsSection('linkHealth')"><span class="settings-title-text">Link Health</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
+      <div class="settings-section${settingsSectionClass('curatedCollections')}" data-section="curatedCollections">
+        <h3 onclick="toggleSettingsSection('curatedCollections')"><span class="settings-title-text">Curated Collections</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
         <div class="settings-section-body">
         <p class="field-hint" style="margin-bottom:14px;">
-          Scans every stream URL in your library — movies, episodes, and live channels — to catch sources that have gone fully offline (dead domain, connection refused, timeout). Browsers can't read the actual response from another site, so this can't detect a source that loads but shows a 404 or an "unavailable" page — only ones that don't respond at all. Treat it as a first pass, not a guarantee.
+          One-tap starting points — loads a hand-picked list of IMDb IDs straight into the Add Title wizard's Step 1, exactly as if you'd pasted them yourself. Nothing is added until you review and finish the wizard; requires your OMDb and TMDB keys above.
         </p>
-        <button class="btn btn-primary" onclick="openLinkHealthCheck()">${ICON.search} Check All Sources</button>
+        ${Object.keys(CURATED_COLLECTIONS).map(key=>{
+          const coll = CURATED_COLLECTIONS[key];
+          return `
+          <div class="settings-row" style="justify-content:space-between; align-items:center; padding:10px 0; border-top:1px solid var(--border);">
+            <div style="flex:1; min-width:0; padding-right:12px;">
+              <div style="font-weight:600;">${esc(coll.name)} <span style="font-weight:400; color:var(--muted);">(${coll.ids.length} titles)</span></div>
+              <div class="field-hint" style="margin:2px 0 0;">${esc(coll.description)}</div>
+            </div>
+            <button class="btn btn-primary" style="flex-shrink:0;" onclick="openAddWizardFromCollection('${key}')">Load into Wizard</button>
+          </div>`;
+        }).join('')}
+        </div>
+      </div>
+      <div class="settings-section${settingsSectionClass('tmdbTop100')}" data-section="tmdbTop100">
+        <h3 onclick="toggleSettingsSection('tmdbTop100')"><span class="settings-title-text">TMDB Top 100</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
+        <div class="settings-section-body">
+        <p class="field-hint" style="margin-bottom:14px;">
+          Search below to remove a title from the <a href="#collections/top100movies">TMDB Top 100 Movies</a> or <a href="#collections/top100shows">TMDB Top 100 Shows</a> collection. Removing one always pulls in the next best-ranked title to fill its spot. Removal is permanent — there's no restore.
+        </p>
+        <div class="settings-row" style="margin-bottom:8px; justify-content:space-between; align-items:center;">
+          <span class="toggle-row-label" id="tmdbTop100Count_movie">Movies (${(state.settings.tmdbTop100Excluded.movie||[]).length} removed)</span>
+        </div>
+        <div class="settings-row" style="gap:8px; margin-bottom:10px;">
+          <input type="text" class="search-input" id="tmdbTop100SearchInput_movie" placeholder="Search movies to remove…" oninput="debounceTmdbTop100Search('movie')" onkeydown="if(event.key==='Enter'){event.preventDefault(); searchTmdbTop100Exclude('movie');}">
+          <button type="button" class="btn btn-ghost" onclick="searchTmdbTop100Exclude('movie')">Search</button>
+        </div>
+        <div id="tmdbTop100SearchResults_movie"></div>
+        <div class="settings-row" style="margin:18px 0 8px; justify-content:space-between; align-items:center;">
+          <span class="toggle-row-label" id="tmdbTop100Count_tv">Shows (${(state.settings.tmdbTop100Excluded.tv||[]).length} removed)</span>
+        </div>
+        <div class="settings-row" style="gap:8px; margin-bottom:10px;">
+          <input type="text" class="search-input" id="tmdbTop100SearchInput_tv" placeholder="Search shows to remove…" oninput="debounceTmdbTop100Search('tv')" onkeydown="if(event.key==='Enter'){event.preventDefault(); searchTmdbTop100Exclude('tv');}">
+          <button type="button" class="btn btn-ghost" onclick="searchTmdbTop100Exclude('tv')">Search</button>
+        </div>
+        <div id="tmdbTop100SearchResults_tv"></div>
+        </div>
+      </div>
+      <div class="settings-section${settingsSectionClass('manageLibrary')}" data-section="manageLibrary">
+        <h3 onclick="toggleSettingsSection('manageLibrary')"><span class="settings-title-text">Manage Library</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
+        <div class="settings-section-body">
+        <p class="field-hint" style="margin-bottom:14px;">
+          Search your library to edit a title's details or sources, or delete it entirely.
+        </p>
+        <div class="field">
+          <input id="manageLibSearch" placeholder="Search movies and TV shows..." oninput="filterManageLibResults()">
+        </div>
+        <div class="manage-lib-rows" id="manageLibResults">
+          <div class="manage-lib-empty">Start typing a title to find it.</div>
+        </div>
         </div>
       </div>
       <div class="settings-section${settingsSectionClass('libraryMetadata')}" data-section="libraryMetadata">
@@ -8160,6 +8164,26 @@ function renderSettings(){
           Same as above, but for movies — re-fetches poster, backdrop, logo, description, tagline, cast, and content rating from TMDB for every movie already in your library. Requires a TMDB API key above. <b>Your stream links, watch progress, and rating are never touched</b> — only metadata is refreshed.
         </p>
         <button class="btn btn-primary" onclick="updateAllMoviesMetadata()">${ICON.restart} Update All Movies Info</button>
+        </div>
+      </div>
+      <div class="settings-section${settingsSectionClass('linkHealth')}" data-section="linkHealth">
+        <h3 onclick="toggleSettingsSection('linkHealth')"><span class="settings-title-text">Link Health</span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
+        <div class="settings-section-body">
+        <p class="field-hint" style="margin-bottom:14px;">
+          Scans every stream URL in your library — movies, episodes, and live channels — to catch sources that have gone fully offline (dead domain, connection refused, timeout). Browsers can't read the actual response from another site, so this can't detect a source that loads but shows a 404 or an "unavailable" page — only ones that don't respond at all. Treat it as a first pass, not a guarantee.
+        </p>
+        <button class="btn btn-primary" onclick="openLinkHealthCheck()">${ICON.search} Check All Sources</button>
+        </div>
+      </div>
+      <div class="settings-section${settingsSectionClass('cloudSync')}" data-section="cloudSync">
+        <h3 onclick="toggleSettingsSection('cloudSync')"><span class="settings-title-text">Cloud Progress Sync <span style="font-weight:600; color:var(--muted); text-transform:none;">(optional)</span></span><span class="settings-chevron">${ICON.chevronDown}</span></h3>
+        <div class="settings-section-body">
+        <p class="field-hint" style="margin-bottom:14px;">
+          Watch progress always saves to this device's local storage first — that's the source of truth and everything works fully offline. Fill these in to <em>also</em> mirror progress to your own Supabase project (best-effort, fails silently if unreachable). Requires a <code>watch_progress</code> table with an INSERT/UPSERT policy for the anon key. Leave blank to skip this entirely.
+        </p>
+        <div class="field"><label>Supabase Project URL</label><input id="supabaseUrlInput" value="${esc(s.supabaseUrl)}" placeholder="https://xxxx.supabase.co"></div>
+        <div class="field"><label>Supabase Anon Key</label><input id="supabaseKeyInput" value="${esc(s.supabaseKey)}" placeholder="eyJhbGciOi..."></div>
+        <button class="btn btn-primary" onclick="saveSupabaseConfig()">Save Cloud Sync Settings</button>
         </div>
       </div>
       <div class="settings-section${settingsSectionClass('syncDevices')}" data-section="syncDevices">
@@ -12933,13 +12957,15 @@ function parseSrtCues(srt){
   return cues;
 }
 
-// Called ONLY from three places: (1) the PLAYER_EVENT listener, when player_status === "playing" —
-// the ongoing sync while actual playback is confirmed running; and one-shot immediate
-// recalculations at (2) a seek/restart/resume snap point and (3) applyCurrentSubtitleOffset (when
-// the sync offset itself changes). Deliberately NOT called from updatePlayerProgressUI, and never
-// from a setInterval/timer of any kind — elapsed here is always either a real player_progress value
-// from Vaplayer, or a position we ourselves just explicitly set (a seek target, 0 on restart, etc.),
-// never "time since the iframe was created" or "time since the loading screen disappeared".
+// Called from four places: (1) the requestAnimationFrame interpolation loop (startProgressInterpolation,
+// above) every frame while playback is confirmed running — this is what keeps cue timing accurate
+// between Vaplayer's real ~5s-apart position updates, since a cue that starts/ends entirely inside
+// that gap would otherwise never get checked; (2) the PLAYER_EVENT listener itself, as an immediate
+// snap the instant a real "playing" event lands (before the next rAF frame ticks); and one-shot
+// immediate recalculations at (3) a seek/restart/resume snap point and (4) applyCurrentSubtitleOffset
+// (when the sync offset itself changes). elapsed here is always either the interpolated `displayed`
+// value, a real player_progress value from Vaplayer, or a position we ourselves just explicitly set
+// (a seek target, 0 on restart, etc.) — never "time since the iframe was created".
 function updateSubtitleOverlay(elapsed){
   const el = document.getElementById('playerSubtitleOverlay');
   const p = state.player;
@@ -13545,19 +13571,21 @@ function updatePlayerProgressUI(displayElapsed){
   // doc comment for why bar UI and subtitle timing are no longer the same call.
 }
 // ---------------------------------------------------------------------------------------------
-// LOCAL PROGRESS INTERPOLATION — makes the bottom-bar progress bar move fluidly between the real
-// PLAYER_EVENT updates (which Vaplayer/VidSrc-family embeds only send every ~5s), instead of the
-// bar visibly jumping forward once per event.
+// LOCAL PROGRESS INTERPOLATION — makes the bottom-bar progress bar (and, since this also feeds
+// updateSubtitleOverlay, subtitle cue timing) move fluidly between the real PLAYER_EVENT updates
+// (which Vaplayer/VidSrc-family embeds only send every ~5s), instead of jumping forward once per
+// event — which for subtitles specifically meant short cues inside a gap never appearing at all,
+// and others lingering past their real end time or swapping early.
 //
 // How it works: p._elapsedSeconds / p._syncedAt together are a "sync point" — the last real
 // position Vaplayer told us about (or a position we ourselves just explicitly set, e.g. a seek
 // target) paired with the real clock time (performance.now()) it was set at. While playback is
 // actively confirmed running, a requestAnimationFrame loop below computes
 //   displayed = p._elapsedSeconds + (now - p._syncedAt)
-// every frame and feeds ONLY that number into updatePlayerProgressUI — never into
-// p._elapsedSeconds itself. That keeps every other consumer of p._elapsedSeconds (localStorage
-// saves via saveIframeProgressThrottled, isNearPlaybackEnd, the subtitle overlay) reading nothing
-// but real synced positions, exactly as before; only the visual bar gets the smoothing.
+// every frame and feeds that number into both updatePlayerProgressUI and updateSubtitleOverlay —
+// never into p._elapsedSeconds itself. That keeps every other consumer of p._elapsedSeconds
+// (localStorage saves via saveIframeProgressThrottled, isNearPlaybackEnd) reading nothing but real
+// synced positions, exactly as before; only the bar and the subtitle overlay get the smoothing.
 // Re-syncing is automatic and cheap: since the loop re-reads p._elapsedSeconds/p._syncedAt fresh
 // every frame rather than capturing them once, the next PLAYER_EVENT (or seek/restart/resume,
 // each of which updates both fields together — see setPlayerSyncPoint) is picked up on the very
@@ -13598,6 +13626,14 @@ function startProgressInterpolation(){
     // progress-bar clicks use, so an auto-skip looks identical to a manual seek to anyone watching.
     checkSkipSegments(displayed, (target)=> performPlayerSeek(target));
     updatePlayerProgressUI(displayed);
+    // Subtitles need the same per-frame smoothing as the progress bar above, not just the raw
+    // p._elapsedSeconds from the last real ~5s-apart PLAYER_EVENT: a cue that starts and ends
+    // entirely inside that 5s gap would never get checked at all (never appears), and a cue that IS
+    // caught mid-gue can end up displayed well past its real .end time, or swapped out early, purely
+    // depending on where the next sparse event happens to land. Feeding it `displayed` instead — the
+    // exact same continuously-advancing number the progress bar uses — keeps subtitle timing as
+    // accurate as the bar itself, independent of how often Vaplayer actually posts updates.
+    if(p.subtitleCues) updateSubtitleOverlay(displayed);
     progressAnimFrameId = requestAnimationFrame(tick);
   };
   progressAnimFrameId = requestAnimationFrame(tick);
