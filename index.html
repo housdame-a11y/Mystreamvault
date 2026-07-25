@@ -13626,8 +13626,14 @@ window.addEventListener('message', (event)=>{
       hidePlayerLoadingOverlay();
     }
     updatePlayerProgressUI();
-    startProgressInterpolation(); // begin/continue smoothly ticking the bar between events
-    if(p.subtitleCues) updateSubtitleOverlay(p._elapsedSeconds); // only synced while confirmed playing
+    startProgressInterpolation(); // begin/continue smoothly ticking the bar AND subtitle sync between
+    // events — the RAF loop above (see startProgressInterpolation) already calls updateSubtitleOverlay
+    // every frame with a smoothly-interpolated position. A second, separate updateSubtitleOverlay call
+    // used to happen right here on every raw PLAYER_EVENT, using Vaplayer's own quantized/rounded
+    // p._elapsedSeconds — a coarser, differently-timed source that could momentarily disagree with
+    // what the RAF loop had just displayed, flipping the DOM to a different cue for an instant before
+    // the next animation frame corrected it back. That mismatch was the actual subtitle flinch/twitch;
+    // removing this redundant call leaves the RAF loop as the single source of truth for cue timing.
     // End-of-playback check runs on EVERY playing event (not just the throttled save below) so the
     // end screen never lags behind the real remaining time — see isNearPlaybackEnd for why this is
     // remaining real seconds from Vaplayer, never TMDB runtime or a percentage of it.
