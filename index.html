@@ -1118,6 +1118,21 @@ body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
 .cast-chip-info{display:flex; flex-direction:column; min-width:0;}
 .cast-chip-name{font-size:13px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 .cast-chip-info .cast-character{font-size:11.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+/* Actor profile page header — reuses the same round-photo/fallback-initial language as cast chips
+   throughout the rest of the app, just larger, since this page is now specifically about the person
+   rather than a title that happens to feature them. */
+.actor-profile-head{display:flex; align-items:center; gap:18px; margin-bottom:28px;}
+.actor-profile-photo{width:88px; height:88px; border-radius:50%; overflow:hidden; flex-shrink:0; background:var(--surface2); border:2px solid #232837;}
+.actor-profile-photo img{width:100%; height:100%; object-fit:cover; display:block;}
+.actor-profile-photo .cast-avatar-fallback{font-size:28px;}
+.actor-profile-name{margin:0 0 4px; font-size:24px;}
+.actor-profile-meta{font-size:13px; font-weight:600; color:var(--muted); line-height:1.5;}
+@media (max-width:600px){
+  .actor-profile-head{gap:14px; margin-bottom:20px;}
+  .actor-profile-photo{width:64px; height:64px;}
+  .actor-profile-photo .cast-avatar-fallback{font-size:22px;}
+  .actor-profile-name{font-size:19px;}
+}
 .cast-show-more-btn{
   margin-top:14px; background:none; border:1px solid #232837; color:var(--highlight); font-size:12.5px; font-weight:700;
   padding:7px 14px; border-radius:8px; cursor:pointer; transition:border-color var(--transition), background var(--transition);
@@ -1771,15 +1786,16 @@ body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
   text-align:center; padding:24px; max-width:520px;
 }
 .player-pause-resume-btn{
-  width:78px; height:78px; border-radius:50%; border:2px solid rgba(255,255,255,.5);
-  background:rgba(255,255,255,.08); backdrop-filter:blur(6px); color:#fff;
+  width:78px; height:78px; border-radius:50%; border:2px solid var(--highlight);
+  background:var(--highlight); color:#04211f;
   display:flex; align-items:center; justify-content:center; cursor:pointer;
+  box-shadow:0 4px 20px rgba(61,219,217,.3);
   transition:transform var(--transition), background var(--transition), border-color var(--transition), box-shadow var(--transition);
 }
 .player-pause-resume-btn svg{width:32px; height:32px; margin-left:3px;}
 .player-pause-cover:hover .player-pause-resume-btn{
-  transform:scale(1.08); background:var(--highlight); border-color:var(--highlight); color:#04211f;
-  box-shadow:0 0 0 8px rgba(61,219,217,.16);
+  transform:scale(1.08); background:#5ce6e4; border-color:#5ce6e4;
+  box-shadow:0 4px 20px rgba(61,219,217,.3), 0 0 0 8px rgba(61,219,217,.16);
 }
 .player-pause-title{font-size:22px; font-weight:800; font-family:var(--display-font); color:#fff;}
 .player-pause-sub{font-size:13.5px; color:var(--muted); font-weight:600;}
@@ -1820,6 +1836,15 @@ body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
 .player-end-card-stars .my-rating-star svg{width:26px; height:26px;}
 .player-end-card-actions{display:flex; flex-direction:column; gap:10px; width:100%; margin-top:10px;}
 .player-end-card-actions .btn{width:100%; justify-content:center; padding:13px; font-size:14.5px;}
+/* Exit is the secondary action here — same frosted-glass language as the bottom bar's secondary
+   controls (Lock/Restart/Fullscreen) rather than the flat opaque box .btn-ghost uses everywhere
+   else in the app. Scoped to this card specifically so Settings and other .btn-ghost buttons
+   elsewhere keep their normal look. */
+.player-end-card-actions .btn-ghost{
+  background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.18);
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+}
+.player-end-card-actions .btn-ghost:hover{background:rgba(255,255,255,.16); border-color:rgba(255,255,255,.3);}
 /* Small pie-timer that fills up over the autoplay countdown, sitting right in the Next Episode
    button so the "why is this button changing" question is answered at a glance without a separate
    progress bar competing for attention. --pct is ticked from 0 to 100 by startEndCardAutoplay(). */
@@ -1933,17 +1958,39 @@ kbd.key{
 .player-hide-icon svg{width:26px; height:26px;}
 .player-hide-overlay span{font-size:13px; font-weight:700; color:var(--muted);}
 .player-bottom{
-  position:absolute; bottom:0; left:0; right:0; z-index:5; padding:14px 24px 18px;
+  position:absolute; bottom:0; left:0; right:0; z-index:5; padding:16px 24px 20px;
   display:flex; align-items:center; gap:16px;
-  background:linear-gradient(0deg, rgba(0,0,0,.85), transparent); transition:opacity .25s ease;
+  background:linear-gradient(0deg, rgba(4,5,8,.92) 0%, rgba(4,5,8,.7) 45%, transparent 100%);
+  transition:opacity .25s ease;
 }
-.player-bottom-left{display:flex; align-items:center; justify-content:flex-start; gap:4px; flex-shrink:0;}
+.player-bottom-left{display:flex; align-items:center; justify-content:flex-start; gap:8px; flex-shrink:0;}
 /* Holds current-time / scrubber / total-time — grows to fill whatever room is left between the
    left transport cluster and the right-side buttons, exactly like Netflix's bottom bar. */
 .player-bottom-progress{display:flex; align-items:center; gap:10px; flex:1 1 auto; min-width:0;}
-.player-bottom-right{display:flex; align-items:center; justify-content:flex-end; gap:10px; flex-shrink:0;}
-.player-bottom .btn-icon{background:rgba(22,25,35,.6); border-color:rgba(255,255,255,.12);}
-.player-bottom .btn-icon:hover{background:rgba(22,25,35,.9);}
+.player-bottom-right{display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-shrink:0;}
+/* Secondary transport controls (Lock / Restart / Fullscreen) get a frosted-glass treatment —
+   translucent + blurred rather than a flat opaque box — so they read as controls floating over the
+   video rather than a solid UI panel sitting on top of it. Play/Pause is the one exception (see
+   .player-btn-primary below): it's the primary action, so it gets a filled, higher-contrast
+   treatment instead of glass, giving the bar a clear primary/secondary hierarchy at a glance. */
+.player-bottom .btn-icon{
+  background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.16);
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+}
+.player-bottom .btn-icon:hover{background:rgba(255,255,255,.16); border-color:rgba(255,255,255,.28);}
+.player-bottom .btn-icon:active{transform:scale(.92);}
+/* The primary transport action — larger, circular, filled with the highlight color so it reads
+   instantly as "the" button in the row, the way a play button should. Icon color inverts to a near-
+   black so it stays legible against the bright cyan fill at any video brightness underneath. */
+.player-bottom .btn-icon.player-btn-primary{
+  width:46px; height:46px; border-radius:50%;
+  background:var(--highlight); border-color:var(--highlight); color:#04211f;
+  box-shadow:0 4px 16px rgba(61,219,217,.35);
+}
+.player-bottom .btn-icon.player-btn-primary:hover{
+  background:#5ce6e4; border-color:#5ce6e4; box-shadow:0 6px 20px rgba(61,219,217,.5);
+}
+.player-bottom .btn-icon.player-btn-primary svg{width:20px; height:20px;}
 /* Applied to Play/Pause + the two skip buttons (and the progress track) while an iframe rebuild
    (pause/resume/seek) is in flight — blocks rapid repeat clicks/drags from starting a second
    rebuild on top of one already running. */
@@ -1979,6 +2026,28 @@ kbd.key{
 .player-progress-track:hover .player-progress-fill, .player-progress-track.dragging .player-progress-fill{height:6px;}
 .player-progress-track.dragging{cursor:grabbing;}
 .player-progress-track:focus-visible::before{outline:2px solid var(--highlight); outline-offset:4px;}
+/* Skip-segment tick marks (intro/outro/etc, when Settings → Skip Segments has entries for this
+   episode) — thin highlighted bands on the track itself, at the segment's real start/end position.
+   Purely a visual affordance for where the auto-skip will jump from/to; doesn't affect the actual
+   skip logic in checkSkipSegments, which reads the same underlying data independently. */
+.player-progress-segment-ticks{position:absolute; inset:0; pointer-events:none;}
+.player-progress-segment-tick{
+  position:absolute; top:50%; height:4px; transform:translateY(-50%); border-radius:3px;
+  background:rgba(255,255,255,.4); pointer-events:none;
+}
+.player-progress-track:hover .player-progress-segment-tick,
+.player-progress-track.dragging .player-progress-segment-tick{height:6px;}
+/* Hover/scrub time-preview pill — same dark-glass pill language as the subtitle overlay, floating
+   above the cursor's position on the track. JS (see initPlayerProgressBar) toggles .visible and
+   sets --tt-x (0-1) to position it; kept out of normal flow so it never affects track layout. */
+.player-progress-tooltip{
+  position:absolute; bottom:calc(100% + 10px); left:calc(var(--tt-x, .5) * 100%); transform:translateX(-50%);
+  background:rgba(8,9,13,.92); border:1px solid rgba(255,255,255,.14); color:#fff;
+  font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:.01em;
+  padding:4px 9px; border-radius:6px; white-space:nowrap; pointer-events:none;
+  opacity:0; transition:opacity .12s ease; z-index:2;
+}
+.player-progress-tooltip.visible{opacity:1;}
 .player-next-side{
   position:absolute; top:50%; right:24px; transform:translateY(-50%); z-index:6;
   width:52px; height:52px; border-radius:50%; overflow:hidden; cursor:pointer;
@@ -2126,8 +2195,11 @@ kbd.key{
 .player-subtitle-overlay{
   position:absolute; left:6%; right:6%; bottom:9%; z-index:4; text-align:center;
   pointer-events:none; display:flex; flex-direction:column; align-items:center; gap:6px;
+  min-height:0; /* an empty flex container with no children already takes up zero visible space --
+    no need to also flip display:none on/off between cues, which was a real layout-mode switch our
+    custom overlay did on nearly every cue-to-gap-to-cue transition that native browser-rendered
+    captions never do. That switch (not just the text change itself) was the twitch. */
 }
-.player-subtitle-overlay:empty{display:none;}
 .player-subtitle-overlay span{
   display:inline-block; background:var(--sub-bg, rgba(0,0,0,.72)); color:var(--sub-color, #fff);
   font-size:var(--sub-font-size, 19px); font-weight:600;
@@ -2220,7 +2292,7 @@ kbd.key{
   /* Progress bar takes priority on narrow screens — tighten the transport-button spacing and
      drop the wide "Try Next Source" label so the scrubber keeps most of the row's width. */
   .player-bottom{gap:8px; padding:10px 12px 14px;}
-  .player-bottom-left{gap:0;}
+  .player-bottom-left, .player-bottom-right{gap:4px;}
   .player-bottom-left .btn-icon, .player-bottom-right .btn-icon{width:32px; height:32px;}
   .player-bottom-progress{gap:7px;}
   .player-time{font-size:10.5px;}
@@ -3794,6 +3866,34 @@ function checkSkipSegments(elapsedSeconds, seekFn){
   seekFn(hit.end);
   if(state.settings.skipNotify) toast(hit.name ? `Skipped "${hit.name}"` : 'Scene skipped');
 }
+// Draws the visual tick marks on the progress track for any skip segments defined for the current
+// item/episode (Settings → Skip Segments) — purely cosmetic, reads the exact same getSkipEntry data
+// checkSkipSegments already acts on, just placed at each segment's real start/end percentage of
+// p._totalSeconds. Called once real duration is known (see the PLAYER_EVENT listener) since
+// percentage placement is meaningless before that.
+function renderSkipSegmentTicks(){
+  const wrap = document.getElementById('playerProgressTicks');
+  const p = state.player;
+  if(!wrap || !p) return;
+  wrap.innerHTML = '';
+  const total = p._totalSeconds || 0;
+  if(total <= 0 || !state.settings.skipSegmentsEnabled) return;
+  const item = getItem(p.itemId);
+  if(!item) return;
+  const key = skipDataKey(item, p.seasonNum, p.epNum);
+  const entry = getSkipEntry(key);
+  if(!entry || !entry.enabled || !entry.segments.length) return;
+  entry.segments.forEach(seg=>{
+    if(!seg.enabled) return;
+    const startPct = Math.max(0, Math.min(100, (seg.start/total)*100));
+    const endPct = Math.max(0, Math.min(100, (seg.end/total)*100));
+    const tick = document.createElement('div');
+    tick.className = 'player-progress-segment-tick';
+    tick.style.left = startPct+'%';
+    tick.style.width = Math.max(0.5, endPct-startPct)+'%';
+    wrap.appendChild(tick);
+  });
+}
 
 
 // client-side: draws the already-loading <img> into a canvas and reads pixel data back out.
@@ -4372,12 +4472,31 @@ function renderActorPage(actor){
   const items = state.lib.items.filter(i=>
     (i.cast||[]).some(c=>c.name===actor) || (i.actors||[]).includes(actor)
   ).sort((a,b)=> new Date(b.dateAdded||0)-new Date(a.dateAdded||0));
+  // Photo and character roles aren't stored anywhere of their own — this actor only exists as an
+  // entry inside each title's own cast array. Scan every appearance to find the first usable photo
+  // (titles are already sorted newest-first above, so that's the most likely to still be a live URL)
+  // and collect "played X in Y" for each title that actually has a character name on file.
+  let photo = null;
+  const roles = [];
+  items.forEach(i=>{
+    const entry = (i.cast||[]).find(c=>c.name===actor);
+    if(entry){
+      if(!photo && entry.photo && !entry.blurred) photo = entry.photo;
+      if(entry.character) roles.push({title:i.title, character:entry.character});
+    }
+  });
   return `
     <div class="page">
       <div class="filter-bar">
         <a class="btn btn-ghost" href="#home">&larr; Home</a>
       </div>
-      <h2 style="margin-bottom:16px;">${esc(actor)}</h2>
+      <div class="actor-profile-head">
+        <div class="actor-profile-photo">${photo ? `<img src="${esc(photo)}" alt="" loading="lazy">` : castAvatarFallback(actor)}</div>
+        <div>
+          <h2 class="actor-profile-name">${esc(actor)}</h2>
+          <div class="actor-profile-meta">${items.length} title${items.length===1?'':'s'} in your library${roles.length ? ' · ' + roles.slice(0,3).map(r=>`${esc(r.character)} in ${esc(r.title)}`).join(', ') + (roles.length>3?`, +${roles.length-3} more`:'') : ''}</div>
+        </div>
+      </div>
       ${items.length ? virtualListHtml('actorPageGrid', items, 'grid') : emptyState(`Nothing with ${esc(actor)}`, 'No titles in your library feature this person.')}
     </div>`;
 }
@@ -6183,9 +6302,10 @@ function renderMyShowsListing(results){
   if(search) list = rankedTitleSearch(list, search, r=> r.item.title||'');
   // Only unfinished shows belong in a "next episode" schedule — a show TVmaze marks Ended has
   // nothing left to air, so it would just sit here forever showing "no upcoming episode". Shows we
-  // couldn't find on TVmaze at all are kept (status:null), since we can't confirm they're actually
-  // finished — better to show them than to silently hide a show that's just unmatched.
-  list = list.filter(r => !r.show || r.show.status !== 'Ended');
+  // couldn't find on TVmaze at all are kept UNLESS a manually-set TV Status (Edit Title → TV Status)
+  // says otherwise — that's the whole point of that field existing: TVmaze/TMDB not having the
+  // answer for a given show shouldn't mean it just sits here forever with no way to hide it.
+  list = list.filter(r => (!r.show || r.show.status !== 'Ended') && !isEndedSeries(r.item));
   if(!list.length){
     container.innerHTML = search
       ? emptyState('Nothing found', 'Try a different search.', '', '')
@@ -9052,6 +9172,21 @@ function captureEditFormDraft(){
     contentRating: get('f_contentRating'), awards: get('f_awards'),
   };
 }
+// Reusable so both the initial edit-modal render and setEditType's live Movie/Series toggle can
+// call the exact same markup instead of keeping two copies in sync.
+function tvStatusFieldHtml(){
+  if(state.editType!=='series') return '';
+  return `
+    <div class="field">
+      <label>TV Status <span style="text-transform:none; font-weight:400; color:var(--muted);">(optional — set manually for shows TMDB doesn't have this for)</span></label>
+      <select id="f_tvStatus" onchange="state.editTvStatus=this.value">
+        ${['','Returning Series','Renewed','Ended','Canceled','In Production','Planned','Pilot'].map(v=>
+          `<option value="${esc(v)}" ${state.editTvStatus===v?'selected':''}>${v || 'Not set'}</option>`
+        ).join('')}
+      </select>
+      <div class="field-hint">Drives the status badge on the detail page and whether this show counts as "ended" for Binge Now and the TV Schedule's unfinished-shows filter. Auto-fills from TMDB when it has the data (Fetch from TMDB, or IMDb import above) — set it here yourself for shows TMDB leaves blank, and a fetch won't overwrite your manual choice unless TMDB actually returns a status of its own.</div>
+    </div>`;
+}
 function renderEditModal(item){
   const genresPool = [...new Set([...DEFAULT_GENRES, ...allGenres()])];
   const d = state.editFormDraft || {};
@@ -9124,6 +9259,7 @@ function renderEditModal(item){
       <div class="field" style="max-width:160px;"><label>Runtime</label><input id="f_runtime" value="${esc(fv('runtime'))}" placeholder="148 min"></div>
     </div>
 
+    <div id="tvStatusFieldWrap">${tvStatusFieldHtml()}</div>
     <div id="typeSpecific">${state.editType==='movie' ? sourcesEditorHtml() : seasonsEditorHtml()}</div>
 
     <div class="field-hint" id="editModalError" style="display:none; color:#ff6b81; font-weight:600; margin-bottom:10px;"></div>
@@ -9137,6 +9273,7 @@ function setEditType(t){
   state.editType = t;
   document.querySelectorAll('.type-toggle button').forEach((b,i)=> b.classList.toggle('active',(i===0)===(t==='movie')));
   document.getElementById('typeSpecific').innerHTML = t==='movie' ? sourcesEditorHtml() : seasonsEditorHtml();
+  document.getElementById('tvStatusFieldWrap').innerHTML = tvStatusFieldHtml();
 }
 function toggleGenre(g){
   const i = state.editGenres.indexOf(g);
@@ -11969,7 +12106,7 @@ function renderPlayer(){
     <div class="player-stage" id="playerStage">
       <div class="player-media-wrap" id="playerMediaWrap" style="filter:brightness(${state.settings.playerBrightness});">${stageHtml}</div>
       <div class="player-loading" id="playerLoading"><div class="spinner"></div><span class="player-loading-label" id="playerLoadingLabel">Loading stream…</span></div>
-      <div class="player-subtitle-overlay" id="playerSubtitleOverlay"></div>
+      <div class="player-subtitle-overlay notranslate" id="playerSubtitleOverlay" translate="no"></div>
       ${embed.kind==='iframe' && !isLive ? `
       <div class="player-center-skip-group" id="playerCenterSkipGroup">
         <button class="player-center-skip-btn" id="playerSkipBackBtn" title="Back 20 seconds" onclick="event.stopPropagation(); seekPlayer(-20);">${ICON.skipBack20}</button>
@@ -12051,7 +12188,7 @@ function renderPlayer(){
     </div>` : ''}
     <div class="player-bottom">
       <div class="player-bottom-left">
-        <button class="btn-icon" id="playerPlayBtn" title="Pause" onclick="togglePlayerPlayPause()">${ICON.pause}</button>
+        <button class="btn-icon player-btn-primary" id="playerPlayBtn" title="Pause" onclick="togglePlayerPlayPause()">${ICON.pause}</button>
         <button class="btn-icon" id="playerLockBtn" title="Lock controls" onclick="event.stopPropagation(); togglePlayerLock();">${ICON.lock}</button>
       </div>
       ${embed.kind==='iframe' && !isLive ? `
@@ -12060,8 +12197,10 @@ function renderPlayer(){
         <div class="player-progress-track" id="playerProgressTrack" role="slider" tabindex="0"
              aria-label="Seek" aria-valuemin="0" aria-valuemax="100"
              aria-valuenow="${p._totalSeconds>0 ? Math.round(((p._elapsedSeconds||0)/p._totalSeconds)*100) : 0}">
+          <div class="player-progress-segment-ticks" id="playerProgressTicks"></div>
           <div class="player-progress-fill" id="playerProgressFill" style="width:${p._totalSeconds>0 ? Math.min(100,((p._elapsedSeconds||0)/p._totalSeconds)*100) : 0}%"></div>
           <div class="player-progress-handle" id="playerProgressHandle" style="left:${p._totalSeconds>0 ? Math.min(100,((p._elapsedSeconds||0)/p._totalSeconds)*100) : 0}%"></div>
+          <div class="player-progress-tooltip" id="playerProgressTooltip"></div>
         </div>
         <span class="player-time player-time-total" id="playerTimeTotal">${esc(formatResumeTime(p._totalSeconds||0))}</span>
       </div>` : `<div class="player-bottom-progress"></div>`}
@@ -13615,7 +13754,12 @@ window.addEventListener('message', (event)=>{
   // Every real progress value is checked against the interpolation and resyncs it if it's actually
   // drifted (see resyncPlayerProgress) — this is the step that keeps local interpolation from ever
   // drifting far from the truth, without resyncing to every bit of reporting jitter.
-  if(Number.isFinite(duration) && duration > 0) p._totalSeconds = duration;
+  if(Number.isFinite(duration) && duration > 0){
+    const hadTotal = p._totalSeconds > 0;
+    p._totalSeconds = duration;
+    if(!hadTotal) renderSkipSegmentTicks(); // needs a real duration to place ticks correctly; only
+    // needs to run once per load since segments/duration don't change mid-playback
+  }
   if(Number.isFinite(progress)) resyncPlayerProgress(progress);
 
   if(status === 'playing'){
@@ -13957,6 +14101,27 @@ function initPlayerProgressBar(){
     else if(e.key==='ArrowRight'){ e.preventDefault(); seekPlayer(5); }
     else if(e.key==='Home'){ e.preventDefault(); performPlayerSeek(0); }
     else if(e.key==='End'){ e.preventDefault(); performPlayerSeek(p._totalSeconds||0); }
+  });
+
+  // Hover/scrub time-preview tooltip — shows the timestamp under the cursor before you commit to a
+  // seek. Runs alongside the drag handlers above rather than replacing them: while dragging, the
+  // tooltip just tracks the same pct the fill/handle preview already uses instead of computing its
+  // own, so the two visuals can never disagree.
+  const tooltip = document.getElementById('playerProgressTooltip');
+  const updateTooltip = (pct)=>{
+    if(!tooltip) return;
+    const p = state.player;
+    const total = p ? (p._totalSeconds||0) : 0;
+    tooltip.style.setProperty('--tt-x', pct);
+    tooltip.textContent = formatResumeTime(total*pct);
+    tooltip.classList.add('visible');
+  };
+  track.addEventListener('pointermove', e=>{
+    if(state.player && state.player.isLive) return;
+    updateTooltip(dragPct !== null ? dragPct : pctFromEvent(e));
+  });
+  track.addEventListener('pointerleave', ()=>{
+    if(dragPct === null && tooltip) tooltip.classList.remove('visible');
   });
 }
 // Toggles the disabled/dimmed look on Play-Pause + both skip buttons while a rebuild (pause,
