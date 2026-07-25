@@ -1106,32 +1106,80 @@ body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
    instead of plain text chips — mirrors the poster/backdrop treatment so the row reads as a scannable
    strip of faces rather than another block of text. Falls back to an initials avatar per-person when
    TMDB has no photo for them (or the image 404s), never omitted or left blank. */
-.cast-chip-row{display:grid; grid-template-columns:repeat(auto-fill, minmax(180px,1fr)); gap:16px 18px; justify-content:center; text-align:left;}
-.cast-chip{display:flex; align-items:center; gap:10px; min-width:0; text-decoration:none; color:inherit; border-radius:8px; padding:4px; margin:-4px; transition:background .15s ease;}
-.cast-chip:hover, .cast-chip:focus-visible{background:#141721;}
+.cast-chip-row{display:grid; grid-template-columns:repeat(auto-fill, minmax(190px,1fr)); gap:12px; justify-content:center; text-align:left;}
+.cast-chip{
+  display:flex; align-items:center; gap:12px; min-width:0; text-decoration:none; color:inherit;
+  border-radius:12px; padding:9px 12px 9px 9px; background:#12141c; border:1px solid #1c202c;
+  transition:background .18s ease, border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+.cast-chip:hover, .cast-chip:focus-visible{background:#171b27; border-color:#262c3c; transform:translateY(-2px); box-shadow:0 10px 24px -8px rgba(0,0,0,.5);}
 .cast-chip:hover .cast-chip-name, .cast-chip:focus-visible .cast-chip-name{color:var(--highlight);}
+.cast-chip:hover .cast-chip-photo, .cast-chip:focus-visible .cast-chip-photo{border-color:rgba(61,219,217,.55);}
 .cast-chip-hidden{display:none;}
 .cast-chip-row.is-expanded .cast-chip-hidden{display:flex;}
-.cast-chip-photo{width:44px; height:44px; border-radius:50%; overflow:hidden; flex-shrink:0; background:var(--surface2); border:1px solid #232837;}
+.cast-chip-photo{width:52px; height:52px; border-radius:50%; overflow:hidden; flex-shrink:0; background:var(--surface2); border:2px solid #262c3c; transition:border-color .18s ease;}
 .cast-chip-photo img{width:100%; height:100%; object-fit:cover; display:block;}
-.cast-avatar-fallback{width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:800; color:var(--muted); background:linear-gradient(135deg,#1c2130,#12141c);}
-.cast-chip-info{display:flex; flex-direction:column; min-width:0;}
-.cast-chip-name{font-size:13px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.cast-avatar-fallback{width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:800; color:var(--muted); background:linear-gradient(135deg,#1c2130,#12141c);}
+.cast-chip-info{display:flex; flex-direction:column; min-width:0; gap:2px;}
+.cast-chip-name{font-size:13.5px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:color .18s ease;}
 .cast-chip-info .cast-character{font-size:11.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-/* Actor profile page header — reuses the same round-photo/fallback-initial language as cast chips
-   throughout the rest of the app, just larger, since this page is now specifically about the person
-   rather than a title that happens to feature them. */
-.actor-profile-head{display:flex; align-items:center; gap:18px; margin-bottom:28px;}
-.actor-profile-photo{width:88px; height:88px; border-radius:50%; overflow:hidden; flex-shrink:0; background:var(--surface2); border:2px solid #232837;}
-.actor-profile-photo img{width:100%; height:100%; object-fit:cover; display:block;}
-.actor-profile-photo .cast-avatar-fallback{font-size:28px;}
-.actor-profile-name{margin:0 0 4px; font-size:24px;}
-.actor-profile-meta{font-size:13px; font-weight:600; color:var(--muted); line-height:1.5;}
+/* Actor / person modal — replaces the old dedicated full-page actor route, and now also opens for
+   director/creator names (openActorModal doesn't care which credit brought it up). A tall gradient
+   hero with a soft radial highlight and a glowing headshot ring overlapping its bottom edge (the same
+   visual language streaming services use for cast bios), a row of quick-fact chips with their own
+   icons, an optional TMDB-sourced biography, then the familiar filmography grid. */
+.modal.modal-actor{max-width:780px; padding:0; overflow:hidden; display:flex; flex-direction:column;}
+.actor-modal-hero{
+  position:relative; height:172px; flex-shrink:0; background-size:cover; background-position:center 22%;
+  background-color:#12141c;
+  background-image:
+    radial-gradient(560px 320px at 18% -10%, rgba(61,219,217,.22), transparent 65%),
+    linear-gradient(135deg, rgba(13,74,74,.6), rgba(8,9,13,.2) 65%);
+}
+.actor-modal-hero::after{
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(180deg, rgba(8,9,13,.05) 0%, var(--surface) 97%);
+}
+.actor-modal-close{position:absolute; top:14px; right:14px; z-index:2; background:rgba(10,11,16,.6); border-color:rgba(255,255,255,.16); backdrop-filter:blur(6px);}
+.actor-modal-close:hover{background:rgba(10,11,16,.9);}
+.actor-modal-scroll{overflow-y:auto; padding:0 30px 30px; animation:actorModalFadeIn .35s ease both;}
+@keyframes actorModalFadeIn{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
+.actor-modal-head{display:flex; align-items:flex-end; gap:20px; position:relative; z-index:1; margin-top:-52px; margin-bottom:20px;}
+.actor-modal-photo{
+  width:112px; height:112px; border-radius:50%; overflow:hidden; flex-shrink:0; background:var(--surface2);
+  border:3px solid var(--surface); box-shadow:0 14px 34px rgba(0,0,0,.5), 0 0 0 3px rgba(61,219,217,.18);
+}
+.actor-modal-photo img{width:100%; height:100%; object-fit:cover; display:block;}
+.actor-modal-photo .cast-avatar-fallback{font-size:36px;}
+.actor-modal-headtext{padding-bottom:7px; min-width:0;}
+.actor-modal-name{margin:0 0 9px; font-size:25px; font-weight:800; font-family:var(--display-font); line-height:1.2; text-shadow:0 2px 16px rgba(0,0,0,.5);}
+.actor-modal-chips{display:flex; flex-wrap:wrap; gap:8px;}
+.actor-modal-chip{
+  display:inline-flex; align-items:center; gap:6px; background:#12141c; border:1px solid #232837;
+  border-radius:20px; padding:6px 12px; font-size:12px; font-weight:700; color:var(--muted);
+  transition:border-color .18s ease, background .18s ease;
+}
+.actor-modal-chip svg{width:12px; height:12px; flex-shrink:0;}
+.actor-modal-chip.is-highlight{color:var(--highlight); border-color:rgba(61,219,217,.35); background:var(--highlight-dim);}
+.actor-modal-bio-wrap{
+  margin:0 0 26px; padding-top:20px; border-top:1px solid #1a1d26;
+}
+.actor-modal-bio-wrap .detail-desc{text-align:left; max-width:none; margin:0;}
+.actor-modal-bio-wrap .detail-desc-wrap{max-width:none; margin:0;}
+.actor-modal-bio-skeleton{height:13px; border-radius:4px; margin-bottom:8px; background:linear-gradient(100deg,#12141c 0%,#1c1f2b 40%,#12141c 80%); background-size:220% 100%; animation:skeletonShimmer 1.7s ease-in-out infinite;}
+.actor-modal-bio-skeleton:nth-child(2){width:88%;}
+.actor-modal-bio-skeleton:nth-child(3){width:64%; margin-bottom:0;}
+.actor-modal-section{padding-top:20px; border-top:1px solid #1a1d26;}
+.actor-modal-section-label{display:flex; align-items:center; gap:7px; font-size:11px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:14px;}
+.actor-modal-section-label svg{width:13px; height:13px;}
+.actor-modal-section-count{color:var(--highlight); font-weight:800;}
 @media (max-width:600px){
-  .actor-profile-head{gap:14px; margin-bottom:20px;}
-  .actor-profile-photo{width:64px; height:64px;}
-  .actor-profile-photo .cast-avatar-fallback{font-size:22px;}
-  .actor-profile-name{font-size:19px;}
+  .actor-modal-hero{height:122px;}
+  .actor-modal-head{margin-top:-38px; gap:13px;}
+  .actor-modal-photo{width:80px; height:80px;}
+  .actor-modal-photo .cast-avatar-fallback{font-size:27px;}
+  .actor-modal-name{font-size:20px;}
+  .actor-modal-scroll{padding:0 18px 22px;}
 }
 .cast-show-more-btn{
   margin-top:14px; background:none; border:1px solid #232837; color:var(--highlight); font-size:12.5px; font-weight:700;
@@ -1139,8 +1187,8 @@ body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
 }
 .cast-show-more-btn:hover{border-color:rgba(61,219,217,.4); background:#161923;}
 @media (max-width:860px){
-  .cast-chip-row{grid-template-columns:repeat(auto-fill, minmax(140px,1fr));}
-  .cast-chip-photo{width:38px; height:38px;}
+  .cast-chip-row{grid-template-columns:repeat(auto-fill, minmax(150px,1fr));}
+  .cast-chip-photo{width:42px; height:42px;}
 }
 .detail-tagline{color:var(--text); opacity:.75; font-size:16px; font-weight:500; font-style:italic; letter-spacing:.01em; margin:0; text-shadow:0 2px 12px rgba(0,0,0,.6);}
 /* Primary actions row (movies only) — Play, Trailer, Mark Watched — sits right under the tagline so
@@ -1161,8 +1209,16 @@ body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
   .detail-play-btn{padding:13px 26px; font-size:14.5px;}
 }
 .tag-cert{border-color:var(--highlight); color:var(--highlight);}
-.detail-director{font-size:13px; color:var(--muted); margin-bottom:12px;}
-.detail-director b{color:var(--text); font-weight:700;}
+.detail-director{display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:8px; margin-bottom:14px;}
+.detail-director-label{font-size:11px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.06em;}
+.detail-director-link{
+  display:inline-flex; align-items:center; gap:6px; text-decoration:none; color:var(--text);
+  background:#12141c; border:1px solid #232837; border-radius:20px; padding:6px 13px 6px 10px;
+  font-size:12.5px; font-weight:700; transition:all var(--transition);
+}
+.detail-director-link svg{width:12px; height:12px; color:var(--muted); flex-shrink:0; transition:color var(--transition);}
+.detail-director-link:hover, .detail-director-link:focus-visible{color:var(--highlight); background:var(--highlight-dim); border-color:rgba(61,219,217,.4); transform:translateY(-1px);}
+.detail-director-link:hover svg, .detail-director-link:focus-visible svg{color:var(--highlight);}
 .detail-awards{font-size:13px; color:var(--muted); margin:-6px 0 18px; display:flex; align-items:center; justify-content:center; gap:6px;}
 .detail-awards svg{width:14px; height:14px; flex-shrink:0; color:var(--highlight);}
 .tv-status-line{display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap; margin-bottom:14px;}
@@ -2069,24 +2125,24 @@ kbd.key{
    themselves, but stay invisible/inert until the screen is tapped (see revealCenterSkipButtons). */
 .player-center-skip-group{
   position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:3;
-  display:flex; align-items:center; gap:110px; pointer-events:none;
+  display:flex; align-items:center; gap:132px; pointer-events:none;
 }
 .player-center-skip-btn{
-  width:64px; height:64px; border-radius:50%; flex-shrink:0;
+  width:74px; height:74px; border-radius:50%; flex-shrink:0;
   background:rgba(8,10,14,.55); backdrop-filter:blur(6px); border:1.5px solid rgba(255,255,255,.28);
   color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer;
   opacity:0; transform:scale(.8); pointer-events:none;
   transition:opacity .25s ease, transform .25s ease, background var(--transition), border-color var(--transition), color var(--transition);
 }
-.player-center-skip-btn svg{width:28px; height:28px;}
+.player-center-skip-btn svg{width:32px; height:32px;}
 .player-overlay.center-skip-visible .player-center-skip-btn{opacity:1; transform:scale(1); pointer-events:auto;}
 .player-center-skip-btn:hover{background:var(--highlight-dim); border-color:var(--highlight); color:var(--highlight);}
 .player-center-skip-btn:active{transform:scale(.9);}
 .player-center-skip-btn.is-busy{opacity:.4 !important; pointer-events:none !important;}
 @media (max-width:860px){
-  .player-center-skip-group{gap:64px;}
-  .player-center-skip-btn{width:50px; height:50px;}
-  .player-center-skip-btn svg{width:22px; height:22px;}
+  .player-center-skip-group{gap:77px;}
+  .player-center-skip-btn{width:58px; height:58px;}
+  .player-center-skip-btn svg{width:25px; height:25px;}
 }
 /* Subtitle search panel — floats in the top-right of the stage, above the top-fade gradient's
    controls (z 5) and bottom bar (z 6) so it never gets covered by them. */
@@ -2756,6 +2812,9 @@ const ICON = {
   award:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="m9 13.5-1.5 7L12 18l4.5 2.5-1.5-7"/></svg>',
   scissors:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.5 8 20 20M20 4 8.5 16"/></svg>',
   magnet:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15V6a2 2 0 0 1 2-2h1v9a3 3 0 0 0 6 0V4h1a2 2 0 0 1 2 2v9a6 6 0 0 1-12 0Z"/><path d="M6 9H2M22 9h-4"/></svg>',
+  calendar:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>',
+  pin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-7.58 7-12a7 7 0 1 0-14 0c0 4.42 7 12 7 12z"/><circle cx="12" cy="9" r="2.5"/></svg>',
+  clapper:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5 20 5l1 4-17 3.5z"/><path d="M4 12.5 21 9l-1 9.8a2 2 0 0 1-2 1.7H6.4a2 2 0 0 1-2-1.7z"/><path d="m8 8-2-4M13.5 7l-2-4M19 6l-1.5-3.3"/></svg>',
 };
 function heartSvg(filled){
   return `<svg viewBox="0 0 24 24" fill="${filled?'currentColor':'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-10-9.1C.5 8.6 2 5 5.5 5c2 0 3.3 1 4.5 2.5C11.2 6 12.5 5 14.5 5 18 5 19.5 8.6 22 11.9 19.5 16.4 12 21 12 21z"/></svg>`;
@@ -4262,6 +4321,18 @@ function router(){
     }
     if(epNumParam!=null && !isNaN(parseInt(epNumParam,10))) state.detailDeepLinkEpisode = parseInt(epNumParam,10);
   }
+  // If the actor modal is open and the route just changed to something other than 'actor' (e.g. the
+  // user clicked a filmography card inside it, which navigates to #detail/...), the modal has no
+  // reason to keep floating over the new page — close it instantly, no animation needed since the
+  // page underneath already changed.
+  if(route!=='actor'){
+    const openModalBody = document.getElementById('modalBody');
+    if(openModalBody && openModalBody.classList.contains('modal-actor')){
+      document.getElementById('modalOverlay').classList.remove('open');
+      openModalBody.classList.remove('modal-actor');
+      openModalBody.innerHTML = '';
+    }
+  }
   stopHeroAutoplay();
   stopFeaturedAutoplay();
   clearAllCardHoverTimers();
@@ -4286,9 +4357,12 @@ function router(){
       break;
     }
     case 'actor': {
+      // The actor route is now just a modal layered on top of a normal page — this branch only
+      // runs for a *direct* landing on #actor/Name (fresh load, shared link, or refresh), so there's
+      // no "underlying page" to go back to yet. Home makes the most sensible backdrop in that case.
       const actorName = decodeURIComponent(param || '');
-      root.innerHTML = renderActorPage(actorName);
-      initVirtualList('actorPageGrid', cardHtml);
+      root.innerHTML = state.lib.items.length ? renderHome() : `<div class="page">${emptyState('Your vault is empty','Add your first movie or series to start building your personal streaming library.')}</div>`;
+      openActorModal(actorName);
       break;
     }
     case 'detail': {
@@ -4465,41 +4539,9 @@ function renderGenrePage(typeParam, genre){
       ${items.length ? virtualListHtml('genrePageGrid', items, 'grid-3col') : emptyState(`No ${esc(genre)} titles`, 'Nothing in this genre yet.')}
     </div>`;
 }
-// Same pattern as renderGenrePage, filtering by cast member instead of genre. Checks both the
-// richer item.cast[] (TMDB-fetched, has {name,character}) and the plain item.actors[] name list —
-// castRowHtml() already renders whichever one a given title actually has, so this mirrors that.
-function renderActorPage(actor){
-  const items = state.lib.items.filter(i=>
-    (i.cast||[]).some(c=>c.name===actor) || (i.actors||[]).includes(actor)
-  ).sort((a,b)=> new Date(b.dateAdded||0)-new Date(a.dateAdded||0));
-  // Photo and character roles aren't stored anywhere of their own — this actor only exists as an
-  // entry inside each title's own cast array. Scan every appearance to find the first usable photo
-  // (titles are already sorted newest-first above, so that's the most likely to still be a live URL)
-  // and collect "played X in Y" for each title that actually has a character name on file.
-  let photo = null;
-  const roles = [];
-  items.forEach(i=>{
-    const entry = (i.cast||[]).find(c=>c.name===actor);
-    if(entry){
-      if(!photo && entry.photo && !entry.blurred) photo = entry.photo;
-      if(entry.character) roles.push({title:i.title, character:entry.character});
-    }
-  });
-  return `
-    <div class="page">
-      <div class="filter-bar">
-        <a class="btn btn-ghost" href="#home">&larr; Home</a>
-      </div>
-      <div class="actor-profile-head">
-        <div class="actor-profile-photo">${photo ? `<img src="${esc(photo)}" alt="" loading="lazy">` : castAvatarFallback(actor)}</div>
-        <div>
-          <h2 class="actor-profile-name">${esc(actor)}</h2>
-          <div class="actor-profile-meta">${items.length} title${items.length===1?'':'s'} in your library${roles.length ? ' · ' + roles.slice(0,3).map(r=>`${esc(r.character)} in ${esc(r.title)}`).join(', ') + (roles.length>3?`, +${roles.length-3} more`:'') : ''}</div>
-        </div>
-      </div>
-      ${items.length ? virtualListHtml('actorPageGrid', items, 'grid') : emptyState(`Nothing with ${esc(actor)}`, 'No titles in your library feature this person.')}
-    </div>`;
-}
+// Actor modal — see openActorModal() near the other modal functions (ADD/EDIT MODAL section) for
+// the implementation. Kept as a modal rather than a full page: it's a quick "who else has this
+// person been in" lookup, not a destination worth losing your scroll position over.
 /* Up to 6 panoramic banner URLs per title. Falls back to the old single `panoramicBanner`
    field, then to the TMDB backdrop if neither is set — so the row still shows *something*
    for a freshly-imported title even if you never paste custom banner art. */
@@ -5150,9 +5192,10 @@ function tmdbFallbackRowHtml(r, variant){
   const poster = r.poster_path ? `https://image.tmdb.org/t/p/w185${r.poster_path}` : '';
   const q = (state.searchTmdb.query||'');
   const badge = `<span class="${variant==='mobile'?'msearch-tmdb-badge':'gsr-tmdb-badge'}">${ICON.plus}Add to Library</span>`;
+  const titleArg = esc(title||'').replace(/'/g,"&#39;");
   if(variant==='mobile'){
     return `
-    <div class="msearch-row msearch-tmdb" onclick="addFromSearchTmdb(${r.id}, '${mediaType}')">
+    <div class="msearch-row msearch-tmdb" onclick="addFromSearchTmdb(${r.id}, '${mediaType}', '${titleArg}')">
       <div class="msearch-row-poster">${poster?`<img src="${esc(poster)}" alt="" loading="lazy">`:fallbackHtml(title||'')}</div>
       <div>
         <div class="msearch-row-title">${q?highlightMatch(title||'',q.toLowerCase()):esc(title||'')}</div>
@@ -5162,7 +5205,7 @@ function tmdbFallbackRowHtml(r, variant){
     </div>`;
   }
   return `
-    <div class="gsr-item gsr-tmdb" onclick="addFromSearchTmdb(${r.id}, '${mediaType}')">
+    <div class="gsr-item gsr-tmdb" onclick="addFromSearchTmdb(${r.id}, '${mediaType}', '${titleArg}')">
       <div class="gsr-poster">${poster?`<img src="${esc(poster)}" alt="" loading="lazy" onload="this.classList.add('loaded')">`:fallbackHtml(title||'')}</div>
       <div>
         <div class="gsr-title">${q?highlightMatch(title||'',q.toLowerCase()):esc(title||'')}</div>
@@ -5195,11 +5238,10 @@ function tmdbFallbackSectionHtml(variant){
 // then hand off straight into the same TMDB-prefilled add-to-library modal the TMDB Top 100
 // browsing grids use (quickAddFromTmdb) — search becomes a second way into that same flow rather
 // than a separate "info only" dead end.
-function addFromSearchTmdb(tmdbId, mediaType){
-  const q = state.globalSearchQuery;
+function addFromSearchTmdb(tmdbId, mediaType, title){
   if(state.globalSearchOpen) toggleGlobalSearch();
   if(state.mobileSearchOpen) closeMobileSearch();
-  addRecentSearch(q);
+  addRecentSearch(title || state.globalSearchQuery);
   quickAddFromTmdb(tmdbId, mediaType==='tv' ? 'tv' : 'movie');
 }
 function onGlobalSearchInput(v){
@@ -5272,12 +5314,14 @@ function renderGlobalSearchResults(){
   box.classList.add('show');
 }
 function goToSearchResult(id){
-  addRecentSearch(state.globalSearchQuery);
+  const item = getItem(id);
+  addRecentSearch(item ? item.title : state.globalSearchQuery);
   toggleGlobalSearch();
   location.hash = 'detail/'+id;
 }
 function goToChannelResult(id){
-  addRecentSearch(state.globalSearchQuery);
+  const ch = getChannel(id);
+  addRecentSearch(ch ? ch.name : state.globalSearchQuery);
   toggleGlobalSearch();
   if(state.route!=='live'){ location.hash = 'live'; setTimeout(()=>playChannel(id), 80); }
   else playChannel(id);
@@ -5608,12 +5652,14 @@ function applyMobileRecentSearch(term){
   queueTmdbFallbackSearch(term);
 }
 function goToMobileSearchResult(id){
-  addRecentSearch(state.globalSearchQuery);
+  const item = getItem(id);
+  addRecentSearch(item ? item.title : state.globalSearchQuery);
   closeMobileSearch();
   location.hash = 'detail/'+id;
 }
 function goToMobileChannelResult(id){
-  addRecentSearch(state.globalSearchQuery);
+  const ch = getChannel(id);
+  addRecentSearch(ch ? ch.name : state.globalSearchQuery);
   closeMobileSearch();
   if(state.route!=='live'){ location.hash = 'live'; setTimeout(()=>playChannel(id), 80); }
   else playChannel(id);
@@ -7261,7 +7307,7 @@ function renderDetail(id){
       <div class="detail-info">
         ${detailTagsHtml(item)}
         ${(item.genre||[]).length ? `<div class="detail-genres">${item.genre.map(g=>`<a href="#genre/${item.type}/${encodeURIComponent(g)}" class="detail-genre-link">${esc(g)}</a>`).join('<span class="genre-dot">·</span>')}</div>` : ''}
-        ${item.director ? `<div class="detail-director">${item.type==='series'?'Created by':'Directed by'} <b>${esc(item.director)}</b></div>` : ''}
+        ${directorLineHtml(item)}
         ${tvStatusLineHtml(item)}
         ${ratingsClusterHtml(item)}
         ${descHtml(item)}
@@ -7387,6 +7433,20 @@ function toggleDescExpand(btn){
   const stillClamped = p.classList.toggle('is-clamped');
   btn.textContent = stillClamped ? 'Read more' : 'Show less';
 }
+// item.director is a plain "Name" (movies) or comma-joined "Name1, Name2" (series creators) string
+// rather than structured data like item.cast[] — so unlike cast chips there's no per-person photo or
+// TMDB id sitting ready to use. Each name still opens the exact same person modal though (it does its
+// own TMDB person search regardless of what kind of credit brought it up), just via plain text links
+// instead of face chips since there's no photo to show here.
+function directorLineHtml(item){
+  if(!item.director) return '';
+  const names = item.director.split(',').map(n=>n.trim()).filter(Boolean);
+  const label = item.type==='series' ? 'Created by' : 'Directed by';
+  const linksHtml = names.map(n=>
+    `<a class="detail-director-link" href="#actor/${encodeURIComponent(n)}" onclick="openActorModalFromLink('${esc(n).replace(/'/g,"&#39;")}', event)">${ICON.clapper}${esc(n)}</a>`
+  ).join('');
+  return `<div class="detail-director"><span class="detail-director-label">${label}</span>${linksHtml}</div>`;
+}
 function castAvatarFallback(name){
   const letter = (name||'?').trim().charAt(0).toUpperCase() || '?';
   return `<div class="cast-avatar-fallback">${esc(letter)}</div>`;
@@ -7395,8 +7455,8 @@ function castRowHtml(item){
   if(item.cast && item.cast.length){
     const CAP = 6;
     const chips = item.cast.map((c,i)=>`
-      <a class="cast-chip${i>=CAP?' cast-chip-hidden':''}" href="#actor/${encodeURIComponent(c.name)}" title="See titles with ${esc(c.name).replace(/"/g,'&quot;')}">
-        <div class="cast-chip-photo">${c.photo ? `<img src="${esc(c.photo)}" alt="" loading="lazy" class="${c.blurred?'content-blurred':''}" onload="this.classList.add('loaded'); ${c.blurred?'':'classifyAndBlurImage(this);'}" onclick="if(this.classList.contains('content-blurred')){ event.preventDefault(); event.stopPropagation(); revealBlurredEl(this, event); }" onerror="this.parentElement.innerHTML=castAvatarFallback('${esc(c.name).replace(/'/g,"&#39;")}')">` : castAvatarFallback(c.name)}</div>
+      <a class="cast-chip${i>=CAP?' cast-chip-hidden':''}" href="#actor/${encodeURIComponent(c.name)}" onclick="openActorModalFromLink('${esc(c.name).replace(/'/g,"&#39;")}', event)" title="See titles with ${esc(c.name).replace(/"/g,'&quot;')}">
+        <div class="cast-chip-photo">${c.photo ? `<img src="${esc(c.photo)}" alt="" loading="lazy" class="${(c.blurred||c.gender===1)?'content-blurred':''}" onload="this.classList.add('loaded'); ${(c.blurred||c.gender===1)?'':'classifyAndBlurImage(this);'}" onclick="if(this.classList.contains('content-blurred')){ event.preventDefault(); event.stopPropagation(); revealBlurredEl(this, event); }" onerror="this.parentElement.innerHTML=castAvatarFallback('${esc(c.name).replace(/'/g,"&#39;")}')">` : castAvatarFallback(c.name)}</div>
         <div class="cast-chip-info">
           <span class="cast-chip-name">${esc(c.name)}</span>
           ${c.character?`<span class="cast-character">${esc(c.character)}</span>`:''}
@@ -7406,7 +7466,7 @@ function castRowHtml(item){
     return `<div class="detail-cast"><span class="detail-cast-label">Full Cast</span><div class="cast-chip-row">${chips}</div>${toggleBtn}</div>`;
   }
   if(item.actors && item.actors.length){
-    return `<div class="detail-cast"><span class="detail-cast-label">Starring</span><div class="detail-cast-tags">${item.actors.map(a=>`<a class="tag" href="#actor/${encodeURIComponent(a)}">${esc(a)}</a>`).join('')}</div></div>`;
+    return `<div class="detail-cast"><span class="detail-cast-label">Starring</span><div class="detail-cast-tags">${item.actors.map(a=>`<a class="tag" href="#actor/${encodeURIComponent(a)}" onclick="openActorModalFromLink('${esc(a).replace(/'/g,"&#39;")}', event)">${esc(a)}</a>`).join('')}</div></div>`;
   }
   return '';
 }
@@ -9037,12 +9097,168 @@ function applyRestoreFromCode(){
 }
 
 /* =========================================================
+   ACTOR MODAL
+   Reachable from cast chips/tags on the detail page, or directly via #actor/Name (shared link,
+   refresh). Shows every title in your library featuring this person, plus — when a TMDB API key is
+   configured — a short biography, known-for department, birthday/age and place of birth fetched
+   on the fly. The bio fetch is pure polish: it fails silently and the modal works perfectly well
+   without it, same philosophy as loadTmdbSimilarRow on the detail page.
+========================================================= */
+// Only used to restore the address bar to whatever it was showing right before the actor modal
+// opened via an in-app click (see openActorModalFromLink). A direct/shared #actor/Name load has no
+// such "previous" URL, so it stays null and closeModal() falls back to #home instead.
+let actorModalPrevHash = null;
+// Cast chips and "Starring" tags call this instead of navigating normally, so opening the actor
+// modal never adds a browser-history entry or leaves the underlying page — the hash is still
+// updated (via replaceState, exactly like the episode-info modal does) purely so the URL stays
+// shareable/refreshable.
+function openActorModalFromLink(actor, evt){
+  if(evt) evt.preventDefault();
+  actorModalPrevHash = location.hash;
+  history.replaceState(null, '', '#actor/'+encodeURIComponent(actor));
+  openActorModal(actor);
+}
+function openActorModal(actor){
+  // Checks the richer item.cast[] (TMDB-fetched, has {name,character}), the plain item.actors[] name
+  // list, and item.director (a plain "Name" or comma-joined "Name1, Name2" string) — so this same
+  // modal works correctly whether it was opened from a cast chip or a director/creator name.
+  const items = state.lib.items.filter(i=>
+    (i.cast||[]).some(c=>c.name===actor) || (i.actors||[]).includes(actor)
+    || (i.director||'').split(',').map(n=>n.trim()).includes(actor)
+  ).sort((a,b)=> new Date(b.dateAdded||0)-new Date(a.dateAdded||0));
+  // Photo and character roles aren't stored anywhere of their own — this actor only exists as an
+  // entry inside each title's own cast array. Scan every appearance to find the first usable photo
+  // (titles are already sorted newest-first above, so that's the most likely to still be a live URL)
+  // and collect "played X in Y" for each title that actually has a character name on file.
+  let photo = null;
+  const roles = [];
+  items.forEach(i=>{
+    const entry = (i.cast||[]).find(c=>c.name===actor);
+    if(entry){
+      if(!photo && entry.photo && !entry.blurred) photo = entry.photo;
+      if(entry.character) roles.push({title:i.title, character:entry.character});
+    }
+  });
+  const roleChips = roles.slice(0,3).map(r=>`<span class="actor-modal-chip">${esc(r.character)} in ${esc(r.title)}</span>`).join('');
+
+  const html = `
+    <button type="button" class="btn-icon actor-modal-close" onclick="closeModal()" title="Close">${ICON.close}</button>
+    <div class="actor-modal-hero" id="actorModalHero"></div>
+    <div class="actor-modal-scroll">
+      <div class="actor-modal-head">
+        <div class="actor-modal-photo" id="actorModalPhoto">${photo ? `<img src="${esc(photo)}" alt="" loading="lazy">` : castAvatarFallback(actor)}</div>
+        <div class="actor-modal-headtext">
+          <h2 class="actor-modal-name">${esc(actor)}</h2>
+          <div class="actor-modal-chips" id="actorModalChips">
+            <span class="actor-modal-chip is-highlight">${items.length} title${items.length===1?'':'s'} in your library</span>
+            ${roleChips}
+          </div>
+        </div>
+      </div>
+      <div class="actor-modal-bio-wrap" id="actorModalBioWrap" style="display:none;"></div>
+      <div class="actor-modal-section">
+        <span class="actor-modal-section-label">${ICON.library}In Your Library${items.length?` · <span class="actor-modal-section-count">${items.length}</span>`:''}</span>
+        ${items.length ? virtualListHtml('actorModalGrid', items, 'grid') : emptyState(`Nothing with ${esc(actor)}`, 'No titles in your library feature this person.')}
+      </div>
+    </div>`;
+  openModal(html);
+  const modalBody = document.getElementById('modalBody');
+  modalBody.classList.add('modal-actor');
+  modalBody.dataset.actor = actor;
+  if(photo) document.getElementById('actorModalHero').style.backgroundImage = `linear-gradient(180deg, rgba(8,9,13,.1), rgba(8,9,13,.55)), url("${esc(photo)}")`;
+  if(items.length) initVirtualList('actorModalGrid', cardHtml);
+  fetchActorTmdbInfo(actor);
+}
+// Best-effort enrichment: person search -> details, adds a biography (with the same clamp/expand
+// treatment as the title description), a "Known for" department chip, age, and place of birth.
+// Silently does nothing without a configured TMDB key, on a network failure, or if the person just
+// isn't found — the modal already works fine on library data alone.
+async function fetchActorTmdbInfo(actor){
+  if(!state.settings.tmdb) return;
+  const bioWrap = document.getElementById('actorModalBioWrap');
+  if(bioWrap){
+    bioWrap.style.display = '';
+    bioWrap.innerHTML = `<div class="actor-modal-bio-skeleton"></div><div class="actor-modal-bio-skeleton"></div><div class="actor-modal-bio-skeleton"></div>`;
+  }
+  try{
+    const searchRes = await fetch(`https://api.themoviedb.org/3/search/person?api_key=${encodeURIComponent(state.settings.tmdb)}&query=${encodeURIComponent(actor)}`);
+    const searchData = await searchRes.json();
+    const match = (searchData.results||[])[0];
+    // The modal may have been closed, or reopened for someone else, while this was in flight.
+    const modalBody = document.getElementById('modalBody');
+    const stillRelevant = () => modalBody && modalBody.classList.contains('modal-actor') && modalBody.dataset.actor===actor;
+    if(!match){ if(stillRelevant() && bioWrap) bioWrap.style.display='none'; return; }
+    const detailsRes = await fetch(`https://api.themoviedb.org/3/person/${match.id}?api_key=${encodeURIComponent(state.settings.tmdb)}`);
+    const d = await detailsRes.json();
+    if(!stillRelevant()) return;
+
+    // Fill in a TMDB headshot only if the library had none of its own to show.
+    const photoEl = document.getElementById('actorModalPhoto');
+    if(photoEl && photoEl.querySelector('.cast-avatar-fallback') && d.profile_path){
+      const url = `https://image.tmdb.org/t/p/w300${d.profile_path}`;
+      photoEl.innerHTML = `<img src="${esc(url)}" alt="" loading="lazy">`;
+      const hero = document.getElementById('actorModalHero');
+      if(hero) hero.style.backgroundImage = `linear-gradient(180deg, rgba(8,9,13,.1), rgba(8,9,13,.55)), url("${esc(url)}")`;
+    }
+    // Blur the face photo for actresses (TMDB gender===1), same click-to-reveal treatment as every
+    // other blurred photo in the app — whichever photo ended up showing, library or TMDB-fetched.
+    if(d.gender===1){
+      const faceImg = photoEl && photoEl.querySelector('img');
+      if(faceImg){
+        faceImg.classList.add('content-blurred');
+        faceImg.onclick = ev => revealBlurredEl(faceImg, ev);
+      }
+    }
+
+    // Quick-fact chips: known-for department, age (or age at death), place of birth.
+    const chipsEl = document.getElementById('actorModalChips');
+    if(chipsEl){
+      let extra = '';
+      if(d.known_for_department){
+        // TMDB's gender field: 1 = female, 2 = male, 3 = non-binary, 0/unset = not specified.
+        // "Acting" reads better as the precise Actress/Actor than the flat department name — every
+        // other department (Directing, Writing, Sound, ...) is left exactly as TMDB reports it.
+        let deptLabel = d.known_for_department;
+        if(deptLabel==='Acting') deptLabel = d.gender===1 ? 'Actress' : 'Actor';
+        extra += `<span class="actor-modal-chip">${ICON.award}${esc(deptLabel)}</span>`;
+      }
+      if(d.birthday){
+        const bd = new Date(d.birthday+'T00:00:00');
+        const end = d.deathday ? new Date(d.deathday+'T00:00:00') : new Date();
+        let age = end.getFullYear() - bd.getFullYear();
+        if(end.getMonth()<bd.getMonth() || (end.getMonth()===bd.getMonth() && end.getDate()<bd.getDate())) age--;
+        extra += `<span class="actor-modal-chip">${ICON.calendar}${d.deathday ? `${age} at time of death` : `${age} years old`}</span>`;
+      }
+      if(d.place_of_birth) extra += `<span class="actor-modal-chip">${ICON.pin}${esc(d.place_of_birth)}</span>`;
+      chipsEl.insertAdjacentHTML('beforeend', extra);
+    }
+
+    // Biography, clamped to 4 lines with the same Read more/Show less toggle used for title
+    // descriptions elsewhere in the app.
+    if(bioWrap){
+      if(d.biography && d.biography.trim()){
+        const needsClamp = d.biography.length > DESC_CLAMP_THRESHOLD;
+        bioWrap.innerHTML = `<div class="detail-desc-wrap">
+          <p class="detail-desc${needsClamp?' is-clamped':''}">${esc(d.biography.trim())}</p>
+          ${needsClamp ? `<button type="button" class="detail-desc-toggle" onclick="toggleDescExpand(this)">Read more</button>` : ''}
+        </div>`;
+      } else {
+        bioWrap.style.display = 'none';
+      }
+    }
+  }catch(e){ /* bio/photo enrichment is optional polish — fail quietly */
+    if(bioWrap && document.getElementById('modalBody')?.dataset.actor===actor) bioWrap.style.display='none';
+  }
+}
+
+/* =========================================================
    ADD / EDIT MODAL
 ========================================================= */
 function openModal(html){
   document.getElementById('modalBody').classList.remove('modal-video');
   document.getElementById('modalBody').classList.remove('modal-episode-info');
   document.getElementById('modalBody').classList.remove('modal-wizard');
+  document.getElementById('modalBody').classList.remove('modal-actor');
   document.getElementById('modalBody').innerHTML = html;
   document.getElementById('modalOverlay').classList.add('open');
 }
@@ -9055,6 +9271,15 @@ function closeModal(){
     const item = getItem(state.routeParam);
     const season = item && (item.seasons||[])[state.detailSeason];
     history.replaceState(null, '', '#detail/'+state.routeParam+(season && season.number!=null ? '/'+season.number : ''));
+  }
+  // Same idea for the actor modal: its name was stamped into #actor/Name purely for shareability
+  // (see openActorModalFromLink). Restore whatever the address bar showed right before it opened —
+  // or #home if it was reached via a direct/shared link with nothing to go back to.
+  if(modalBody && modalBody.classList.contains('modal-actor')){
+    history.replaceState(null, '', actorModalPrevHash || '#home');
+    actorModalPrevHash = null;
+    modalBody.classList.remove('modal-actor');
+    delete modalBody.dataset.actor;
   }
   document.getElementById('modalOverlay').classList.remove('open');
   // Removing .open only fades the overlay out visually — the trailer <iframe> underneath (e.g. the
@@ -9590,6 +9815,9 @@ function saveSkipManagerEditSegment(key, segId){
   const end = parseSkipTime(document.getElementById('skipMgrEditEnd').value);
   if(start==null || end==null){ toast('Enter both Start and End as MM:SS or HH:MM:SS'); return; }
   if(end<=start){ toast('End must be after Start'); return; }
+  if(start < 0){ toast('Start can\'t be negative'); return; }
+  const overlaps = entry.segments.some(s => s.id!==segId && start < s.end && end > s.start);
+  if(overlaps){ toast('Overlaps an existing skip segment for this title'); return; }
   seg.start = start; seg.end = end;
   seg.name = document.getElementById('skipMgrEditName').value.trim();
   saveSkipDataStore();
@@ -9602,8 +9830,14 @@ function addSkipSegmentInManager(key){
   const end = parseSkipTime(document.getElementById('skipMgrNewEnd').value);
   if(start==null || end==null){ toast('Enter both Start and End as MM:SS or HH:MM:SS'); return; }
   if(end<=start){ toast('End must be after Start'); return; }
+  if(start < 0){ toast('Start can\'t be negative'); return; }
   const name = document.getElementById('skipMgrNewName').value.trim();
   const entry = ensureSkipEntry(key);
+  // Same overlap check as the in-player panel (see saveSkipSegmentFromPanel) — this manager has no
+  // active playback session to check the real duration against, but two segments fighting over the
+  // same stretch of the video is avoidable regardless of where they were added from.
+  const overlaps = entry.segments.some(seg => start < seg.end && end > seg.start);
+  if(overlaps){ toast('Overlaps an existing skip segment for this title'); return; }
   entry.segments.push({id: uuid(), name, start, end, enabled:true});
   saveSkipDataStore();
   openModal(renderSkipManagerHtml());
@@ -10067,7 +10301,7 @@ async function applyTmdbDetails(tmdbId, tmdbType){
   // Same cast slice, but keeping the character name too — used for the detail-page "Full Cast" row
   // (state.editCast) rather than the plain "Starring" chip list (state.editActors), which stays
   // free-text/manually-editable since not everyone importing has a TMDB key.
-  const castDetailed = ((d.credits && d.credits.cast) || []).slice(0,10).map(c=>({name:c.name, character:c.character||'', photo:c.profile_path?`https://image.tmdb.org/t/p/w185${c.profile_path}`:''}));
+  const castDetailed = ((d.credits && d.credits.cast) || []).slice(0,10).map(c=>({name:c.name, character:c.character||'', photo:c.profile_path?`https://image.tmdb.org/t/p/w185${c.profile_path}`:'', gender:c.gender}));
   // Director (movies) pulled from the crew list; TV shows don't have a single "director" credit on
   // the show level, so created_by (the showrunner/creator) is used instead — same field in the UI,
   // just a different underlying source depending on type.
@@ -10308,7 +10542,7 @@ async function fetchTmdbDetailsHeadless(tmdbId, tmdbType){
   const description = d.overview || '';
   const tagline = d.tagline || '';
   const actors = ((d.credits && d.credits.cast) || []).slice(0,10).map(c=>c.name);
-  const cast = ((d.credits && d.credits.cast) || []).slice(0,10).map(c=>({name:c.name, character:c.character||'', photo:c.profile_path?`https://image.tmdb.org/t/p/w185${c.profile_path}`:''}));
+  const cast = ((d.credits && d.credits.cast) || []).slice(0,10).map(c=>({name:c.name, character:c.character||'', photo:c.profile_path?`https://image.tmdb.org/t/p/w185${c.profile_path}`:'', gender:c.gender}));
   const director = tmdbType==='movie'
     ? ((d.credits && d.credits.crew) || []).filter(c=>c.job==='Director').map(c=>c.name).join(', ')
     : ((d.created_by||[]).map(c=>c.name).join(', '));
@@ -11320,7 +11554,7 @@ async function refreshTvMetadataFromTmdb(item){
   const overview = d.overview || item.description;
   const tagline = d.tagline || item.tagline;
   const cast = ((d.credits && d.credits.cast) || []).slice(0,10).map(c=>c.name);
-  const castDetailed = ((d.credits && d.credits.cast) || []).slice(0,10).map(c=>({name:c.name, character:c.character||'', photo:c.profile_path?`https://image.tmdb.org/t/p/w185${c.profile_path}`:''}));
+  const castDetailed = ((d.credits && d.credits.cast) || []).slice(0,10).map(c=>({name:c.name, character:c.character||'', photo:c.profile_path?`https://image.tmdb.org/t/p/w185${c.profile_path}`:'', gender:c.gender}));
   const director = (d.created_by||[]).map(c=>c.name).join(', ');
   let contentRating = item.contentRating;
   if(d.content_ratings && d.content_ratings.results){
@@ -11495,7 +11729,7 @@ async function refreshMovieMetadataFromTmdb(item){
   const overview = d.overview || item.description;
   const tagline = d.tagline || item.tagline;
   const cast = ((d.credits && d.credits.cast) || []).slice(0,10).map(c=>c.name);
-  const castDetailed = ((d.credits && d.credits.cast) || []).slice(0,10).map(c=>({name:c.name, character:c.character||'', photo:c.profile_path?`https://image.tmdb.org/t/p/w185${c.profile_path}`:''}));
+  const castDetailed = ((d.credits && d.credits.cast) || []).slice(0,10).map(c=>({name:c.name, character:c.character||'', photo:c.profile_path?`https://image.tmdb.org/t/p/w185${c.profile_path}`:'', gender:c.gender}));
   const director = ((d.credits && d.credits.crew) || []).filter(c=>c.job==='Director').map(c=>c.name).join(', ');
   let contentRating = item.contentRating;
   if(d.release_dates && d.release_dates.results){
@@ -12293,6 +12527,18 @@ function renderPlayer(){
       if(vid.readyState >= 1){ doSeek(); } // HAVE_METADATA or beyond — safe to seek now
       else { vid.addEventListener('loadedmetadata', doSeek, {once:true}); }
     }
+    // Shared by the real native 'ended' event below and by an outro/credits skip segment that runs
+    // to the true end of the video (see timeupdate below) — both mean "playback is over" and must
+    // do the exact same cleanup, or whichever path runs second can clobber what the first one saved.
+    const finishNativeVideoPlayback = ()=>{
+      if(p.playbackState === 'stopped') return; // already handled — don't double-save/double-show
+      clearInterval(p._interval); // stop the periodic vid.currentTime save now, before it can read a
+      // stale/reverted position (see the timeupdate note below) and clobber the correct "watched,
+      // full duration" save this function is about to make.
+      if(isFinite(vid.duration)) saveProgress(item, p.key, vid.duration, vid.duration, true);
+      p.playbackState = 'stopped';
+      showPlaybackEndCard(item, next);
+    };
     p._interval = setInterval(()=>{
       if(!vid.duration || !isFinite(vid.duration)) return;
       saveProgress(item, p.key, vid.currentTime, vid.duration, vid.currentTime >= vid.duration*getWatchedThreshold(p.seasonNum));
@@ -12301,13 +12547,23 @@ function renderPlayer(){
     // <video>/hls sources have a real, continuously-updating currentTime, so timeupdate is the exact
     // right hook — no polling interval needed the way iframe embeds require.
     vid.addEventListener('timeupdate', ()=>{
-      checkSkipSegments(vid.currentTime, (target)=>{ vid.currentTime = target; });
+      checkSkipSegments(vid.currentTime, (target)=>{
+        // An outro/credits segment whose `end` sits at or right up against the video's real duration
+        // means "skip straight to the end" — but actually seeking there is the wrong move: this is
+        // often past whatever the source has buffered so far (you'd normally only reach it by playing
+        // through, which buffers it naturally), and plenty of sources silently reject an out-of-buffer
+        // seek by snapping currentTime back to the last buffered position instead of the target. That
+        // produced the exact backward-jumping timeline this replaces: ending directly, with no seek
+        // at all, sidesteps it entirely and also guarantees the end-of-playback card actually shows
+        // (a seek landing exactly on `duration` doesn't reliably fire the native 'ended' event either).
+        if(isFinite(vid.duration) && target >= vid.duration - 0.5){
+          finishNativeVideoPlayback();
+        } else {
+          vid.currentTime = target;
+        }
+      });
     });
-    vid.addEventListener('ended', ()=>{
-      if(isFinite(vid.duration)) saveProgress(item, p.key, vid.duration, vid.duration, true);
-      p.playbackState = 'stopped';
-      showPlaybackEndCard(item, next);
-    });
+    vid.addEventListener('ended', finishNativeVideoPlayback);
     vid.addEventListener('error', ()=>{
       hideSpinner();
       if(p.sources.length>1){ toast('This source failed — trying the next one'); tryNextSource(); }
@@ -13102,12 +13358,27 @@ function saveSkipSegmentFromPanel(){
   const item = getItem(p.itemId);
   if(!item){ toast('Nothing playing to add a skip to'); return; }
   const start = parseSkipTime(document.getElementById('skipDraftStart').value);
-  const end = parseSkipTime(document.getElementById('skipDraftEnd').value);
+  let end = parseSkipTime(document.getElementById('skipDraftEnd').value);
   if(start==null || end==null){ toast('Enter both Start and End as MM:SS or HH:MM:SS'); return; }
   if(end <= start){ toast('End must be after Start'); return; }
+  if(start < 0){ toast('Start can\'t be negative'); return; }
+  // Clamp against the real duration when it's actually known during an active playback session
+  // (native <video>/hls reports it directly; an iframe embed only knows it once Vaplayer's own
+  // PLAYER_EVENT has reported one — see p._totalSeconds elsewhere). A segment saved past the real
+  // end is exactly what could send a later skip past what the source has buffered — see
+  // finishIframePlayback/performPlayerSeek's near-end guards above for why that matters.
+  const vidEl = document.getElementById('playerVideoEl');
+  const knownDuration = (vidEl && isFinite(vidEl.duration) && vidEl.duration > 0) ? vidEl.duration : (p._totalSeconds || 0);
+  if(knownDuration > 0 && start >= knownDuration){ toast('Start is past the end of this video'); return; }
+  if(knownDuration > 0 && end > knownDuration) end = knownDuration;
   const name = document.getElementById('skipDraftName').value.trim();
   const key = skipDataKey(item, p.seasonNum, p.epNum);
   const entry = ensureSkipEntry(key);
+  // Overlapping segments would fight each other — whichever checkSkipSegments happens to reach
+  // first would fire and mark the other's range as already-skipped territory without ever running
+  // its own seek. Reject rather than silently letting one shadow the other.
+  const overlaps = entry.segments.some(seg => start < seg.end && end > seg.start);
+  if(overlaps){ toast('Overlaps an existing skip segment for this title'); return; }
   entry.segments.push({id: uuid(), name, start, end, enabled: true});
   saveSkipDataStore();
   closeSkipPanel();
@@ -13715,6 +13986,22 @@ function hidePlayerLoadingOverlay(){
   if(l) l.classList.add('done');
   if(lbl) lbl.textContent = 'Loading stream…';
 }
+// Shared "playback is over" cleanup for iframe embeds — used by the real end-of-stream/near-end
+// checks below AND by an outro/credits skip segment whose target lands at the true end of the
+// video (see startProgressInterpolation's checkSkipSegments call, in PLAYER PROGRESS INTERPOLATION
+// further down). All three mean the same thing, and a near-end skip segment must never route
+// through performPlayerSeek() — rebuilding a third-party iframe this close to the finish line is
+// unreliable, since plenty of embeds ignore the sync point on reload and just resume from wherever
+// they last remember instead, which undoes the skip and makes the timeline jump backward instead
+// of forward. Ending directly, with no rebuild at all, sidesteps that entirely.
+function finishIframePlayback(item, p){
+  if(p.playbackState === 'stopped') return; // already handled — don't double-save/double-show
+  p.playbackState = 'stopped';
+  stopProgressInterpolation();
+  updatePlayerProgressUI();
+  saveProgress(item, p.key, p._totalSeconds || p._elapsedSeconds || 0, p._totalSeconds || 0, true);
+  showPlaybackEndCard(item, getNextEpisode(item, p.seasonNum, p.epNum));
+}
 // Vaplayer PLAYER_EVENT listener — the one and only source of truth for iframe playback
 // progress/duration/status, replacing the old local elapsed-time timer entirely.
 //
@@ -13782,19 +14069,12 @@ window.addEventListener('message', (event)=>{
     // end screen never lags behind the real remaining time — see isNearPlaybackEnd for why this is
     // remaining real seconds from Vaplayer, never TMDB runtime or a percentage of it.
     if(isNearPlaybackEnd(p._elapsedSeconds, p._totalSeconds) && p.playbackState !== 'stopped'){
-      p.playbackState = 'stopped';
-      stopProgressInterpolation();
-      saveProgress(item, p.key, p._elapsedSeconds, p._totalSeconds, true);
-      showPlaybackEndCard(item, getNextEpisode(item, p.seasonNum, p.epNum));
+      finishIframePlayback(item, p);
     } else {
       saveIframeProgressThrottled(item, p);
     }
   } else if(status === 'ended'){
-    p.playbackState = 'stopped';
-    stopProgressInterpolation();
-    updatePlayerProgressUI();
-    saveProgress(item, p.key, p._totalSeconds || p._elapsedSeconds || 0, p._totalSeconds || 0, true);
-    showPlaybackEndCard(item, getNextEpisode(item, p.seasonNum, p.epNum));
+    finishIframePlayback(item, p);
   } else {
     // buffering / paused / idle / anything else short of a confirmed "playing" — the latest known
     // position/duration were already applied above, so the bar stays accurate, but we don't tick,
@@ -14022,7 +14302,17 @@ function startProgressInterpolation(){
     // continuously between the real ~5s-apart PLAYER_EVENT updates, so it's the right spot to check
     // for a skip too — performPlayerSeek() is the exact same seek performPlayerSeek()-driven ±20s/
     // progress-bar clicks use, so an auto-skip looks identical to a manual seek to anyone watching.
-    checkSkipSegments(displayed, (target)=> performPlayerSeek(target));
+    checkSkipSegments(displayed, (target)=>{
+      // A skip whose target sits at (or right up against) the real duration means "this is the
+      // end" — see finishIframePlayback's comment above for why that must never go through
+      // performPlayerSeek's iframe rebuild.
+      if(p._totalSeconds > 0 && target >= p._totalSeconds - 0.5){
+        const item = getItem(p.itemId);
+        if(item) finishIframePlayback(item, p);
+      } else {
+        performPlayerSeek(target);
+      }
+    });
     updatePlayerProgressUI(displayed);
     // Subtitles need the same per-frame smoothing as the progress bar above, not just the raw
     // p._elapsedSeconds from the last real ~5s-apart PLAYER_EVENT: a cue that starts and ends
@@ -14257,6 +14547,12 @@ function performPlayerSeek(newTime){
   // same restartPlayer() implementation the Restart button uses rather than duplicating any of its
   // steps here, so "restart" behaves identically no matter which control triggered it.
   if(target <= 0){ restartPlayer(); return; }
+  // Symmetric case at the other end: a seek landing at (or right up against) the true duration —
+  // dragging the progress bar to the far right, +20s near the end, clicking past the last tick —
+  // means "this is the end" for exactly the same reason an end-of-video skip segment does (see
+  // finishIframePlayback above): rebuilding the iframe this close to the finish line is unreliable,
+  // and this is the one caller of performPlayerSeek that skip segments don't already route around.
+  if(totalSeconds > 0 && target >= totalSeconds - 0.5){ finishIframePlayback(item, p); return; }
 
   p._playbackBusy = true;
   setPlaybackControlsBusy(true);
