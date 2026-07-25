@@ -13612,10 +13612,11 @@ window.addEventListener('message', (event)=>{
 
   // Real position/duration, straight from the embed — applied regardless of status, so the bar
   // is always accurate the moment playback does resume, even while we're not actively ticking.
-  // Every real progress value becomes a fresh interpolation sync point (see setPlayerSyncPoint) —
-  // this is the resync step that keeps local interpolation from ever drifting far from the truth.
+  // Every real progress value is checked against the interpolation and resyncs it if it's actually
+  // drifted (see resyncPlayerProgress) — this is the step that keeps local interpolation from ever
+  // drifting far from the truth, without resyncing to every bit of reporting jitter.
   if(Number.isFinite(duration) && duration > 0) p._totalSeconds = duration;
-  if(Number.isFinite(progress)) setPlayerSyncPoint(progress);
+  if(Number.isFinite(progress)) resyncPlayerProgress(progress);
 
   if(status === 'playing'){
     const justStarted = p.playbackState !== 'playing';
@@ -13829,6 +13830,25 @@ function setPlayerSyncPoint(elapsedSeconds){
   if(!p) return;
   p._elapsedSeconds = Math.max(0, elapsedSeconds);
   p._syncedAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+}
+// Resyncs the interpolation sync point to a real reported position from Vaplayer, but only when it
+// actually diverges from what the smooth interpolation currently predicts by more than normal
+// measurement noise. Vaplayer's real progress reports carry their own rounding/latency jitter, and
+// resyncing to every single one of them unconditionally could occasionally snap the sync point
+// slightly BACKWARD relative to where interpolation had already smoothly advanced to. That backward
+// micro-jump is invisible on the progress bar, but land it right at a subtitle cue's start boundary
+// and it's enough to make a cue that had just appeared flicker off and back on a frame later — the
+// flinch/twitch. A small dead zone filters that noise out while still catching genuine drift
+// (buffering catch-up, an out-of-band seek the embed itself performed, etc.).
+const PLAYER_RESYNC_THRESHOLD_SECONDS = 1.5;
+function resyncPlayerProgress(progress){
+  const p = state.player;
+  if(!p) return;
+  const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  const elapsedSinceSync = Math.max(0, (now - (p._syncedAt || now)) / 1000);
+  const currentEstimate = (p._elapsedSeconds || 0) + elapsedSinceSync;
+  if(Math.abs(progress - currentEstimate) < PLAYER_RESYNC_THRESHOLD_SECONDS) return; // within normal jitter — let interpolation keep running smoothly
+  setPlayerSyncPoint(progress);
 }
 // Starts the rAF loop if it isn't already running. Safe to call repeatedly (e.g. on every
 // "playing" PLAYER_EVENT) — it's a no-op once the loop is already ticking.
