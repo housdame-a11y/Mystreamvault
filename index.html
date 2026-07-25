@@ -10378,6 +10378,23 @@ const CURATED_COLLECTIONS = {
       'tt0083399','tt0063929','tt0072500','tt0290978','tt0387764','tt0084988','tt0081912','tt7120662',
       'tt4374208','tt2578560','tt5024912','tt4288182','tt5348176','tt13623580','tt8324422'
     ]
+  },
+  action: {
+    name: 'Action',
+    description: 'Shoot-outs, spy games, and martial arts — classic and modern action movies and shows.',
+    ids: [
+      // Movies
+      'tt0095016','tt1392190','tt0133093','tt0103064','tt0090605','tt0111257','tt0468569','tt2911666',
+      'tt4912910','tt0113277','tt0093773','tt1899353','tt0266697','tt0172495','tt0381061','tt0258463',
+      'tt0082971','tt0119094','tt0102685','tt0117500','tt0111503','tt0118880','tt0093870','tt0110413',
+      'tt0070034','tt0088247','tt0093409','tt1745960','tt1074638','tt2802144','tt1631867','tt1343727',
+      'tt1320253','tt0190332','tt0104684','tt0088944','tt8936646','tt7423880','tt2406566','tt3890160',
+      // TV Shows
+      'tt0285331','tt1190634','tt9288030','tt2017109','tt1492179','tt5057054','tt5675620','tt3322312',
+      'tt2193021','tt1442449','tt2306299','tt0455275','tt13918776','tt5743796','tt3865236','tt7221388',
+      'tt8111088','tt4565380','tt6964748','tt6932244','tt2375692','tt2189461','tt1592154','tt1839578',
+      'tt1954347'
+    ]
   }
 };
 // Loads a CURATED_COLLECTIONS entry into the wizard's Step 1 "IMDb Links or IDs" textarea and opens
@@ -13170,7 +13187,19 @@ function updateSubtitleOverlay(elapsed){
   const p = state.player;
   if(!el || !p || !p.subtitleCues) return;
   const offset = p.subtitleOffset || 0;
-  const cue = p.subtitleCues.find(c=>elapsed>=c.start+offset && elapsed<=c.end+offset);
+  const cue = p.subtitleCues.find(c=>elapsed>=c.start+offset && elapsed<=c.end+offset) || null;
+  // Only touch the DOM when the active cue actually changes. This function now runs every single
+  // animation frame (~60/sec) via the interpolation loop above, and unconditionally rewriting
+  // innerHTML to the exact same content every frame forces the browser to tear down and rebuild the
+  // same <span> nodes 60 times a second -- nothing was visually different frame to frame, but the
+  // DOM (and the text's font rasterization) was being redone regardless. That's what showed up as a
+  // faint flinch/twitch on the subtitle text the whole time a single cue was displayed. Comparing
+  // against the last-rendered cue and bailing out when it hasn't changed removes those redundant
+  // rebuilds entirely while keeping timing exactly as accurate as before -- cue objects are always
+  // freshly parsed (parseSrtCues / preSub.cues) whenever subtitles load or reload, so this reference
+  // comparison naturally re-renders on any real subtitle-track change too, not just cue-to-cue.
+  if(cue === p._lastRenderedSubtitleCue) return;
+  p._lastRenderedSubtitleCue = cue;
   el.innerHTML = cue ? cue.text.split('\n').map(line=>`<span>${esc(line)}</span>`).join('') : '';
 }
 
