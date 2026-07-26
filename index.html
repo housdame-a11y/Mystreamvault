@@ -2970,11 +2970,20 @@ function saveLib(){
   if(saveLibTimer) return;
   saveLibTimer = setTimeout(flushSaveLib, 800);
 }
+// Surfaces a save failure to the person, not just the console. storageWarnedThisSession stops a
+// run of debounced saves that are all failing the same way from spamming a new toast every ~800ms;
+// it resets the moment a save succeeds again, so a *new* failure later in the session still warns.
+let storageWarnedThisSession = false;
+function warnStorageIssue(msg, opts){
+  storageWarnedThisSession = true;
+  toast(msg, opts);
+}
 function flushSaveLib(){
   saveLibTimer = null;
   if(!saveLibDirty) return;
   saveLibDirty = false;
   const toWrite = buildLibSnapshotForWrite();
+  let localOk = true;
   try{
     localStorage.setItem(LIB_KEY, JSON.stringify(toWrite));
     // Sidecar write-timestamp, updated ONLY when the localStorage write above actually succeeded --
@@ -2984,12 +2993,29 @@ function flushSaveLib(){
     // that localStorage is stale rather than assuming it's current just because a copy exists.
     try{ localStorage.setItem(LIB_SAVED_AT_KEY, String(Date.now())); }catch(e){ /* best-effort only */ }
   }
-  catch(e){ svLog('warn', '[library] localStorage write failed (quota exceeded or private-mode storage) -- this edit only landed in IndexedDB until the next load reconciles it:', e); }
+  catch(e){
+    localOk = false;
+    svLog('warn', '[library] localStorage write failed (quota exceeded or private-mode storage) -- this edit only landed in IndexedDB until the next load reconciles it:', e);
+  }
   // Stage 3 of the IndexedDB migration for this store (see LIBRARY STORE section below):
   // IndexedDB now gets a timestamped copy so a startup reconciliation can tell which side is
   // actually newer if the localStorage write above ever fails.
-  idbPutLib(toWrite).catch(err=>{
+  idbPutLib(toWrite).then(()=>{
+    if(!localOk){
+      // IndexedDB caught this save, so nothing was actually lost -- but warn once per session so
+      // the person knows this device is running low on local storage before it becomes a real problem.
+      if(!storageWarnedThisSession) warnStorageIssue("⚠️ This device's local storage is full — your library is still saving normally, but export a backup from Settings soon just in case.");
+    } else if(storageWarnedThisSession){
+      storageWarnedThisSession = false; // both sides healthy again -- let a future failure re-warn
+    }
+  }).catch(err=>{
     svLog('warn', '[library] IndexedDB write failed -- localStorage (if it succeeded above) remains available for next load:', err);
+    if(!localOk){
+      // BOTH writes failed -- this specific edit was not saved anywhere and will be gone on reload.
+      // This is the "titles disappeared" failure mode, so it always warns regardless of whether we
+      // already warned this session.
+      warnStorageIssue('⚠️ Could not save your last change — this device may be out of storage space or blocking local storage. This edit may be lost if you reload now.', {undoLabel:null});
+    }
   });
 }
 window.addEventListener('beforeunload', flushSaveLib);
@@ -3447,7 +3473,17 @@ function loadSettings(){
     return s;
   }catch(e){ return {omdb:'',tmdb:'',subdl:'',vidsrcDomain:'vidsrc-embed.su', streamingProviders:[], blockPopupAds:false, contentBlur:false, contentBlurLevel:'moderate', contentBlurModelUrl:'', scheduleCountry:'US', recentSearches:[], supabaseUrl:'', supabaseKey:'', playerBrightness:1, subtitleSize:'medium', subtitleColor:'#ffffff', subtitleBgColor:'#000000', subtitleBgOpacity:72, tmdbTop100Excluded:{movie:[],tv:[]}, similarExcluded:{movie:[],tv:[]}, featuredArtworkBleed:true, bannedWords:[], bannedGenres:[], skipSegmentsEnabled:true, skipNotify:true, torrentServerUrl:''}; }
 }
-function saveSettings(){ localStorage.setItem(SET_KEY, JSON.stringify(state.settings)); }
+function saveSettings(){
+  try{
+    localStorage.setItem(SET_KEY, JSON.stringify(state.settings));
+  }catch(e){
+    // Unlike sv_library, settings has no IndexedDB backup -- if this throws, the change (an API key,
+    // a toggle, a content filter) genuinely isn't saved anywhere. Always warn, since there's no
+    // secondary store to quietly catch it the way flushSaveLib()'s IndexedDB write does.
+    svLog('warn', '[settings] localStorage write failed (quota exceeded or private-mode storage) -- this change was not saved:', e);
+    toast('⚠️ Could not save that setting — this device may be out of storage space.', {undoLabel:null});
+  }
+}
 
 const state = {
   lib: loadLib(),
@@ -3494,6 +3530,17 @@ hydrateSkipDataFromIndexedDB();
 // hydrateProgressIntoItems(loadProgressStore()) just above (the Stage 2 localStorage path); this
 // reconciles it against IndexedDB + the fallback key and re-renders only if the result differs.
 hydrateProgressFromIndexedDB();
+
+// If IndexedDB isn't available at all (some restricted/embedded WebViews, some private-browsing
+// modes), every "IndexedDB write failed" catch above will fire silently on every save from now on
+// -- localStorage becomes the ONLY copy of the library, with no safety net if it hits its quota.
+// Worth telling the person up front rather than only when a save eventually fails.
+idbOpen().catch(()=>{
+  svLog('warn', '[library] IndexedDB is unavailable in this browser/context -- saves rely on localStorage alone with no backup store.');
+  setTimeout(()=>{
+    toast("⚠️ This browser/app can't use its backup storage — your library relies on local storage alone. Export a backup from Settings to be safe.", {undoLabel:null});
+  }, 1500); // after first paint, so it doesn't collide with any load-time toast
+});
 
 function uuid(){
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c=>{
@@ -8971,7 +9018,11 @@ function importLibrary(file){
   reader.onload = e=>{
     try{
       const data = JSON.parse(e.target.result);
-      if(!data.items) throw new Error('invalid');
+      // Array.isArray, not just truthy: a hand-edited or corrupted file where "items" is e.g. a
+      // string or object would pass a bare `if(!data.items)` check, then get assigned straight into
+      // state.lib.items -- breaking every .push/.filter/.find call on it for the rest of the app,
+      // instead of failing cleanly with the "Invalid library file" toast below.
+      if(!Array.isArray(data.items)) throw new Error('invalid');
       state.lib = {items:data.items||[], collections:data.collections||[], channels:data.channels||[], notifications:data.notifications||[], skipData:(data.skipData && typeof data.skipData==='object') ? data.skipData : {}};
       saveLib();
       // The imported items still carry progress/lastWatched inline (exports always include them —
@@ -9068,7 +9119,8 @@ function applyRestoreFromCode(){
   if(!raw){ toast('Paste a backup code first'); return; }
   try{
     const data = decodeBackupCode(raw);
-    if(!data.items) throw new Error('invalid');
+    // See importLibrary's identical check for why this needs to be Array.isArray, not just truthy.
+    if(!Array.isArray(data.items)) throw new Error('invalid');
     state.lib = {
       items: data.items || [],
       collections: data.collections || [],
@@ -11491,29 +11543,41 @@ function wizardFinish(){
   const ready = w.items.filter(i=>i.status==='ready');
   if(!ready.length){ toast('Nothing to add'); return; }
   const baseTime = Date.now();
-  let addedCount = 0, blockedCount = 0;
+  let addedCount = 0, blockedCount = 0, failedCount = 0;
   ready.forEach((it,i)=>{
-    // Content Filters (Settings > Content Filters): quietly skip a banned title rather than adding
-    // it — the wizard has already moved past its per-title steps by this point, so there's no field
-    // left to correct; the person can adjust the filter or the title's genre/name and re-import.
-    if(getBlockedReason(it.title, it.genre)){ blockedCount++; return; }
-    const clean = Object.assign({}, it);
-    delete clean.status; delete clean.error;
-    delete clean.posterCandidates; delete clean.backdropCandidates; delete clean.logoCandidates;
-    delete clean._sourcesSeasonIdx;
-    const newItem = {
-      id: uuid(), dateAdded: new Date(baseTime + i*1000).toISOString(), lastWatched:null, progress:{},
-      ...clean
-    };
-    state.lib.items.push(newItem);
-    checkMissingSourceNotification(newItem);
-    addedCount++;
+    // Each item is wrapped individually: without this, one unexpected throw partway through a
+    // multi-title batch (a bulk wizard add is exactly where that's most likely) would abort the
+    // whole forEach BEFORE saveLib() at the end ever runs -- so titles already pushed into
+    // state.lib.items above would look added for the rest of this session (state.lib is the live
+    // in-memory source of truth) but were never actually saved, and would silently vanish on the
+    // next reload with no error shown. Catching per-item keeps one bad title from taking the
+    // whole batch's save down with it.
+    try{
+      // Content Filters (Settings > Content Filters): quietly skip a banned title rather than adding
+      // it — the wizard has already moved past its per-title steps by this point, so there's no field
+      // left to correct; the person can adjust the filter or the title's genre/name and re-import.
+      if(getBlockedReason(it.title, it.genre)){ blockedCount++; return; }
+      const clean = Object.assign({}, it);
+      delete clean.status; delete clean.error;
+      delete clean.posterCandidates; delete clean.backdropCandidates; delete clean.logoCandidates;
+      delete clean._sourcesSeasonIdx;
+      const newItem = {
+        id: uuid(), dateAdded: new Date(baseTime + i*1000).toISOString(), lastWatched:null, progress:{},
+        ...clean
+      };
+      state.lib.items.push(newItem);
+      checkMissingSourceNotification(newItem);
+      addedCount++;
+    }catch(err){
+      failedCount++;
+      svLog('warn', '[wizard] one title in this batch failed to finalize and was skipped:', it && it.title, err);
+    }
   });
   saveLib();
   state.wizard = null;
   closeModal();
   router();
-  toast(`${addedCount} title${addedCount===1?'':'s'} added to your library${blockedCount ? ` (${blockedCount} blocked by content filters)` : ''}`);
+  toast(`${addedCount} title${addedCount===1?'':'s'} added to your library${blockedCount ? ` (${blockedCount} blocked by content filters)` : ''}${failedCount ? ` (${failedCount} failed unexpectedly — check console)` : ''}`);
 }
 
 // Bulk "Update Info" (Settings → Library Metadata): re-pulls TMDB metadata for a TV show you
