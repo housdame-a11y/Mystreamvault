@@ -2958,6 +2958,39 @@ function stripProgressForLibWrite(item){
   const { progress, lastWatched, ...rest } = item;
   return rest;
 }
+// Strips the two fields that actually cause localStorage's quota to blow up on a large catalog:
+// `seasons` (every episode's title/overview/thumbnail/sources, which multiplies fast for shows with
+// many seasons) and `cast` (name/character/photo per person, ~10 per title). Everything else on an
+// item is small enough that thousands of titles still comfortably fit localStorage's few-MB quota.
+// IndexedDB (effectively unbounded for this app's purposes) always gets the untouched full item via
+// idbPutLib() in flushSaveLib() below -- this stripped copy exists ONLY so localStorage can keep
+// serving an instant first paint without ever risking its quota again, regardless of library size.
+function stripBulkyFieldsForLiteWrite(item){
+  const { seasons, cast, ...lite } = item;
+  return lite;
+}
+function buildLiteLibSnapshotForWrite(fullSnapshot){
+  return { ...fullSnapshot, items: (fullSnapshot.items||[]).map(stripBulkyFieldsForLiteWrite) };
+}
+// True once hydrateLibFromIndexedDB() has resolved for this session -- i.e. state.lib.items is
+// known to hold FULL data (seasons/cast included), not just the lite localStorage copy loadLib()
+// seeds state with for the very first paint. Anything that reads item.seasons/item.cast to build an
+// editable draft (openEditModal, most notably) must check this first -- editing a title in the tiny
+// window before hydration completes would otherwise silently draft from an empty seasons/cast array
+// and could save over the real data. See waitForLibHydration() below for the guarded entry point.
+let libFullyHydrated = false;
+let libHydrationWaiters = [];
+function waitForLibHydration(fn){
+  if(libFullyHydrated){ fn(); return; }
+  libHydrationWaiters.push(fn);
+  toast('Still finishing loading your library — one moment…');
+}
+function resolveLibHydration(){
+  libFullyHydrated = true;
+  const waiters = libHydrationWaiters;
+  libHydrationWaiters = [];
+  waiters.forEach(fn=>{ try{ fn(); }catch(e){ svLog('warn', '[library] a queued action failed after hydration completed:', e); } });
+}
 function buildLibSnapshotForWrite(){
   // skipData is excluded here too -- see the SKIPDATA STORE block below (Stage 3: this is the
   // first store fully cut over to IndexedDB, no longer written to localStorage at all).
@@ -2985,21 +3018,17 @@ function flushSaveLib(){
   const toWrite = buildLibSnapshotForWrite();
   let localOk = true;
   try{
-    localStorage.setItem(LIB_KEY, JSON.stringify(toWrite));
-    // Sidecar write-timestamp, updated ONLY when the localStorage write above actually succeeded --
-    // see LIBRARY STORE (Stage 3) below for why this matters: if this throws (quota exceeded on a
-    // large catalog is the realistic case here), this timestamp intentionally falls behind the
-    // IndexedDB write's own timestamp a few lines down, so startup reconciliation correctly detects
-    // that localStorage is stale rather than assuming it's current just because a copy exists.
-    try{ localStorage.setItem(LIB_SAVED_AT_KEY, String(Date.now())); }catch(e){ /* best-effort only */ }
+    // Lite copy only -- see stripBulkyFieldsForLiteWrite() above for exactly why. IndexedDB (a few
+    // lines down) still gets `toWrite` completely untouched, so nothing is actually lost; this is
+    // purely about what localStorage specifically has to hold to stay under its small quota.
+    localStorage.setItem(LIB_KEY, JSON.stringify(buildLiteLibSnapshotForWrite(toWrite)));
   }
   catch(e){
     localOk = false;
     svLog('warn', '[library] localStorage write failed (quota exceeded or private-mode storage) -- this edit only landed in IndexedDB until the next load reconciles it:', e);
   }
-  // Stage 3 of the IndexedDB migration for this store (see LIBRARY STORE section below):
-  // IndexedDB now gets a timestamped copy so a startup reconciliation can tell which side is
-  // actually newer if the localStorage write above ever fails.
+  // Stage 3 of the IndexedDB migration for this store (see LIBRARY STORE section below): IndexedDB
+  // gets the full, untouched item data every time -- it's the only side that's ever complete.
   idbPutLib(toWrite).then(()=>{
     if(!localOk){
       // IndexedDB caught this save, so nothing was actually lost -- but warn once per session so
@@ -3307,44 +3336,44 @@ async function hydrateSkipDataFromIndexedDB(){
 
 /* =========================================================
    LIBRARY STORE — Stage 3 cutover for LIB_KEY (the catalog metadata blob: items/collections/
-   channels/notifications). Same shape as PROGRESS STORE's Stage 3 above, but simpler: catalog
-   edits aren't a hot 5-10s loop, and flushSaveLib() already writes localStorage synchronously on
-   every flush -- routine AND at unload, same single code path -- so there's no separate tab-close
-   race to design around here, and no need for a dedicated always-written fallback key the way
-   progress needed one.
+   channels/notifications), now further split into a LITE localStorage copy + a FULL IndexedDB copy.
 
-   The real risk for THIS store specifically is quota, not timing: it's the largest of the three
-   stores and the only one whose size scales with the size of the whole library, so
-   localStorage.setItem(LIB_KEY, ...) is the most likely of the three writes to actually throw on a
-   big catalog -- while the IndexedDB write right after it (unconditional, not inside that try)
-   still succeeds. That's the divergence this reconciles: LIB_SAVED_AT_KEY is a tiny sidecar
-   timestamp that flushSaveLib() only updates when the localStorage write itself didn't throw, so if
-   it ever does, that sidecar timestamp falls behind the IndexedDB write's own timestamp. At
-   startup, whichever side is actually newer wins, exactly like PROGRESS STORE above -- except here
-   "newer" is resolved against that sidecar key instead of a second wrapped copy, since localStorage
-   is already written on the very same path as IndexedDB rather than a separate emergency-only one.
+   Originally (like PROGRESS STORE above) this was a timestamp-reconciled mirror of the *same* data
+   on both sides, picking whichever side's sidecar timestamp was newer at startup. That broke down
+   once real usage showed the actual failure mode for THIS store specifically isn't timing, it's
+   quota: it's the only one of the three stores whose size scales with the whole library, so on a
+   large catalog localStorage.setItem(LIB_KEY, ...) started throwing on essentially every save,
+   while the IndexedDB write right after it (much higher quota) kept succeeding -- surfacing as a
+   permanent "device storage is full" warning on every launch, since a big catalog never stops being
+   big.
 
-   LIB_KEY's on-disk format in localStorage is UNCHANGED (still the plain catalog object, not
-   wrapped) -- loadLib() and the legacy-diagnostic read in hydrateSkipDataFromIndexedDB() above both
-   keep working exactly as before. Only the IndexedDB side is wrapped with {savedAt, data}.
+   The actual fix: localStorage no longer receives the same data as IndexedDB at all. Every write
+   strips `seasons` (every episode's title/overview/thumbnail/sources -- the field that actually
+   scales with library size) and `cast` (name/character/photo per person) before touching
+   localStorage (see stripBulkyFieldsForLiteWrite/buildLiteLibSnapshotForWrite), so its footprint
+   stays small regardless of how large the library gets. IndexedDB still gets everything, untouched,
+   every time -- it's the only side that's ever complete. That makes the old "whichever side is
+   newer wins" comparison meaningless (localStorage is now permanently incomplete even on a fully
+   successful write), so hydrateLibFromIndexedDB() below no longer compares timestamps at all: it
+   applies IndexedDB's data unconditionally whenever a record exists, and never writes back into
+   IndexedDB from the in-memory snapshot except when IndexedDB has literally nothing yet.
+
+   LIB_KEY's on-disk format in localStorage is otherwise UNCHANGED (still the plain catalog object,
+   not wrapped, just with seasons/cast missing per item) -- loadLib() and the legacy-diagnostic read
+   in hydrateSkipDataFromIndexedDB() above both keep working exactly as before. Only the IndexedDB
+   side is wrapped with {savedAt, data}; savedAt is kept there purely for debugging/inspection, not
+   read by any comparison anymore.
 ========================================================= */
-const LIB_SAVED_AT_KEY = 'sv_library_saved_at';
 function idbPutLib(data){
   return idbPut(LIB_KEY, {savedAt: Date.now(), data});
 }
 // See normalizeProgressRecord above -- identical defensive shape-normalization, here for LIB_KEY's
 // IndexedDB record: a legacy unwrapped value (from this store's own Stage 1 shadow writes, before
-// this cutover) is treated as maximally old so a properly timestamped record always wins below.
+// this cutover) is treated the same as a normal wrapped record with data intact.
 function normalizeLibRecord(raw){
   if(raw === undefined) return undefined;
   if(raw && typeof raw==='object' && 'data' in raw && 'savedAt' in raw) return raw;
   return { savedAt: 0, data: raw };
-}
-function readLibSavedAt(){
-  try{
-    const n = parseInt(localStorage.getItem(LIB_SAVED_AT_KEY), 10);
-    return isNaN(n) ? 0 : n;
-  }catch(e){ return 0; }
 }
 // Applies an IndexedDB-sourced catalog snapshot into state.lib, in memory. Per-item
 // progress/lastWatched are a wholly separate store now (see PROGRESS STORE above) and must survive
@@ -3373,35 +3402,33 @@ async function hydrateLibFromIndexedDB(){
   let idbRecord;
   try{ idbRecord = normalizeLibRecord(await idbGet(LIB_KEY)); }
   catch(err){
-    svLog('warn', '[library] IndexedDB read failed at startup -- keeping whatever loaded from localStorage:', err);
+    svLog('warn', '[library] IndexedDB read failed at startup -- staying on the lite localStorage copy for this session (seasons/episodes and cast will be missing until IndexedDB is reachable again; nothing is deleted, just not shown yet):', err);
+    resolveLibHydration();
     return;
   }
-  const localSavedAt = readLibSavedAt();
-  const currentSnapshot = buildLibSnapshotForWrite();
-
-  if(idbRecord && idbRecord.savedAt > localSavedAt){
-    // IndexedDB holds a save that localStorage never actually reflected -- most likely a
-    // quota-exceeded localStorage write on a large catalog. IndexedDB is authoritative here.
-    if(JSON.stringify(idbRecord.data) !== JSON.stringify(currentSnapshot)){
-      applyLibSnapshot(idbRecord.data);
-      router();
-    }
-    // Best-effort repair so localStorage stops lagging behind. If this fails again (still over
-    // quota), that's fine -- IndexedDB remains the source of truth and this same repair is retried
-    // on every future flush and every future load, same as any other localStorage write failure.
-    try{
-      localStorage.setItem(LIB_KEY, JSON.stringify(idbRecord.data));
-      localStorage.setItem(LIB_SAVED_AT_KEY, String(idbRecord.savedAt));
-    }catch(e){ /* still over quota or blocked -- IndexedDB stays authoritative regardless */ }
+  if(idbRecord && idbRecord.data){
+    // IndexedDB is now the ONLY store that ever holds complete item data -- localStorage exists
+    // purely for instant first paint and never gets seasons/cast at all (see
+    // stripBulkyFieldsForLiteWrite). So IndexedDB wins unconditionally whenever it has a record,
+    // rather than only when its timestamp is strictly newer: a tie is now the expected common case
+    // (both writes happen back-to-back in the same flushSaveLib() call), and a tie must still mean
+    // "apply IndexedDB's fuller data", not "keep the lite copy that's showing right now". This also
+    // deliberately never writes back to IndexedDB here -- doing so from state.lib as it exists
+    // pre-hydration would mean overwriting IndexedDB's complete data with the lite in-memory
+    // snapshot loadLib() seeded at boot, silently deleting every title's seasons/cast.
+    applyLibSnapshot(idbRecord.data);
+    router();
+    resolveLibHydration();
     return;
   }
-
-  // localStorage is at least as fresh (the common case) -- make sure IndexedDB matches it, in case
-  // this is the very first load after this cutover shipped, or a previous IndexedDB write failed.
-  if(!idbRecord || JSON.stringify(idbRecord.data) !== JSON.stringify(currentSnapshot)){
-    try{ await idbPutLib(currentSnapshot); }
-    catch(e){ svLog('warn', '[library] could not reconcile IndexedDB with localStorage on startup:', e); }
-  }
+  // No IndexedDB record at all -- either this is the very first load ever, or IndexedDB has never
+  // been reachable/successfully written on this device. Seed it from what's showing now (the lite
+  // localStorage snapshot) so a future load has something to recover from; this is the one
+  // legitimate case where writing lite data into IndexedDB is correct, since IndexedDB currently has
+  // nothing to lose. hydration still "completes" here -- there's simply nothing fuller coming.
+  try{ await idbPutLib(buildLibSnapshotForWrite()); }
+  catch(e){ svLog('warn', '[library] could not seed IndexedDB at startup:', e); }
+  resolveLibHydration();
 }
 
 function loadSettings(){
@@ -9437,6 +9464,11 @@ function shortcutsOverlayHtml(){
 }
 
 function openEditModal(id){
+  // See libFullyHydrated above: until the one-time startup hydration from IndexedDB completes,
+  // state.lib.items may still be the lite localStorage copy (no seasons/cast). Editing an existing
+  // TV show in that window would draft state.editSeasons/state.editCast from nothing and could save
+  // an empty result over the real data. New items (id is null, nothing to lose) are unaffected.
+  if(id && !libFullyHydrated){ waitForLibHydration(()=>openEditModal(id)); return; }
   state.editingId = id || null;
   const item = id ? getItem(id) : null;
   state.editType = item ? item.type : 'movie';
