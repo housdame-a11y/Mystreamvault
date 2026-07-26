@@ -4479,11 +4479,14 @@ function renderHome(){
 
   const favorites = items.filter(i=>i.favorite).sort((a,b)=> new Date(b.dateAdded||0)-new Date(a.dateAdded||0));
 
-  // The most-recently-added title always gets a panoramic row if it has *any* banner art —
-  // including the automatic TMDB-backdrop fallback. But it only gets pulled out of Recently
-  // Added when you've manually curated banners for it yourself; the automatic fallback is just
-  // a visual nicety and never hides a title from the normal list.
-  const newest = recentlyAdded[0];
+  // The Featured Release slot shows whichever title actually released most recently in the real
+  // world (getItemReleaseTimestamp) -- NOT whichever you added to your library most recently. The
+  // separate "Recently Added" row below still uses dateAdded, since that one really is about your
+  // own library activity. A title needs *some* date to sort by (releaseDate or at least a year) to
+  // be eligible; if literally nothing on your whole library has one, this row is empty rather than
+  // falling back to dateAdded, which would silently reintroduce the exact behavior being replaced.
+  const byReleaseDate = [...items].sort((a,b)=> getItemReleaseTimestamp(b)-getItemReleaseTimestamp(a));
+  const newest = byReleaseDate[0] && getItemReleaseTimestamp(byReleaseDate[0]) ? byReleaseDate[0] : null;
   const panoramicItem = newest && getPanoramicBanners(newest).length ? newest : null;
   const featured = newest && hasManualPanoramicBanners(newest) ? newest : null;
   const recentlyAddedRowItems = featured ? recentlyAdded.filter(i=>i.id!==featured.id) : recentlyAdded;
@@ -4519,7 +4522,10 @@ function renderTypePage(type){
   const continueWatching = watched.filter(i=>!isFullyWatched(i));
   const recentlyAdded = [...items].sort((a,b)=> new Date(b.dateAdded||0)-new Date(a.dateAdded||0));
 
-  const newest = recentlyAdded[0];
+  // See renderHome()'s identical comment: Featured Release goes by real-world release date, not
+  // library dateAdded.
+  const byReleaseDate = [...items].sort((a,b)=> getItemReleaseTimestamp(b)-getItemReleaseTimestamp(a));
+  const newest = byReleaseDate[0] && getItemReleaseTimestamp(byReleaseDate[0]) ? byReleaseDate[0] : null;
   const panoramicItem = newest && getPanoramicBanners(newest).length ? newest : null;
   const featured = newest && hasManualPanoramicBanners(newest) ? newest : null;
   const recentlyAddedRowItems = featured ? recentlyAdded.filter(i=>i.id!==featured.id) : recentlyAdded;
@@ -4603,6 +4609,20 @@ function getPanoramicBanners(item){
    automatic backdrop fallback above. This is what decides whether a title gets pulled out of
    Recently Added to be featured — the auto fallback alone should never do that; only your own
    curated banner links should. */
+// Comparable release timestamp for "Featured Release" sorting: prefers the exact releaseDate
+// (day-level precision, from TMDB's release_date/first_air_date or the OMDb fallback) and falls
+// back to Jan 1 of item.year for anything imported before releaseDate existed, or added manually
+// without a TMDB/OMDb lookup at all. Never throws on a garbled value -- just sorts it last.
+function getItemReleaseTimestamp(item){
+  if(!item) return 0;
+  if(item.releaseDate){
+    const t = new Date(item.releaseDate).getTime();
+    if(!isNaN(t)) return t;
+  }
+  const y = parseInt(item.year, 10);
+  if(!isNaN(y)) return new Date(y, 0, 1).getTime();
+  return 0;
+}
 function hasManualPanoramicBanners(item){
   if(!item) return false;
   if(Array.isArray(item.panoramicBanners) && item.panoramicBanners.length) return true;
@@ -10326,6 +10346,15 @@ async function fetchOmdb(){
   }catch(e){ toast('Failed to fetch metadata'); }
 }
 
+// OMDb gives release dates as "14 Oct 1994" (or "N/A"); TMDB already gives ISO "1994-10-14" directly.
+// Used only as a fallback when a title has no TMDB match, so releaseDate/year sourcing stays
+// consistent regardless of which API actually had the data.
+function omdbReleasedToIso(released){
+  if(!released || released==='N/A') return '';
+  const d = new Date(released);
+  if(isNaN(d)) return '';
+  return d.toISOString().split('T')[0];
+}
 // Shared TMDB detail pull used by both "Fetch from TMDB" (by title) and the IMDb auto-import.
 // Populates genres/cast/poster/backdrop/logo/rating/runtime/description, and for TV shows,
 // walks every season and pulls real episode titles + thumbnails (sources are left for you to add).
@@ -10439,7 +10468,7 @@ async function applyTmdbDetails(tmdbId, tmdbType){
   setVal('f_director', director);
   setVal('f_contentRating', contentRating);
 
-  return { tmdbId, trailerKey: trailerVid ? trailerVid.key : '', logo, seasonCount, episodeCount, tvStatus, nextEpisode };
+  return { tmdbId, trailerKey: trailerVid ? trailerVid.key : '', logo, seasonCount, episodeCount, tvStatus, nextEpisode, releaseDate: dateVal || '' };
 }
 
 function setTmdbFetchBtnState(text, disabled){
@@ -10466,7 +10495,7 @@ async function fetchTmdbByTitle(){
     const match = searchData.results && searchData.results[0];
     if(!match){ toast(`No TMDB match found for "${title}"${yearVal?' ('+yearVal+')':''}${yearVal?' — try clearing the year and searching again':''}`); return; }
     const info = await applyTmdbDetails(match.id, tmdbType);
-    state.editImdbMeta = Object.assign({}, state.editImdbMeta, {tmdbId: info.tmdbId, trailerKey: info.trailerKey, trailerChecked: !!info.trailerKey});
+    state.editImdbMeta = Object.assign({}, state.editImdbMeta, {tmdbId: info.tmdbId, trailerKey: info.trailerKey, trailerChecked: !!info.trailerKey, releaseDate: info.releaseDate});
     toast(info.seasonCount ? `Fetched from TMDB — ${info.seasonCount} season(s), ${info.episodeCount} episode(s)` : 'Metadata fetched from TMDB');
   }catch(e){
     toast('Failed to fetch from TMDB: ' + (e.message || 'network error'));
@@ -10545,11 +10574,16 @@ async function importFromImdb(){
     const omdbRatings = normalizeOmdbRatings(omdb);
     if(omdbRatings.length) state.editRatings = omdbRatings;
 
+    // TMDB's release_date/first_air_date (already ISO) wins when available; OMDb's "14 Oct 1994"
+    // format is only a fallback for titles TMDB couldn't match.
+    const releaseDate = (info && info.releaseDate) || omdbReleasedToIso(omdb.Released);
+
     state.editImdbMeta = {
       imdbId,
       tmdbId: info ? info.tmdbId : null,
       trailerKey: info ? info.trailerKey : '',
       trailerChecked: !!(info && info.trailerKey),
+      releaseDate,
     };
 
     const seasonNote = (info && info.seasonCount) ? ` — ${info.seasonCount} season(s), ${info.episodeCount} episode(s)` : '';
@@ -10651,7 +10685,7 @@ async function fetchTmdbDetailsHeadless(tmdbId, tmdbType){
   return {
     tmdbId, trailerKey: trailerVid ? trailerVid.key : '', seasons, seasonCount, episodeCount,
     posterCandidates, backdropCandidates, logoCandidates,
-    fields: { title, year, poster, backdrop, logo, genre, rating, runtime, description, tagline, director, contentRating, actors, cast, tvStatus, nextEpisodeInfo }
+    fields: { title, year, releaseDate: dateVal || '', poster, backdrop, logo, genre, rating, runtime, description, tagline, director, contentRating, actors, cast, tvStatus, nextEpisodeInfo }
   };
 }
 // Headless twin of importFromImdb(): same OMDb + TMDB lookups, same "TMDB first, OMDb fills the
@@ -10693,6 +10727,7 @@ async function buildLibraryItemFromImdb(imdbId){
   if(omdb.imdbRating && omdb.imdbRating!=='N/A') payload.rating = omdb.imdbRating;
   setIfEmpty('director', omdb.Director);
   setIfEmpty('contentRating', omdb.Rated);
+  setIfEmpty('releaseDate', omdbReleasedToIso(omdb.Released));
   setIfEmpty('awards', omdb.Awards);
   const omdbRatings = normalizeOmdbRatings(omdb);
   if(omdbRatings.length) payload.ratings = omdbRatings;
@@ -11088,6 +11123,7 @@ async function buildWizardItemFromImdb(imdbId){
   if(omdb.imdbRating && omdb.imdbRating!=='N/A') payload.rating = omdb.imdbRating;
   setIfEmpty('director', omdb.Director);
   setIfEmpty('contentRating', omdb.Rated);
+  setIfEmpty('releaseDate', omdbReleasedToIso(omdb.Released));
   setIfEmpty('awards', omdb.Awards);
   const omdbRatings = normalizeOmdbRatings(omdb);
   if(omdbRatings.length) payload.ratings = omdbRatings;
@@ -11907,6 +11943,7 @@ function saveEditModal(){
   if(state.editImdbMeta){
     if(state.editImdbMeta.imdbId) payload.imdbId = state.editImdbMeta.imdbId;
     if(state.editImdbMeta.tmdbId) payload.tmdbId = state.editImdbMeta.tmdbId;
+    if(state.editImdbMeta.releaseDate) payload.releaseDate = state.editImdbMeta.releaseDate;
     if(state.editImdbMeta.trailerKey){
       payload.trailerKey = state.editImdbMeta.trailerKey;
       payload.trailerChecked = true;
