@@ -12501,8 +12501,22 @@ function renderPlayer(){
     p._embedBaseUrl = embed.src;
     const savedForResume = (item && item.progress && item.progress[p.key]);
     resumeAtOpen = savedForResume && !savedForResume.watched ? Math.floor(savedForResume.timestamp) : 0;
-    iframeSrc = buildResumeEmbedUrl(embed.src, resumeAtOpen);
-    console.debug('[StreamVault] iframe src ->', iframeSrc); // verify in DevTools: no resumeAt param should ever appear here for a seek-to-0
+    if(isOption2){
+      // Option 2 speaks the mplayer postMessage protocol, which has no resumeAt-style URL
+      // convention (see the spec pasted into this project) — baking a vaplayer-only param into
+      // this URL would do nothing for it. Instead the raw link is left untouched here, and the
+      // target second is stashed on p for attachOption2PostMessageListener to send as a real
+      // `seek` command the moment the embed reports its 'ready' event (the first point it's
+      // actually guaranteed to accept commands). p._option2ResumeSent is reset per-mount so a
+      // fresh open/next-episode/retry always gets exactly one resume seek, never zero, never
+      // repeated on a re-fired 'ready'.
+      iframeSrc = embed.src;
+      p._option2ResumeSeconds = resumeAtOpen;
+      p._option2ResumeSent = false;
+    } else {
+      iframeSrc = buildResumeEmbedUrl(embed.src, resumeAtOpen);
+      console.debug('[StreamVault] iframe src ->', iframeSrc); // verify in DevTools: no resumeAt param should ever appear here for a seek-to-0
+    }
   }
   // Fresh mount (open / next episode / retry source) always starts in the real "playing" state —
   // any previous fake-pause cover or in-flight rebuild lock no longer applies to whatever is being
@@ -14453,6 +14467,17 @@ Option2Engine.attachPostMessageListener();
 // against the CURRENTLY mounted #playerIframeEl by event.source so a stale/torn-down iframe from a
 // previous title can never touch the live player's state, and p.engine!=='option2' short-circuits
 // so this never fires for an Option 1 (or live) title.
+// Posts a single mplayer-protocol command to the currently-mounted Option 2 iframe, per the spec:
+// { type:'mplayer', action, value }. No-op (safely) if there's no iframe mounted right now — direct
+// <video>/hls Option 2 sources never call this; their resume/seek goes through the real element's
+// currentTime instead (see the isVideoLike branch in renderPlayer).
+function sendOption2Command(action, value){
+  const iframe = document.getElementById('playerIframeEl');
+  if(!iframe || !iframe.contentWindow) return;
+  const msg = { type: 'mplayer', action };
+  if(value !== undefined) msg.value = value;
+  iframe.contentWindow.postMessage(msg, '*');
+}
 function attachOption2PostMessageListener(){
 window.addEventListener('message', (event)=>{
   const msg = event.data;
@@ -14473,6 +14498,17 @@ window.addEventListener('message', (event)=>{
     // full timeout.
     clearTimeout(p._eventFallbackTimer);
     hidePlayerLoadingOverlay();
+    // RESUME: 'ready' is the one moment the mplayer spec guarantees the embed will actually accept
+    // commands, so this is where the saved position (computed once in renderPlayer and stashed on
+    // p._option2ResumeSeconds) gets sent as a real `seek` command. Gated by p._option2ResumeSent so
+    // a source that re-fires 'ready' (an internal retry, for instance) can't yank playback back to
+    // the start position after the viewer has already moved past it. Same sub-5s "close enough to
+    // the start, don't bother seeking" threshold Option 1 uses (SEEK_TO_START_THRESHOLD_SECONDS).
+    if(!p._option2ResumeSent){
+      p._option2ResumeSent = true;
+      const target = Math.floor(p._option2ResumeSeconds || 0);
+      if(target > SEEK_TO_START_THRESHOLD_SECONDS) sendOption2Command('seek', target);
+    }
     return;
   }
   if(evt === 'timeupdate'){
