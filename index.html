@@ -12513,6 +12513,7 @@ function renderPlayer(){
       iframeSrc = embed.src;
       p._option2ResumeSeconds = resumeAtOpen;
       p._option2ResumeSent = false;
+      p._option2ResumeConfirmed = false;
     } else {
       iframeSrc = buildResumeEmbedUrl(embed.src, resumeAtOpen);
       console.debug('[StreamVault] iframe src ->', iframeSrc); // verify in DevTools: no resumeAt param should ever appear here for a seek-to-0
@@ -13371,6 +13372,8 @@ function cleanupPlayerTimers(){
     clearInterval(state.player._watchTimer);
     clearInterval(state.player._blurInterval);
     clearInterval(state.player._endCardTimer);
+    clearTimeout(state.player._option2ResumeRetryTimer); // see attemptOption2Resume — a stale retry
+    // must never fire a seek command at a title that isn't mounted anymore.
     state.player.playbackState = 'stopped';
     if(state.player._hls){ try{ state.player._hls.destroy(); }catch(e){} state.player._hls = null; }
   }
@@ -14473,15 +14476,47 @@ Option2Engine.attachPostMessageListener();
 // currentTime instead (see the isVideoLike branch in renderPlayer).
 function sendOption2Command(action, value){
   const iframe = document.getElementById('playerIframeEl');
-  if(!iframe || !iframe.contentWindow) return;
+  if(!iframe || !iframe.contentWindow){
+    console.debug('[StreamVault][option2 mplayer] tried to send', action, value, 'but no iframe is mounted');
+    return;
+  }
   const msg = { type: 'mplayer', action };
   if(value !== undefined) msg.value = value;
+  console.debug('[StreamVault][option2 mplayer] sending ->', msg);
   iframe.contentWindow.postMessage(msg, '*');
+}
+// RESUME RETRY: a single seek sent the instant 'ready' fires is unreliable in practice — plenty of
+// embeds report 'ready' as soon as their outer script/DOM has loaded, before the actual media
+// element inside has metadata/duration to seek into, and silently drop a command that arrives too
+// early. This resends the same seek a few more times over the following seconds (until a real
+// timeupdate confirms the position actually landed near the target, or attempts run out), which is
+// the standard workaround for that class of embed. Bound to a fixed target/generation via p so a
+// closed/replaced player, or a resume that already succeeded, can never have a stale retry fire a
+// seek at whatever's now on screen.
+const OPTION2_RESUME_RETRY_DELAYS_MS = [600, 1500, 3000, 5000, 8000];
+function attemptOption2Resume(p, target, attempt){
+  attempt = attempt || 0;
+  if(!state.player || state.player !== p) return; // player was closed/replaced since this was scheduled
+  if(p.engine !== 'option2' || p._option2ResumeConfirmed) return;
+  sendOption2Command('seek', target);
+  if(attempt >= OPTION2_RESUME_RETRY_DELAYS_MS.length) return; // out of retries — best effort only
+  p._option2ResumeRetryTimer = setTimeout(()=>{
+    attemptOption2Resume(p, target, attempt + 1);
+  }, OPTION2_RESUME_RETRY_DELAYS_MS[attempt]);
 }
 function attachOption2PostMessageListener(){
 window.addEventListener('message', (event)=>{
-  const msg = event.data;
+  // Some mplayer embeds are known to postMessage a JSON-stringified payload instead of a plain
+  // object — tolerate both rather than silently dropping every message from one of those.
+  let msg = event.data;
+  if(typeof msg === 'string'){
+    try{ msg = JSON.parse(msg); }catch(e){ return; } // not JSON at all — definitely not for us
+  }
   if(!msg || msg.type !== 'mplayer') return;
+  // TEMP DEBUG: confirms in the console whether messages are arriving at all, and exactly what
+  // shape they're in, before any of the branches below get a chance to (silently) not match.
+  // Safe to remove once resume is confirmed working end-to-end.
+  console.debug('[StreamVault][option2 mplayer]', msg.event, msg);
   const p = state.player;
   if(!p || p.isLive) return; // no progress tracking for live channels
   if(p.engine !== 'option2') return; // Option 1's own listener owns option1 titles
@@ -14498,16 +14533,16 @@ window.addEventListener('message', (event)=>{
     // full timeout.
     clearTimeout(p._eventFallbackTimer);
     hidePlayerLoadingOverlay();
-    // RESUME: 'ready' is the one moment the mplayer spec guarantees the embed will actually accept
-    // commands, so this is where the saved position (computed once in renderPlayer and stashed on
-    // p._option2ResumeSeconds) gets sent as a real `seek` command. Gated by p._option2ResumeSent so
-    // a source that re-fires 'ready' (an internal retry, for instance) can't yank playback back to
-    // the start position after the viewer has already moved past it. Same sub-5s "close enough to
-    // the start, don't bother seeking" threshold Option 1 uses (SEEK_TO_START_THRESHOLD_SECONDS).
+    // RESUME: kick off the retrying seek (see attemptOption2Resume above) — gated by
+    // p._option2ResumeSent so a source that re-fires 'ready' (an internal retry) can't restart the
+    // whole retry sequence from scratch after the viewer has already moved past the resume point.
+    // Same sub-5s "close enough to the start, don't bother seeking" threshold Option 1 uses
+    // (SEEK_TO_START_THRESHOLD_SECONDS).
     if(!p._option2ResumeSent){
       p._option2ResumeSent = true;
       const target = Math.floor(p._option2ResumeSeconds || 0);
-      if(target > SEEK_TO_START_THRESHOLD_SECONDS) sendOption2Command('seek', target);
+      if(target > SEEK_TO_START_THRESHOLD_SECONDS) attemptOption2Resume(p, target, 0);
+      else p._option2ResumeConfirmed = true; // nothing to resume — don't let timeupdate ever "confirm" a no-op
     }
     return;
   }
@@ -14516,6 +14551,17 @@ window.addEventListener('message', (event)=>{
     const current = Number(msg.currentTime);
     if(Number.isFinite(duration) && duration > 0) p._totalSeconds = duration;
     if(Number.isFinite(current)) p._elapsedSeconds = current;
+    // RESUME CONFIRMATION: once a real reported position lands within ~5s of the target we sent,
+    // the seek actually took — stop retrying (see attemptOption2Resume/cleanupPlayerTimers) so a
+    // later retry can never yank the timeline backward after the viewer has kept watching/sought
+    // elsewhere themselves.
+    if(!p._option2ResumeConfirmed && p._option2ResumeSent && Number.isFinite(current)){
+      const target = Math.floor(p._option2ResumeSeconds || 0);
+      if(Math.abs(current - target) <= SEEK_TO_START_THRESHOLD_SECONDS){
+        p._option2ResumeConfirmed = true;
+        clearTimeout(p._option2ResumeRetryTimer);
+      }
+    }
     if(p.playbackState !== 'stopped'){
       p.playbackState = 'playing';
       // Same end-of-playback + throttled-save pattern as Option 1's listener: check for the near-
@@ -14535,6 +14581,14 @@ window.addEventListener('message', (event)=>{
     hidePlayerLoadingOverlay();
     p.playbackState = 'playing';
     p.option2Paused = false;
+    // Fallback resume trigger for an embed that never sends 'ready' at all — 'play' is the next-
+    // best "it's definitely accepting input now" signal. No-op if 'ready' already started this.
+    if(!p._option2ResumeSent){
+      p._option2ResumeSent = true;
+      const target = Math.floor(p._option2ResumeSeconds || 0);
+      if(target > SEEK_TO_START_THRESHOLD_SECONDS) attemptOption2Resume(p, target, 0);
+      else p._option2ResumeConfirmed = true;
+    }
     return;
   }
   if(evt === 'pause'){
