@@ -8080,7 +8080,10 @@ function playEpisodeFromModal(itemId, seasonNum, epNum, sourceIdx){
   // this episode's modal goes straight to a single Play/Continue button next time instead of asking
   // again. requestPlayback() applies the actual reorder centrally, so `playable` is passed through
   // as-is here rather than pre-sorted.
-  if(playable[sourceIdx]) episodeSourceChoice[episodeSourceChoiceKey(itemId, seasonNum, epNum)] = playable[sourceIdx].url;
+  if(playable[sourceIdx]){
+    episodeSourceChoice[episodeSourceChoiceKey(itemId, seasonNum, epNum)] = playable[sourceIdx].url;
+    saveEpisodeSourceChoice();
+  }
   closeModal();
   requestPlayback(item, seasonNum, epNum, playable);
 }
@@ -14023,12 +14026,26 @@ let movieSourceChoice = {}; // itemId -> index into that movie's playable-source
 // identifies "the same source" across all of them. Set the moment a specific source button is
 // actually clicked (playEpisodeFromModal); cleared by clearEpisodeSourceChoice ("Change source").
 // Applied centrally in requestPlayback() so every play path benefits without duplicating this.
-let episodeSourceChoice = {};
+//
+// PERSISTED (unlike movieSourceChoice, which is deliberately session-only) — same
+// load-once/read/write-through-localStorage pattern as SUBTITLE_SYNC_MEMORY_KEY just above. A
+// plain in-memory object here would reset to {} on every page reload, which defeats the entire
+// point: the person would still see the full picker on the first click after every reload, making
+// the feature look broken even though it was working correctly within a single unreloaded session.
+const EPISODE_SOURCE_CHOICE_KEY = 'sv_episode_source_choice_v1';
+function loadEpisodeSourceChoice(){
+  try{ return JSON.parse(localStorage.getItem(EPISODE_SOURCE_CHOICE_KEY)) || {}; }catch(e){ return {}; }
+}
+let episodeSourceChoice = loadEpisodeSourceChoice();
 function episodeSourceChoiceKey(itemId, seasonNum, epNum){ return itemId+'::s'+seasonNum+'e'+epNum; }
+function saveEpisodeSourceChoice(){
+  try{ localStorage.setItem(EPISODE_SOURCE_CHOICE_KEY, JSON.stringify(episodeSourceChoice)); }catch(e){}
+}
 // Forgets the remembered source for this one episode and re-renders the modal body in place so the
 // full source list reappears — used by the small "Change source" link shown once a choice exists.
 function clearEpisodeSourceChoice(itemId, seasonNum, epNum){
   delete episodeSourceChoice[episodeSourceChoiceKey(itemId, seasonNum, epNum)];
+  saveEpisodeSourceChoice();
   const modalBody = document.getElementById('modalBody');
   if(modalBody) modalBody.innerHTML = episodeInfoModalHtml(itemId, seasonNum, epNum);
 }
