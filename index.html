@@ -1452,6 +1452,8 @@ body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
 .episode-modal-actions{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start;}
 .episode-modal-source-list{display:flex; flex-direction:column; gap:8px; width:100%;}
 .episode-modal-source-btn{justify-content:flex-start;}
+.episode-modal-chosen-source{opacity:.65; font-weight:600; font-size:12px;}
+.btn-small{padding:8px 12px; font-size:12.5px; height:auto;}
 @media (max-width:860px){ .modal.modal-episode-info{max-width:100%;} }
 .trailer-modal-head{display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 20px; border-bottom:1px solid #1a1d26;}
 .trailer-modal-head h2{font-size:15.5px; font-weight:800; font-family:var(--display-font);}
@@ -8035,11 +8037,26 @@ function episodeInfoModalHtml(itemId, seasonNum, epNum){
       </div>
       ${canResume ? `<div class="episode-modal-resume-hint">${ICON.play} Continue from ${formatResumeTime(p.timestamp)}</div>` : ''}
       <div class="episode-modal-actions">
-        ${playable.length>1 ? `
+        ${(()=>{
+          if(playable.length<=1){
+            return `<button class="btn btn-primary" ${playable.length?'':'disabled style="opacity:.5; cursor:not-allowed;"'} onclick="playEpisodeFromModal('${itemId}', ${seasonNum}, ${ep.number}, 0)">${ICON.play} ${canResume?`Continue from ${formatResumeTime(p.timestamp)}`:'Play Episode'}</button>`;
+          }
+          const chosenUrl = episodeSourceChoice[episodeSourceChoiceKey(itemId, seasonNum, ep.number)];
+          const chosenIdx = chosenUrl ? playable.findIndex(s=>s.url===chosenUrl) : -1;
+          if(chosenIdx>=0){
+            // A source was already picked earlier this session — go straight to a single Play/
+            // Continue button using it, same as the single-source case, plus a small link to bring
+            // the full list back if this one was picked by mistake.
+            const chosenLabel = playable[chosenIdx].label || ('Source '+(chosenIdx+1));
+            return `
+              <button class="btn btn-primary" onclick="playEpisodeFromModal('${itemId}', ${seasonNum}, ${ep.number}, ${chosenIdx})">${ICON.play} ${canResume?`Continue from ${formatResumeTime(p.timestamp)}`:'Play Episode'} <span class="episode-modal-chosen-source">· ${esc(chosenLabel)}</span></button>
+              <button type="button" class="btn btn-ghost btn-small" onclick="clearEpisodeSourceChoice('${itemId}', ${seasonNum}, ${ep.number})">Change source</button>`;
+          }
+          return `
           <div class="episode-modal-source-list">
             ${playable.map((src,i)=>`<button type="button" class="btn btn-ghost episode-modal-source-btn" onclick="playEpisodeFromModal('${itemId}', ${seasonNum}, ${ep.number}, ${i})">${ICON.play} ${esc(src.label||'Source '+(i+1))}</button>`).join('')}
-          </div>
-        ` : `<button class="btn btn-primary" ${playable.length?'':'disabled style="opacity:.5; cursor:not-allowed;"'} onclick="playEpisodeFromModal('${itemId}', ${seasonNum}, ${ep.number}, 0)">${ICON.play} ${canResume?`Continue from ${formatResumeTime(p.timestamp)}`:'Play Episode'}</button>`}
+          </div>`;
+        })()}
         <button class="btn btn-ghost btn-icon-only" title="${watched?'Mark as Unwatched':(next?'Mark as Watched & Go to Next':'Mark as Watched')}" onclick="toggleEpisodeWatchedInModal('${itemId}', ${seasonNum}, ${ep.number})">${watched?ICON.close:ICON.check}</button>
         ${magnetSourcesRowHtml(magnets, 'Magnet', {itemId, seasonNum, epNum:ep.number})}
       </div>
@@ -8059,9 +8076,13 @@ function playEpisodeFromModal(itemId, seasonNum, epNum, sourceIdx){
   // it lines up with whichever episode-modal-source-btn was actually clicked.
   const { playable } = splitPlayableSources(getEpisodeSources(item, ep, seasonNum));
   if(!playable.length){ toast('No playable sources available'); return; }
-  const ordered = sourceIdx>0 ? [playable[sourceIdx], ...playable.slice(0,sourceIdx), ...playable.slice(sourceIdx+1)] : playable;
+  // Remember this pick (by URL — see episodeSourceChoice) for the rest of the session, so reopening
+  // this episode's modal goes straight to a single Play/Continue button next time instead of asking
+  // again. requestPlayback() applies the actual reorder centrally, so `playable` is passed through
+  // as-is here rather than pre-sorted.
+  if(playable[sourceIdx]) episodeSourceChoice[episodeSourceChoiceKey(itemId, seasonNum, epNum)] = playable[sourceIdx].url;
   closeModal();
-  requestPlayback(item, seasonNum, epNum, ordered);
+  requestPlayback(item, seasonNum, epNum, playable);
 }
 // Same star row as episodeMiniStarsHtml on the card, but wired to refresh the open modal in place
 // (setEpisodeRating already repaints the detail page behind it; the modal is a separate DOM subtree
@@ -13991,6 +14012,36 @@ function turnOffSubtitles(){
    requestPlayback() as normal, which will still ask about subtitles the first time.
 ========================================================= */
 let movieSourceChoice = {}; // itemId -> index into that movie's playable-sources array, once chosen this session
+// Episode equivalent of movieSourceChoice — keyed by 'itemId::sSeasonNumeEpNum' rather than by
+// itemId alone, since each episode can have its own source list. Without this, the episode-info
+// modal's "which source?" button row (episodeInfoModalHtml, when playable.length>1) would make you
+// re-pick the source every single time you opened that episode, even for one you'd already chosen
+// and been happily resuming on. Stored as the chosen source's URL rather than an array index — the
+// same episode's sources show up in differently-filtered/ordered arrays depending on the caller
+// (quickPlay's unfiltered "first unwatched episode" list, the modal's playable-only list,
+// playNextEpisode's raw getEpisodeSources list), so a URL match is the only thing that reliably
+// identifies "the same source" across all of them. Set the moment a specific source button is
+// actually clicked (playEpisodeFromModal); cleared by clearEpisodeSourceChoice ("Change source").
+// Applied centrally in requestPlayback() so every play path benefits without duplicating this.
+let episodeSourceChoice = {};
+function episodeSourceChoiceKey(itemId, seasonNum, epNum){ return itemId+'::s'+seasonNum+'e'+epNum; }
+// Forgets the remembered source for this one episode and re-renders the modal body in place so the
+// full source list reappears — used by the small "Change source" link shown once a choice exists.
+function clearEpisodeSourceChoice(itemId, seasonNum, epNum){
+  delete episodeSourceChoice[episodeSourceChoiceKey(itemId, seasonNum, epNum)];
+  const modalBody = document.getElementById('modalBody');
+  if(modalBody) modalBody.innerHTML = episodeInfoModalHtml(itemId, seasonNum, epNum);
+}
+// Moves the remembered choice (if any, and if it's actually present in this exact array) to the
+// front of `sources`, leaving everything else in its original relative order as fallbacks for
+// "Try Next Source". A no-op whenever there's no remembered choice yet, or it's since been removed.
+function orderEpisodeSourcesWithChoiceFirst(itemId, seasonNum, epNum, sources){
+  const chosenUrl = episodeSourceChoice[episodeSourceChoiceKey(itemId, seasonNum, epNum)];
+  if(!chosenUrl) return sources;
+  const idx = sources.findIndex(s=>s.url===chosenUrl);
+  if(idx<=0) return sources; // not found, or already first — nothing to do
+  return [sources[idx], ...sources.slice(0,idx), ...sources.slice(idx+1)];
+}
 let moviesSourcePromptCtx = null; // {itemId, sources} for whichever source-choice prompt is currently open
 function requestMoviePlayback(item, playable){
   playable = playable || [];
@@ -14072,6 +14123,12 @@ function preselectSubtitleKey(itemId, seasonNum, epNum){
 function requestPlayback(item, seasonNum, epNum, sources){
   sources = sources || [];
   if(!sources.length){ toast('No sources available'); return; }
+  // Episode source memory (see episodeSourceChoice above) applies here, centrally, so it benefits
+  // every caller — quickPlay's "resume/first-unwatched" path, the Up Next card via
+  // playNextEpisode, and the episode-info modal's remembered-choice button — without each of them
+  // needing to duplicate this. No-op for movies (seasonNum==null) and for episodes with no
+  // remembered choice yet.
+  if(seasonNum!=null) sources = orderEpisodeSourcesWithChoiceFirst(item.id, seasonNum, epNum, sources);
   const key = preselectSubtitleKey(item.id, seasonNum, epNum);
   if(preloadedSubtitles[key] || subtitleDecisionMade[key]){
     openPlayer(item, seasonNum, epNum, sources);
