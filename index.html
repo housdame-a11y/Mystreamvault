@@ -1524,6 +1524,12 @@ body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
 
 .source-row{display:flex; gap:8px; margin-bottom:8px; align-items:center;}
 .source-row input{flex:1;}
+/* Streaming Provider rows (Settings > Playback) and manual link rows (Add Title Wizard > Sources)
+   both get a small, fixed-width Playback API select alongside the label/url inputs — see PLAYBACK
+   ENGINE ARCHITECTURE. Not flex:1 like the text inputs above, since "Option 1"/"Option 2" never
+   needs to grow. */
+.source-row .source-playback-select{flex:0 0 auto; width:112px; padding:8px 10px; font-size:12.5px;}
+.source-row .source-codeformat-select{flex:0 0 auto; width:96px; padding:8px 10px; font-size:12.5px;}
 .source-row .rm{width:32px; height:32px; flex-shrink:0; border-radius:6px; background:#3a1218; color:#ff8b93; display:flex; align-items:center; justify-content:center;}
 /* Preview of an auto-generated Streaming Provider source (see getEditAutoSources /
    autoSourcesPreviewHtml) — same layout as an editable .source-row, but visually muted with a
@@ -3445,6 +3451,14 @@ function loadSettings(){
     // migrates the older single-domain `streamingProvider` field from earlier versions.
     if(!Array.isArray(s.streamingProviders)) s.streamingProviders = s.streamingProvider ? [s.streamingProvider] : [];
     delete s.streamingProvider;
+    // Each provider now also carries its own Playback API choice (see PLAYBACK ENGINE ARCHITECTURE —
+    // Option1Engine / Option2Engine) and its own Code Format choice (Type 1 = imdbId-keyed URL,
+    // Type 2 = tmdbId-keyed URL — see buildProviderStreamUrl). Transparently migrates older entries
+    // that were saved as bare domain strings, or that predate codeFormat, defaulting every
+    // pre-existing provider to Option 1 / Type 1 so nothing already configured silently changes.
+    s.streamingProviders = s.streamingProviders.map(p => typeof p === 'string'
+      ? {domain:p, playbackApi:'option1', codeFormat:'type1'}
+      : {domain:(p&&p.domain)||'', playbackApi:(p&&p.playbackApi==='option2')?'option2':'option1', codeFormat:(p&&p.codeFormat==='type2')?'type2':'type1'});
     if(typeof s.blockPopupAds !== 'boolean') s.blockPopupAds = false;
     if(typeof s.contentBlur !== 'boolean') s.contentBlur = false;
     if(!s.contentBlurLevel) s.contentBlurLevel = 'moderate';
@@ -8609,33 +8623,51 @@ function saveTorrentServerUrl(){
 // needed, and re-seeded after every save so it always reflects what's actually persisted.
 function ensureProviderDraft(){
   if(!Array.isArray(state.settingsProviderDraft)){
-    state.settingsProviderDraft = (state.settings.streamingProviders||[]).length ? state.settings.streamingProviders.slice() : [''];
+    state.settingsProviderDraft = (state.settings.streamingProviders||[]).length
+      ? state.settings.streamingProviders.map(p=>({domain:p.domain||'', playbackApi:p.playbackApi==='option2'?'option2':'option1', codeFormat:p.codeFormat==='type2'?'type2':'type1'}))
+      : [{domain:'', playbackApi:'option1', codeFormat:'type1'}];
   }
 }
+// Each row is a domain input plus its own Playback API select (see PLAYBACK ENGINE ARCHITECTURE)
+// and its own Code Format select — every streaming provider saves both choices independently of
+// every other provider's. Code Format picks which URL template buildProviderStreamUrl() uses:
+//   Type 1 — imdbId-keyed path, ?autoplay=1&controls=false&overlay=false&showTitle=false (default)
+//   Type 2 — tmdbId-keyed path, ?autoplay=1&resume=1 (needs the title to have a cached tmdbId)
 function streamingProviderRowsHtml(){
   ensureProviderDraft();
   return state.settingsProviderDraft.map((d,i)=>`
-    <div class="source-row">
-      <input placeholder="example.com" value="${esc(d)}" oninput="state.settingsProviderDraft[${i}]=this.value">
+    <div class="source-row source-row-provider">
+      <input placeholder="example.com" value="${esc(d.domain)}" oninput="state.settingsProviderDraft[${i}].domain=this.value">
+      <select class="select-input source-playback-select" title="Playback API" onchange="state.settingsProviderDraft[${i}].playbackApi=this.value">
+        <option value="option1" ${d.playbackApi==='option2'?'':'selected'}>Option 1</option>
+        <option value="option2" ${d.playbackApi==='option2'?'selected':''}>Option 2</option>
+      </select>
+      <select class="select-input source-codeformat-select" title="Code Format" onchange="state.settingsProviderDraft[${i}].codeFormat=this.value">
+        <option value="type1" ${d.codeFormat==='type2'?'':'selected'}>Type 1</option>
+        <option value="type2" ${d.codeFormat==='type2'?'selected':''}>Type 2</option>
+      </select>
       <button type="button" class="rm" onclick="removeStreamingProviderRow(${i})">${ICON.close}</button>
     </div>`).join('');
 }
 function addStreamingProviderRow(){
   ensureProviderDraft();
-  state.settingsProviderDraft.push('');
+  state.settingsProviderDraft.push({domain:'', playbackApi:'option1', codeFormat:'type1'});
   document.getElementById('streamingProviderRows').innerHTML = streamingProviderRowsHtml();
 }
 function removeStreamingProviderRow(i){
   ensureProviderDraft();
   state.settingsProviderDraft.splice(i,1);
-  if(!state.settingsProviderDraft.length) state.settingsProviderDraft.push('');
+  if(!state.settingsProviderDraft.length) state.settingsProviderDraft.push({domain:'', playbackApi:'option1', codeFormat:'type1'});
   document.getElementById('streamingProviderRows').innerHTML = streamingProviderRowsHtml();
 }
-// Persists only the bare domains (see DYNAMIC STREAMING PROVIDER section) — never full URLs.
-// Order is preserved: index 0 becomes "Source 1", index 1 "Source 2", etc.
+// Persists the bare domain plus its Playback API and Code Format selections (see DYNAMIC
+// STREAMING PROVIDER section) — never a full URL. Order is preserved: index 0 becomes
+// "Source 1", index 1 "Source 2", etc.
 function saveStreamingProviders(){
   ensureProviderDraft();
-  state.settings.streamingProviders = state.settingsProviderDraft.map(normalizeProviderDomain).filter(Boolean);
+  state.settings.streamingProviders = state.settingsProviderDraft
+    .map(d=>({domain:normalizeProviderDomain(d.domain), playbackApi:d.playbackApi==='option2'?'option2':'option1', codeFormat:d.codeFormat==='type2'?'type2':'type1'}))
+    .filter(p=>p.domain);
   state.settingsProviderDraft = null; // re-seed from the saved list next time Settings renders
   saveSettings();
   router();
@@ -11497,6 +11529,10 @@ function wizardStepSourcesHtml(draft){
           <div class="source-row">
             <input placeholder="Label (e.g. VidSrc)" value="${esc(s.label)}" oninput="wizardCurrentItem().sources[${i}].label=this.value">
             <input placeholder="https://..." value="${esc(s.url)}" oninput="wizardCurrentItem().sources[${i}].url=this.value">
+            <select class="select-input source-playback-select" title="Playback API" onchange="wizardCurrentItem().sources[${i}].playbackApi=this.value">
+              <option value="option1" ${s.playbackApi==='option2'?'':'selected'}>Option 1</option>
+              <option value="option2" ${s.playbackApi==='option2'?'selected':''}>Option 2</option>
+            </select>
             <button type="button" class="rm" onclick="wizardRemoveMovieSource(${i})">${ICON.close}</button>
           </div>`).join('')}
         <button type="button" class="btn btn-ghost" onclick="wizardAddMovieSource()">${ICON.plus} Add Source</button>
@@ -11526,6 +11562,10 @@ function wizardStepSourcesHtml(draft){
         <div class="source-row">
           <input placeholder="Label" value="${esc(src.label)}" oninput="wizardCurrentItem().seasons[${si}].episodes[${ei}].sources[${oi}].label=this.value">
           <input placeholder="https://..." value="${esc(src.url)}" oninput="wizardCurrentItem().seasons[${si}].episodes[${ei}].sources[${oi}].url=this.value">
+          <select class="select-input source-playback-select" title="Playback API" onchange="wizardCurrentItem().seasons[${si}].episodes[${ei}].sources[${oi}].playbackApi=this.value">
+            <option value="option1" ${src.playbackApi==='option2'?'':'selected'}>Option 1</option>
+            <option value="option2" ${src.playbackApi==='option2'?'selected':''}>Option 2</option>
+          </select>
           <button type="button" class="rm" onclick="wizardRemoveEpSource(${si},${ei},${oi})">${ICON.close}</button>
         </div>`).join('')}
       <button type="button" class="btn btn-ghost" style="padding:6px 10px;font-size:12px;" onclick="wizardAddEpSource(${si},${ei})">${ICON.plus} Add Source</button>
@@ -11541,7 +11581,7 @@ function wizardSourcesSeasonNav(dir){
 function wizardAddMovieSource(){
   const draft = wizardCurrentItem();
   draft.sources = draft.sources || [];
-  draft.sources.push({label:'',url:''});
+  draft.sources.push({label:'',url:'',playbackApi:'option1'});
   wizardRefreshStepBody();
 }
 function wizardRemoveMovieSource(i){
@@ -11552,7 +11592,7 @@ function wizardRemoveMovieSource(i){
 function wizardAddEpSource(si,ei){
   const ep = wizardCurrentItem().seasons[si].episodes[ei];
   ep.sources = ep.sources || [];
-  ep.sources.push({label:'',url:''});
+  ep.sources.push({label:'',url:'',playbackApi:'option1'});
   wizardRefreshStepBody();
 }
 function wizardRemoveEpSource(si,ei,oi){
@@ -12069,9 +12109,21 @@ function normalizeProviderDomain(v){
 }
 // Builds the embed URL for one domain at call time — nothing here is ever cached or saved.
 // seasonNum/epNum both null/undefined => movie template; both provided => episode template.
-function buildProviderStreamUrl(domain, item, seasonNum, epNum){
+// codeFormat picks which URL template this provider uses (see streamingProviderRowsHtml/
+// saveStreamingProviders for where it's set/persisted):
+//   'type1' (default) — imdbId-keyed path, ?autoplay=1&controls=false&overlay=false&showTitle=false
+//   'type2'            — tmdbId-keyed path, ?autoplay=1&resume=1
+function buildProviderStreamUrl(domain, item, seasonNum, epNum, codeFormat){
   domain = normalizeProviderDomain(domain);
-  if(!domain || !item || !item.imdbId) return null;
+  if(!domain || !item) return null;
+  if(codeFormat==='type2'){
+    if(!item.tmdbId) return null;
+    if(seasonNum!=null && epNum!=null){
+      return `https://${domain}/embed/tv/${item.tmdbId}/${seasonNum}/${epNum}?autoplay=1&resume=1`;
+    }
+    return `https://${domain}/embed/movie/${item.tmdbId}?autoplay=1&resume=1`;
+  }
+  if(!item.imdbId) return null;
   const suffix = 'autoplay=1&controls=false&overlay=false&showTitle=false';
   if(seasonNum!=null && epNum!=null){
     return `https://${domain}/embed/tv/${item.imdbId}/${seasonNum}/${epNum}?${suffix}`;
@@ -12085,14 +12137,17 @@ function buildProviderStreamUrl(domain, item, seasonNum, epNum){
 // Settings and keeps auto-generating for every other title, only this item skips it. See
 // removeAutoProviderSource()/wizardRemoveAutoProviderSource() for where that list gets built.
 function getAutoProviderSources(item, seasonNum, epNum){
-  const domains = state.settings.streamingProviders || [];
+  const providers = state.settings.streamingProviders || [];
   const excluded = (item && item.excludedAutoProviders) || [];
   const out = [];
-  domains.forEach((domain,i)=>{
-    const normalized = normalizeProviderDomain(domain);
+  providers.forEach((provider,i)=>{
+    const normalized = normalizeProviderDomain(provider.domain);
     if(excluded.includes(normalized)) return;
-    const url = buildProviderStreamUrl(domain, item, seasonNum, epNum);
-    if(url) out.push({label:'Source '+(i+1), url, isAuto:true, providerDomain:normalized});
+    const codeFormat = provider.codeFormat==='type2'?'type2':'type1';
+    const url = buildProviderStreamUrl(provider.domain, item, seasonNum, epNum, codeFormat);
+    // Every provider saves its own Playback API (see PLAYBACK ENGINE ARCHITECTURE) — carried onto
+    // each generated source so the player knows which engine to load the moment it opens this link.
+    if(url) out.push({label:'Source '+(i+1), url, isAuto:true, providerDomain:normalized, playbackApi: provider.playbackApi==='option2'?'option2':'option1', codeFormat});
   });
   return out;
 }
@@ -12110,8 +12165,9 @@ function getEpisodeSources(item, ep, seasonNum){
 // (state.editImdbMeta), since the item itself may not be saved yet.
 function getEditAutoSources(seasonNum, epNum){
   const imdbId = state.editImdbMeta && state.editImdbMeta.imdbId;
-  if(!imdbId) return [];
-  return getAutoProviderSources({imdbId, excludedAutoProviders: state.editExcludedAutoProviders||[]}, seasonNum, epNum);
+  const tmdbId = state.editImdbMeta && state.editImdbMeta.tmdbId;
+  if(!imdbId && !tmdbId) return [];
+  return getAutoProviderSources({imdbId, tmdbId, excludedAutoProviders: state.editExcludedAutoProviders||[]}, seasonNum, epNum);
 }
 
 /* =========================================================
@@ -12348,6 +12404,9 @@ function openPlayer(item, seasonNum, epNum, sources){
     key: seasonNum!=null ? 's'+seasonNum+'e'+epNum : 'movie',
     subtitle: seasonNum!=null ? `Season ${seasonNum} · Episode ${epNum}` : (item.year||''),
     playbackState: 'loading',
+    // Initial default only — renderPlayer() recomputes this from the current source's saved
+    // Playback API on every render (open, source switch, etc). See PLAYBACK ENGINE ARCHITECTURE.
+    engine: 'option1',
   };
   // Was a subtitle picked ahead of time from the detail page / episode modal (see PRE-PLAYBACK
   // SUBTITLE SELECTION)? If so, attach it now, before renderPlayer() ever runs, so it's already
@@ -12373,6 +12432,9 @@ function playChannel(id){
     isLive:true, channelId:id, sources:ch.sources, sourceIdx:0,
     subtitle: ch.category || 'General',
     title: ch.name,
+    // Initial default only — renderPlayer() recomputes this from the current source's saved
+    // Playback API on every render. See PLAYBACK ENGINE ARCHITECTURE.
+    engine: 'option1',
   };
   renderPlayer();
   document.getElementById('playerOverlay').classList.add('open');
@@ -12383,11 +12445,20 @@ function renderPlayer(){
   const item = isLive ? null : getItem(p.itemId);
   const titleText = isLive ? p.title : item.title;
   const src = p.sources[p.sourceIdx];
+  // Which PlaybackEngine drives this source (see PLAYBACK ENGINE ARCHITECTURE) — auto-generated
+  // Streaming Provider links and manually-added wizard links both carry their own saved
+  // src.playbackApi; anything without one (live channels, pre-Option-2 links) defaults to Option 1.
+  p.engine = src.playbackApi === 'option2' ? 'option2' : 'option1';
   const embed = detectEmbed(src.url);
   // YouTube links get the plain, native YouTube player — no top/bottom control bars, no click
   // shield — see the isYoutube branch in the innerHTML build below and applyPlayerClickShield().
   const isYoutube = embed.kind==='iframe' && !!embed.isYoutube;
-  p._noShield = isYoutube;
+  // Option 2 sources get NO Stream Vault chrome at all — no top bar, no bottom bar, no buttons of
+  // any kind, and (via p._noShield below) no click shield either. It's just the raw media/iframe
+  // plus our loading spinner; everything else in this function that builds/attaches controls is
+  // skipped for it, same pattern as the isYoutube carve-out above.
+  const isOption2 = p.engine === 'option2';
+  p._noShield = isYoutube || isOption2;
   const overlay = document.getElementById('playerOverlay');
   const next = isLive ? null : getNextEpisode(item, p.seasonNum, p.epNum);
 
@@ -12415,6 +12486,7 @@ function renderPlayer(){
   // rendered now (renderPlayer replaces the whole overlay, so nothing from before still exists to
   // finish rebuilding).
   p.fakePaused = false;
+  p.option2Paused = false;
   p._playbackBusy = false;
   setPlayerSyncPoint(resumeAtOpen);
   p._embedKind = embed.kind;
@@ -12436,7 +12508,12 @@ function renderPlayer(){
     stageHtml = `<iframe id="playerIframeEl" src="${esc(iframeSrc)}" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowfullscreen loading="eager"${sandboxAttr}></iframe>`;
   }
 
-  overlay.innerHTML = isYoutube ? `
+  overlay.innerHTML = isOption2 ? `
+    <div class="player-stage" id="playerStage">
+      <div class="player-media-wrap" id="playerMediaWrap">${stageHtml}</div>
+      <div class="player-loading" id="playerLoading"><div class="spinner"></div><span class="player-loading-label" id="playerLoadingLabel">Loading stream…</span></div>
+    </div>
+  ` : isYoutube ? `
     <div class="player-top">
       <div class="player-top-info">
         <div class="player-title">${isLive?'<span class="live-badge">● LIVE</span> ':''}${esc(titleText)}</div>
@@ -12474,10 +12551,10 @@ function renderPlayer(){
       <div class="player-media-wrap" id="playerMediaWrap" style="filter:brightness(${state.settings.playerBrightness});">${stageHtml}</div>
       <div class="player-loading" id="playerLoading"><div class="spinner"></div><span class="player-loading-label" id="playerLoadingLabel">Loading stream…</span></div>
       <div class="player-subtitle-overlay notranslate" id="playerSubtitleOverlay" translate="no"></div>
-      ${embed.kind==='iframe' && !isLive ? `
+      ${embed.kind==='iframe' && !isLive && p.engine==='option1' ? `
       <div class="player-center-skip-group" id="playerCenterSkipGroup">
-        <button class="player-center-skip-btn" id="playerSkipBackBtn" title="Back 20 seconds" onclick="event.stopPropagation(); seekPlayer(-20);">${ICON.skipBack20}</button>
-        <button class="player-center-skip-btn" id="playerSkipForwardBtn" title="Forward 20 seconds" onclick="event.stopPropagation(); seekPlayer(20);">${ICON.skipForward20}</button>
+        <button class="player-center-skip-btn" id="playerSkipBackBtn" title="Back 20 seconds" onclick="event.stopPropagation(); PlaybackEngine.active().back20();">${ICON.skipBack20}</button>
+        <button class="player-center-skip-btn" id="playerSkipForwardBtn" title="Forward 20 seconds" onclick="event.stopPropagation(); PlaybackEngine.active().forward20();">${ICON.skipForward20}</button>
       </div>` : ''}
       <div class="player-subtitle-panel" id="subtitlePanel">
         <div class="player-subtitle-panel-head">
@@ -12555,10 +12632,10 @@ function renderPlayer(){
     </div>` : ''}
     <div class="player-bottom">
       <div class="player-bottom-left">
-        <button class="btn-icon player-btn-primary" id="playerPlayBtn" title="Pause" onclick="togglePlayerPlayPause()">${ICON.pause}</button>
+        <button class="btn-icon player-btn-primary" id="playerPlayBtn" title="Pause" onclick="PlaybackEngine.active().togglePlayPause()">${ICON.pause}</button>
         <button class="btn-icon" id="playerLockBtn" title="Lock controls" onclick="event.stopPropagation(); togglePlayerLock();">${ICON.lock}</button>
       </div>
-      ${embed.kind==='iframe' && !isLive ? `
+      ${embed.kind==='iframe' && !isLive && p.engine==='option1' ? `
       <div class="player-bottom-progress">
         <span class="player-time player-time-current" id="playerTimeCurrent">${esc(formatResumeTime(p._elapsedSeconds||0))}</span>
         <div class="player-progress-track" id="playerProgressTrack" role="slider" tabindex="0"
@@ -12573,26 +12650,27 @@ function renderPlayer(){
       </div>` : `<div class="player-bottom-progress"></div>`}
       <div class="player-bottom-right">
         ${p.sources.length>1 ? `<button class="btn btn-ghost" onclick="tryNextSource()">Try Next Source</button>` : ''}
-        ${embed.kind==='iframe' && !isLive ? `<button class="btn-icon" id="playerRestartBtn" title="Restart" onclick="event.stopPropagation(); restartPlayer();">${ICON.restart}</button>` : ''}
+        ${embed.kind==='iframe' && !isLive && p.engine==='option1' ? `<button class="btn-icon" id="playerRestartBtn" title="Restart" onclick="event.stopPropagation(); restartPlayer();">${ICON.restart}</button>` : ''}
         <button class="btn-icon" id="playerFullscreenBtn" title="Fullscreen" onclick="togglePlayerFullscreen()">${ICON.expand}</button>
       </div>
     </div>
   `;
   scheduleHideControls();
   // Permanent click shield for every iframe embed — sits in front of the third-party page so
-  // ad-script clicks/popups never reach it. There is no button or setting to disable this,
-  // except YouTube: those links use YouTube's own native player untouched (see isYoutube above
-  // and p._noShield), so applyPlayerClickShield() no-ops there by design — see its own guard.
+  // ad-script clicks/popups never reach it. There is no button or setting to disable this, except
+  // YouTube and Option 2: YouTube links use YouTube's own native player untouched, and Option 2
+  // sources get no Stream Vault chrome of any kind (see isYoutube/isOption2 above and p._noShield),
+  // so applyPlayerClickShield() no-ops for both by design — see its own guard.
   applyPlayerClickShield();
-  if(!isYoutube){
+  if(!isYoutube && !isOption2){
     // Double-tap anywhere on the stage activates Hide Screen, single tap deactivates it — highest
     // priority, works locked or unlocked, live or on-demand. See initPlayerHideGesture for why
-    // capture-phase binding is what makes that guarantee possible. Skipped for YouTube: there's no
-    // click shield in front of that iframe to intercept the tap, and no Hide Screen/Brightness UI
-    // left to trigger anyway.
+    // capture-phase binding is what makes that guarantee possible. Skipped for YouTube and Option 2:
+    // neither has a click shield in front of the media to intercept the tap, and neither has any
+    // Hide Screen/Brightness UI left to trigger anyway.
     initPlayerHideGesture();
     // Vertical swipe anywhere on the stage adjusts Brightness (unlocked only) — see
-    // initPlayerBrightnessGesture. Same reasoning as above — nothing to swipe for on YouTube.
+    // initPlayerBrightnessGesture. Same reasoning as above — nothing to swipe for on YouTube/Option 2.
     initPlayerBrightnessGesture();
   }
 
@@ -12807,8 +12885,9 @@ document.addEventListener('fullscreenchange', ()=>{
 // off; it's simply always present for the lifetime of an iframe-based player.
 function applyPlayerClickShield(){
   // YouTube links deliberately skip the shield — they use YouTube's own native player, and a
-  // shield in front of it would block its built-in controls entirely. p._noShield is set once,
-  // in renderPlayer, based on detectEmbed's isYoutube flag.
+  // shield in front of it would block its built-in controls entirely. Option 2 sources skip it
+  // too — they get no Stream Vault chrome at all. p._noShield is set once, in renderPlayer, based
+  // on detectEmbed's isYoutube flag OR'd with p.engine==='option2'.
   if(state.player && state.player._noShield) return;
   const stage = document.getElementById('playerStage');
   if(!stage || document.getElementById('playerClickShield')) return; // no stage, or already up
@@ -14052,6 +14131,298 @@ async function usePreselectSubtitleResult(i){
 }
 
 /* =========================================================
+   PLAYBACK ENGINE ARCHITECTURE
+   ---------------------------------------------------------
+   The player UI (renderPlayer, keyboard shortcuts, the on-screen buttons, the progress-bar scrub
+   handler) never talks to a specific playback implementation directly — it only ever calls through
+   PlaybackEngine.active(), which hands back whichever engine is responsible for the CURRENTLY open
+   title (state.player.engine). state.player.engine is (re)computed every time renderPlayer() runs,
+   from the Playback API saved on whichever source is currently loaded (src.playbackApi) — so
+   switching sources (Try Next Source) or opening a different title can hand off to a different
+   engine without touching a single onclick handler or keyboard shortcut in the player UI.
+
+     PlaybackEngine (registry)
+         ├── Option1Engine   — the original implementation (direct <video>/HLS + third-party iframe
+         │                     embeds, incl. all postMessage handling), migrated as-is below.
+         └── Option2Engine   — a second playback API. For now it only supports basic (fake) Play/
+                                Pause — see Option2Engine below; seek/timeline/duration/skip aren't
+                                implemented yet and are safe no-ops.
+
+   Where a source's engine comes from:
+     • Auto-generated Streaming Provider links (Settings → Playback → Streaming Providers) carry
+       the Playback API saved against that domain — see getAutoProviderSources().
+     • Manually-added links (Add Title Wizard → Sources) carry their own per-link Playback API,
+       picked at the time the link is added — see wizardStepSourcesHtml().
+     • Anything without a saved choice (live channels, links added before Option 2 existed) falls
+       back to Option 1, so nothing already configured changes behavior.
+
+   Common surface every engine must implement (the only thing the UI is allowed to call):
+     play()               — resume playback
+     pause()               — pause playback
+     togglePlayPause()     — flip play/pause (used by the single play/pause button + spacebar)
+     seek(seconds)         — seek to an absolute position, in seconds
+     seekToPercent(pct)    — seek to a 0–1 fraction of the total duration (progress-bar scrub)
+     seekRelative(delta)   — seek by a relative number of seconds (arrow-key nudges, etc.)
+     forward20()           — skip forward 20 seconds
+     back20()              — skip backward 20 seconds
+     getCurrentTime()      — current playback position, in seconds
+     getDuration()         — total duration, in seconds (0/unknown if not yet known)
+     getPlaybackState()    — 'loading' | 'playing' | 'paused' | 'stopped'
+     close()               — tear down and exit the player
+
+   Each engine owns and manages any postMessage communication with its underlying player itself —
+   nothing outside the engine ever needs to know an iframe/postMessage protocol is even involved.
+========================================================= */
+const PlaybackEngine = {
+  _engines: {},
+  register(name, engine){ this._engines[name] = engine; },
+  get(name){ return this._engines[name] || null; },
+  // Returns the engine responsible for whatever title is currently loaded in state.player.
+  // Falls back to Option1Engine (today's only implementation) if state.player hasn't been tagged
+  // with an engine name for some reason, so this is always safe to call while the player is open.
+  active(){
+    const name = (state.player && state.player.engine) || 'option1';
+    return this._engines[name] || this._engines.option1;
+  }
+};
+
+// ---------------------------------------------------------------------------------------------
+// Option1Engine — thin facade over the existing, battle-tested playback implementation. None of
+// the underlying behaviour changes here: every method below just delegates to the exact same
+// functions the UI used to call directly (togglePlayerPlayPause, seekPlayer, performPlayerSeek,
+// closePlayer, ...), which are defined further down in this file (safe — function declarations
+// are hoisted, and none of these run until a user actually interacts with an open player).
+// Its postMessage handling (the Vaplayer PLAYER_EVENT listener, see PLAYBACK MANAGER below) is
+// bound once via Option1Engine.attachPostMessageListener(), called once at startup — nothing
+// outside this engine ever touches window.postMessage/message events for iframe playback.
+const Option1Engine = {
+  name: 'option1',
+  play(){
+    const vid = document.getElementById('playerVideoEl');
+    if(vid){ if(vid.paused) vid.play().catch(()=>{}); return; }
+    const p = state.player;
+    if(p && !p.isLive && p.fakePaused) fakeResumePlayer();
+  },
+  pause(){
+    const vid = document.getElementById('playerVideoEl');
+    if(vid){ if(!vid.paused) vid.pause(); return; }
+    const p = state.player;
+    if(p && !p.isLive && !p.fakePaused) fakePausePlayer();
+  },
+  togglePlayPause(){ togglePlayerPlayPause(); },
+  seek(seconds){ performPlayerSeek(seconds); },
+  seekToPercent(pct){ seekPlayerToPercent(pct); },
+  seekRelative(deltaSeconds){ seekPlayer(deltaSeconds); },
+  forward20(){ seekPlayer(20); },
+  back20(){ seekPlayer(-20); },
+  getCurrentTime(){
+    const vid = document.getElementById('playerVideoEl');
+    if(vid) return vid.currentTime || 0;
+    const p = state.player;
+    return (p && p._elapsedSeconds) || 0;
+  },
+  getDuration(){
+    const vid = document.getElementById('playerVideoEl');
+    if(vid && isFinite(vid.duration)) return vid.duration || 0;
+    const p = state.player;
+    return (p && p._totalSeconds) || 0;
+  },
+  getPlaybackState(){
+    const p = state.player;
+    return p ? (p.playbackState || 'stopped') : 'stopped';
+  },
+  close(){ closePlayer(); },
+  // The actual `window.addEventListener('message', ...)` handler lives in the PLAYBACK MANAGER
+  // section below (it needs to stay a single, app-lifetime listener rather than one bound/unbound
+  // per title) — this call site is what makes it belong to Option1Engine rather than being a bare
+  // top-level side effect, and is the one and only place that listener gets attached.
+  attachPostMessageListener(){ attachOption1PostMessageListener(); }
+};
+PlaybackEngine.register('option1', Option1Engine);
+Option1Engine.attachPostMessageListener();
+
+// ---------------------------------------------------------------------------------------------
+// Option2Engine — a second playback API, added alongside Option1Engine without touching it. For
+// now this only needs to support selecting the engine (see "Where a source's engine comes from"
+// above) and basic Play/Pause; every other method is an intentional no-op/stub until seek,
+// timeline, current time, duration, and skip are implemented for it.
+//
+// Play/Pause here is independent of Option1's fakePausePlayer()/fakeResumePlayer() (those are
+// Option1-owned and tied to its iframe-rebuild/resumeAt mechanics) — Option2 tracks its own paused
+// flag (state.player.option2Paused) and, for a direct <video>/HLS source, just uses the element's
+// real play()/pause(); for anything else (an iframe embed, which exposes no JS control API either
+// way) it fakes the pause with a lightweight cover of its own, reusing the same .player-pause-cover
+// styling as Option 1's cover for a consistent look, but built and torn down entirely by this
+// engine — nothing here reaches into Option1Engine or its postMessage listener.
+const Option2Engine = {
+  name: 'option2',
+  play(){
+    const vid = document.getElementById('playerVideoEl');
+    if(vid){ if(vid.paused) vid.play().catch(()=>{}); return; }
+    option2FakeResume();
+  },
+  pause(){
+    const vid = document.getElementById('playerVideoEl');
+    if(vid){ if(!vid.paused) vid.pause(); return; }
+    option2FakePause();
+  },
+  togglePlayPause(){
+    const vid = document.getElementById('playerVideoEl');
+    if(vid){ if(vid.paused) vid.play().catch(()=>{}); else vid.pause(); return; }
+    const p = state.player;
+    if(p && p.option2Paused) option2FakeResume(); else option2FakePause();
+  },
+  // Seek/skip controls stay no-ops — those buttons are hidden for Option 2 sources in
+  // renderPlayer(); nothing on-screen ever calls seek() for Option 2.
+  seek(){},
+  seekToPercent(){},
+  seekRelative(){},
+  forward20(){},
+  back20(){},
+  // Real values now: p._elapsedSeconds/_totalSeconds are kept current by the mplayer
+  // 'timeupdate' listener below, the same fields Option 1 uses — this is what lets the poster/
+  // Continue-Watching progress line (cardHtml/continueWatchingCardHtml) work for Option 2 too.
+  getCurrentTime(){
+    const p = state.player;
+    return (p && p._elapsedSeconds) || 0;
+  },
+  getDuration(){
+    const p = state.player;
+    return (p && p._totalSeconds) || 0;
+  },
+  getPlaybackState(){
+    const p = state.player;
+    return p ? (p.playbackState || 'stopped') : 'stopped';
+  },
+  close(){ closePlayer(); },
+  attachPostMessageListener(){ attachOption2PostMessageListener(); }
+};
+// FAKE PAUSE: no real control channel for an iframe embed, so just freeze the on-screen state and
+// show a simple paused cover — no position is saved/restored since Option 2 doesn't track time yet.
+function option2FakePause(){
+  const p = state.player;
+  if(!p || p.option2Paused || document.getElementById('playerPauseCover')) return;
+  p.option2Paused = true;
+  p.playbackState = 'paused';
+  setPlayerPlayIcon(false);
+  const stage = document.getElementById('playerStage');
+  if(!stage) return;
+  const item = p.isLive ? null : getItem(p.itemId);
+  const bg = item ? (item.backdrop || item.poster || '') : '';
+  const titleText = item ? item.title : (p.title || '');
+  const cover = document.createElement('div');
+  cover.id = 'playerPauseCover';
+  cover.className = 'player-pause-cover';
+  cover.title = 'Resume';
+  cover.innerHTML = `
+    ${bg ? `<div class="player-pause-cover-bg" style="background-image:url('${esc(bg)}')"></div>` : ''}
+    <div class="player-pause-cover-content">
+      <button class="player-pause-resume-btn" type="button" aria-label="Resume">${ICON.play}</button>
+      <div class="player-pause-title">${esc(titleText)}</div>
+    </div>`;
+  cover.addEventListener('click', option2FakeResume);
+  stage.appendChild(cover);
+  requestAnimationFrame(()=> requestAnimationFrame(()=> cover.classList.add('visible')));
+}
+// FAKE RESUME: fade the cover out and drop it — the underlying iframe was never touched/unloaded,
+// so there's nothing to rebuild yet (unlike Option 1's real pause/resume cycle).
+function option2FakeResume(){
+  const p = state.player;
+  if(!p || !p.option2Paused) return;
+  p.option2Paused = false;
+  p.playbackState = 'playing';
+  setPlayerPlayIcon(true);
+  const cover = document.getElementById('playerPauseCover');
+  if(cover){
+    cover.classList.remove('visible');
+    setTimeout(()=>{ if(cover.isConnected) cover.remove(); }, 380);
+  }
+}
+PlaybackEngine.register('option2', Option2Engine);
+Option2Engine.attachPostMessageListener();
+
+// ---------------------------------------------------------------------------------------------
+// Option 2's own postMessage listener — the mplayer protocol (type:'mplayer', event/action
+// fields; see the spec pasted into this project). This is the Option-2 equivalent of
+// attachOption1PostMessageListener() above: it's the ONLY place that writes p._elapsedSeconds /
+// p._totalSeconds / p.playbackState for an Option 2 iframe, and (via saveIframeProgressThrottled,
+// the same helper Option 1 uses) the only place Option 2 progress actually reaches
+// item.progress[p.key] — which is what the poster/Continue-Watching progress line
+// (cardHtml/continueWatchingCardHtml -> movieProgressPct/episodeProgressPct) reads from, and what
+// closePlayer()'s last-chance save persists so leaving and coming back resumes correctly.
+// Bound once for the app's whole lifetime, same as Option 1's listener; every message is matched
+// against the CURRENTLY mounted #playerIframeEl by event.source so a stale/torn-down iframe from a
+// previous title can never touch the live player's state, and p.engine!=='option2' short-circuits
+// so this never fires for an Option 1 (or live) title.
+function attachOption2PostMessageListener(){
+window.addEventListener('message', (event)=>{
+  const msg = event.data;
+  if(!msg || msg.type !== 'mplayer') return;
+  const p = state.player;
+  if(!p || p.isLive) return; // no progress tracking for live channels
+  if(p.engine !== 'option2') return; // Option 1's own listener owns option1 titles
+  const iframe = document.getElementById('playerIframeEl');
+  if(!iframe || event.source !== iframe.contentWindow) return; // ignore a stale/foreign iframe
+  p._lastEventAt = Date.now(); // proof-of-life stamp, same role as in Option 1's listener
+  const item = getItem(p.itemId);
+  if(!item) return;
+
+  const evt = msg.event;
+  if(evt === 'ready'){
+    // First real confirmation this embed has actually booted — hides our loading overlay the
+    // same way Option 1's "playing" status does, instead of waiting out armIframeEventFallback's
+    // full timeout.
+    clearTimeout(p._eventFallbackTimer);
+    hidePlayerLoadingOverlay();
+    return;
+  }
+  if(evt === 'timeupdate'){
+    const duration = Number(msg.duration);
+    const current = Number(msg.currentTime);
+    if(Number.isFinite(duration) && duration > 0) p._totalSeconds = duration;
+    if(Number.isFinite(current)) p._elapsedSeconds = current;
+    if(p.playbackState !== 'stopped'){
+      p.playbackState = 'playing';
+      // Same end-of-playback + throttled-save pattern as Option 1's listener: check for the near-
+      // end "up next" card first, otherwise just save (at most once per ~5s — see
+      // saveIframeProgressThrottled) so the poster progress line stays current without hammering
+      // localStorage on every timeupdate tick.
+      if(isNearPlaybackEnd(p._elapsedSeconds, p._totalSeconds)){
+        finishIframePlayback(item, p);
+      } else {
+        saveIframeProgressThrottled(item, p);
+      }
+    }
+    return;
+  }
+  if(evt === 'play'){
+    clearTimeout(p._eventFallbackTimer);
+    hidePlayerLoadingOverlay();
+    p.playbackState = 'playing';
+    p.option2Paused = false;
+    return;
+  }
+  if(evt === 'pause'){
+    p.playbackState = 'paused';
+    p.option2Paused = true;
+    const current = Number(msg.currentTime);
+    if(Number.isFinite(current)) p._elapsedSeconds = current;
+    // Save immediately on pause (not just the throttled tick) — mirrors closePlayer()'s
+    // last-chance save so a pause-then-leave doesn't lose up to ~5s of progress.
+    saveProgress(item, p.key, p._elapsedSeconds || 0, p._totalSeconds || 0, computeWatchedForSave(item, p));
+    return;
+  }
+  if(evt === 'ended'){
+    finishIframePlayback(item, p);
+    return;
+  }
+  // 'error', 'state', 'progress', 'buffering', etc. — no handling needed yet; ignored rather than
+  // treated as an unknown/foreign message so future mplayer events added to the spec don't need
+  // a matching branch here just to be silently ignored.
+});
+} // end attachOption2PostMessageListener()
+
+/* =========================================================
    PLAYBACK MANAGER
    ---------------------------------------------------------
    vaplayer.ru (and virtually every VidSrc-family mirror) exposes no JS control API — there is no
@@ -14149,11 +14520,15 @@ function finishIframePlayback(item, p){
 // player_duration, and the progress bar/current-time are just a direct read of those two fields
 // (see updatePlayerProgressUI). The loading overlay is hidden, UI updates begin, and progress
 // saving is enabled ONLY once player_status === "playing" is actually received — never earlier.
+function attachOption1PostMessageListener(){
 window.addEventListener('message', (event)=>{
   const msg = event.data;
   if(!msg || msg.type !== 'PLAYER_EVENT') return;
   const p = state.player;
   if(!p || p.isLive) return; // no progress tracking for live channels
+  if(p.engine && p.engine !== 'option1') return; // this listener is Option1Engine's own — see
+  // PLAYBACK ENGINE ARCHITECTURE: each engine owns its own postMessage handling, and Option 2
+  // doesn't have one yet, so a message from an Option-2-driven iframe is never processed here.
   const iframe = document.getElementById('playerIframeEl');
   if(!iframe || event.source !== iframe.contentWindow) return; // ignore a stale/foreign iframe
   // Proof-of-life stamp for the LIFECYCLE RECOVERY module (below) — any real message from the
@@ -14222,6 +14597,7 @@ window.addEventListener('message', (event)=>{
     updatePlayerProgressUI();
   }
 });
+} // end attachOption1PostMessageListener()
 // Saves iframe watch progress at most once every ~5s of real time, using the true position from
 // the most recent PLAYER_EVENT — keeps localStorage writes sane even if the embed posts events
 // rapidly (e.g. every animation frame), without ever delaying the on-screen progress bar itself
@@ -14503,7 +14879,7 @@ function initPlayerProgressBar(){
     const pct = pctFromEvent(e);
     dragPct = null;
     track.classList.remove('dragging');
-    seekPlayerToPercent(pct);
+    PlaybackEngine.active().seekToPercent(pct);
   };
   track.addEventListener('pointerdown', e=>{
     const p = state.player;
@@ -14520,10 +14896,10 @@ function initPlayerProgressBar(){
   track.addEventListener('keydown', e=>{
     const p = state.player;
     if(!p || p.isLive || p._playbackBusy) return;
-    if(e.key==='ArrowLeft'){ e.preventDefault(); seekPlayer(-5); }
-    else if(e.key==='ArrowRight'){ e.preventDefault(); seekPlayer(5); }
-    else if(e.key==='Home'){ e.preventDefault(); performPlayerSeek(0); }
-    else if(e.key==='End'){ e.preventDefault(); performPlayerSeek(p._totalSeconds||0); }
+    if(e.key==='ArrowLeft'){ e.preventDefault(); PlaybackEngine.active().seekRelative(-5); }
+    else if(e.key==='ArrowRight'){ e.preventDefault(); PlaybackEngine.active().seekRelative(5); }
+    else if(e.key==='Home'){ e.preventDefault(); PlaybackEngine.active().seek(0); }
+    else if(e.key==='End'){ e.preventDefault(); PlaybackEngine.active().seek(p._totalSeconds||0); }
   });
 
   // Hover/scrub time-preview tooltip — shows the timestamp under the cursor before you commit to a
@@ -15110,17 +15486,17 @@ document.addEventListener('keydown', e=>{
   // seek machinery the on-screen buttons already use (see PLAYBACK MANAGER). 'M' (mute) stays
   // direct-video-only below: there's no way for a parent page to mute audio inside a cross-origin
   // iframe at all, so it's left off entirely for embeds rather than silently doing nothing.
-  if(e.key===' ' || e.code==='Space'){ e.preventDefault(); togglePlayerPlayPause(); return; }
+  if(e.key===' ' || e.code==='Space'){ e.preventDefault(); PlaybackEngine.active().togglePlayPause(); return; }
   if(e.key==='ArrowRight'){
     e.preventDefault();
     if(vid) vid.currentTime = Math.min(vid.duration||Infinity, vid.currentTime+10);
-    else if(state.player && state.player._embedBaseUrl && !state.player.isLive) seekPlayer(10);
+    else if(state.player && state.player._embedBaseUrl && !state.player.isLive) PlaybackEngine.active().seekRelative(10);
     return;
   }
   if(e.key==='ArrowLeft'){
     e.preventDefault();
     if(vid) vid.currentTime = Math.max(0, vid.currentTime-10);
-    else if(state.player && state.player._embedBaseUrl && !state.player.isLive) seekPlayer(-10);
+    else if(state.player && state.player._embedBaseUrl && !state.player.isLive) PlaybackEngine.active().seekRelative(-10);
     return;
   }
   if(vid && (e.key==='m' || e.key==='M')){ e.preventDefault(); vid.muted = !vid.muted; }
