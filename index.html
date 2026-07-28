@@ -1827,6 +1827,22 @@ body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
    transitions never show a white flash while the iframe is being unloaded/recreated. */
 .player-stage iframe, .player-stage video{opacity:1; transition:opacity .38s ease;}
 .player-stage iframe.player-fade-out, .player-stage video.player-fade-out{opacity:0;}
+/* Option 2 sources get none of the normal Stream Vault chrome (see renderPlayer()'s isOption2
+   branch) — no .player-top bar, no buttons at all — so there'd otherwise be no way to leave the
+   player except hardware/back-gesture handlers. This is the one exception: a small standalone
+   exit button floated over the top-right corner of the stage itself, independent of .player-top
+   (which doesn't exist in this branch) and its auto-hide-on-inactivity fade behavior. */
+.player-option2-exit{
+  position:absolute; top:16px; right:16px; z-index:6;
+  width:36px; height:36px; border-radius:8px;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(22,25,35,.6); border:1px solid rgba(255,255,255,.12); color:var(--text);
+  transition:background var(--transition), border-color var(--transition);
+}
+.player-option2-exit:hover{background:rgba(22,25,35,.9); border-color:rgba(255,255,255,.24);}
+.player-option2-exit svg{width:16px; height:16px;}
+body.tv-mode .player-option2-exit{width:52px; height:52px; top:28px; right:28px;}
+body.tv-mode .player-option2-exit svg{width:22px; height:22px;}
 
 /* ---------- Fake-pause cover (Netflix-style "paused" state) ----------
    Shown in place of the iframe once it has been unloaded. Purely visual — the third-party
@@ -1990,6 +2006,11 @@ kbd.key{
 .subtitle-prompt-question{font-size:13.5px; color:#c7d5d3; line-height:1.5;}
 .subtitle-prompt-actions{display:flex; gap:10px; margin-top:6px;}
 .subtitle-prompt-actions .btn{flex:1; justify-content:center; padding:13px; font-size:14.5px;}
+/* Movie source-choice step, shown inside the same subtitlePromptOverlay before the subtitle question
+   (see "MOVIE SOURCE PROMPT" in the script below) -- a vertical list instead of the two-button row
+   above, since there can be any number of sources. */
+.source-prompt-list{display:flex; flex-direction:column; gap:8px; margin-top:6px; max-height:280px; overflow-y:auto;}
+.source-prompt-list .btn{width:100%; justify-content:center; padding:13px; font-size:14.5px;}
 @media (max-width:480px){ .subtitle-prompt-bg{min-height:380px;} }
 .content-blurred{filter:blur(32px) saturate(70%); transition:filter .3s ease; cursor:pointer;}
 .content-blurred:hover{filter:blur(18px) saturate(70%);}
@@ -6288,7 +6309,7 @@ function quickPlay(id){
     // the magnet flow instead of letting the embed/video player try (and fail) to open one.
     const { playable, magnets } = splitPlayableSources(getMovieSources(item));
     if(!playable.length && magnets.length){ openMagnetSource(magnets[0].url, item.title, {itemId:item.id, seasonNum:null, epNum:null}); return; }
-    requestPlayback(item, null, null, playable);
+    requestMoviePlayback(item, playable);
   } else {
     // find first unwatched episode, else first episode
     const flat = [];
@@ -12512,6 +12533,7 @@ function renderPlayer(){
 
   overlay.innerHTML = isOption2 ? `
     <div class="player-stage" id="playerStage">
+      <button class="player-option2-exit" title="Exit" onclick="closePlayer()">${ICON.close}</button>
       <div class="player-media-wrap" id="playerMediaWrap">${stageHtml}</div>
       <div class="player-loading" id="playerLoading"><div class="spinner"></div><span class="player-loading-label" id="playerLoadingLabel">Loading stream…</span></div>
     </div>
@@ -13936,6 +13958,78 @@ function turnOffSubtitles(){
 }
 
 /* =========================================================
+   MOVIE SOURCE PROMPT
+   ---------------------------------------------------------
+   When a movie has more than one playable source, quickPlay() no longer merges them all into one
+   requestPlayback() call and lets openPlayer/tryNextSource sort it out silently — the very first time
+   a given movie is played this session, it stops on a chooser overlay (reusing the exact same
+   subtitlePromptOverlay/subtitlePromptModal elements and visual language as the subtitle prompt below,
+   just with a vertical list of sources instead of Yes/No) asking which source to start on. The pick is
+   remembered in movieSourceChoice for the rest of the session, so quickPlay() goes straight to
+   playback next time — same "first time only" contract as the subtitle prompt.
+   The chosen source is moved to the front of the list (the rest stay available as fallbacks for
+   "Try Next Source" during playback). If that chosen source is an Option 2 source, it skips the
+   subtitle prompt entirely and starts playback immediately — Option 2 embeds get no Stream Vault
+   chrome at all, so there is no point asking about subtitles first. Anything else falls through to
+   requestPlayback() as normal, which will still ask about subtitles the first time.
+========================================================= */
+let movieSourceChoice = {}; // itemId -> index into that movie's playable-sources array, once chosen this session
+let moviesSourcePromptCtx = null; // {itemId, sources} for whichever source-choice prompt is currently open
+function requestMoviePlayback(item, playable){
+  playable = playable || [];
+  if(!playable.length){ toast('No sources available'); return; }
+  if(playable.length > 1 && movieSourceChoice[item.id] == null){
+    openMovieSourcePrompt(item, playable);
+    return;
+  }
+  startMoviePlaybackWithSources(item, orderSourcesWithChoiceFirst(item, playable));
+}
+function orderSourcesWithChoiceFirst(item, playable){
+  const idx = movieSourceChoice[item.id];
+  if(idx==null || idx<=0 || idx>=playable.length) return playable;
+  return [playable[idx], ...playable.slice(0,idx), ...playable.slice(idx+1)];
+}
+function startMoviePlaybackWithSources(item, orderedSources){
+  const chosen = orderedSources[0];
+  if(chosen && chosen.playbackApi==='option2'){
+    document.getElementById('subtitlePromptOverlay').classList.remove('open');
+    openPlayer(item, null, null, orderedSources);
+  } else {
+    requestPlayback(item, null, null, orderedSources);
+  }
+}
+function openMovieSourcePrompt(item, sources){
+  moviesSourcePromptCtx = {itemId:item.id, sources};
+  document.getElementById('subtitlePromptModal').innerHTML = movieSourcePromptHtml(item, sources);
+  document.getElementById('subtitlePromptOverlay').classList.add('open');
+}
+function movieSourcePromptHtml(item, sources){
+  const bg = item.backdrop || item.poster || '';
+  return `
+    <div class="subtitle-prompt-bg" ${bg?`style="background-image:url('${esc(bg)}')"`:''}>
+      <button class="btn-icon subtitle-prompt-close" title="Cancel" onclick="cancelSubtitlePrompt()">${ICON.close}</button>
+      <div class="subtitle-prompt-content">
+        <span class="subtitle-prompt-eyebrow">Before you press play</span>
+        <div class="subtitle-prompt-title">${esc(item.title)}</div>
+        <div class="subtitle-prompt-question">This movie has multiple sources — which one would you like to play?</div>
+        <div class="source-prompt-list">
+          ${sources.map((s,i)=>`<button type="button" class="btn btn-ghost" onclick="chooseMovieSource(${i})">${ICON.play} ${esc(s.label||'Source '+(i+1))}</button>`).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+function chooseMovieSource(idx){
+  const ctx = moviesSourcePromptCtx;
+  if(!ctx) return;
+  const item = getItem(ctx.itemId);
+  moviesSourcePromptCtx = null;
+  if(!item) return;
+  movieSourceChoice[ctx.itemId] = idx;
+  startMoviePlaybackWithSources(item, orderSourcesWithChoiceFirst(item, ctx.sources));
+}
+
+/* =========================================================
    PRE-PLAYBACK SUBTITLE PROMPT (SubDL)
    ---------------------------------------------------------
    Pressing Play (movie or episode) for the first time no longer plays immediately — requestPlayback()
@@ -13951,6 +14045,8 @@ function turnOffSubtitles(){
             attached the instant playback starts.
    Once a key has an answer (either preloadedSubtitles or subtitleDecisionMade), requestPlayback() skips
    straight to openPlayer() next time — the prompt is genuinely "first time only" per title/episode.
+   Note: this step is bypassed entirely for movies when the chosen source above is an Option 2 source
+   (see MOVIE SOURCE PROMPT).
 ========================================================= */
 function preselectSubtitleKey(itemId, seasonNum, epNum){
   return seasonNum!=null ? `${itemId}::s${seasonNum}e${epNum}` : `${itemId}::movie`;
@@ -14040,6 +14136,7 @@ function cancelSubtitlePrompt(){
   document.getElementById('subtitlePromptOverlay').classList.remove('open');
   subtitlePromptCtx = null;
   preselectSubtitleCtx = null;
+  moviesSourcePromptCtx = null;
 }
 function finishSubtitlePromptAndPlay(){
   const ctx = subtitlePromptCtx;
