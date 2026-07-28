@@ -14440,10 +14440,14 @@ Option1Engine.attachPostMessageListener();
 // Play/Pause here is independent of Option1's fakePausePlayer()/fakeResumePlayer() (those are
 // Option1-owned and tied to its iframe-rebuild/resumeAt mechanics) — Option2 tracks its own paused
 // flag (state.player.option2Paused) and, for a direct <video>/HLS source, just uses the element's
-// real play()/pause(); for anything else (an iframe embed, which exposes no JS control API either
-// way) it fakes the pause with a lightweight cover of its own, reusing the same .player-pause-cover
-// styling as Option 1's cover for a consistent look, but built and torn down entirely by this
-// engine — nothing here reaches into Option1Engine or its postMessage listener.
+// real play()/pause(); for an iframe embed it shows the same lightweight .player-pause-cover Option
+// 1 uses (for a consistent look) AND sends a real 'pause'/'play' mplayer command via postMessage
+// (see sendOption2Command) — the mplayer protocol DOES expose a real control channel for iframes
+// (play/pause/seek/etc, per the spec), so unlike a bare vaplayer-style embed there's no reason to
+// merely hide the video behind a cover while it keeps playing (and fighting the paused state on
+// every 'timeupdate') underneath. "Fake" here now just means "no full unload/rebuild like Option
+// 1's cover", not "no real pause" — built and torn down entirely by this engine, nothing here
+// reaches into Option1Engine or its postMessage listener.
 const Option2Engine = {
   name: 'option2',
   play(){
@@ -14487,14 +14491,21 @@ const Option2Engine = {
   close(){ closePlayer(); },
   attachPostMessageListener(){ attachOption2PostMessageListener(); }
 };
-// FAKE PAUSE: no real control channel for an iframe embed, so just freeze the on-screen state and
-// show a simple paused cover — no position is saved/restored since Option 2 doesn't track time yet.
+// FAKE PAUSE: "fake" only in that the iframe itself is never unmounted/rebuilt (unlike Option 1's
+// real pause/resume cycle) — the mplayer protocol DOES support a real 'pause' command over
+// postMessage, so send it here too. Without this the underlying stream just kept playing behind
+// the cover: its 'timeupdate' events never stop firing, and the listener's
+// `if(p.playbackState !== 'stopped') p.playbackState = 'playing'` branch would immediately flip
+// playbackState back from 'paused' on the very next tick.
 function option2FakePause(){
   const p = state.player;
   if(!p || p.option2Paused || document.getElementById('playerPauseCover')) return;
   p.option2Paused = true;
   p.playbackState = 'paused';
   setPlayerPlayIcon(false);
+  sendOption2Command('pause'); // no-op safely for a direct <video>/hls source — this path is only
+  // ever reached when there's no #playerVideoEl (see Option2Engine.pause/togglePlayPause above),
+  // i.e. exactly when an iframe is mounted, so this always targets the right element.
   const stage = document.getElementById('playerStage');
   if(!stage) return;
   const item = p.isLive ? null : getItem(p.itemId);
@@ -14514,14 +14525,18 @@ function option2FakePause(){
   stage.appendChild(cover);
   requestAnimationFrame(()=> requestAnimationFrame(()=> cover.classList.add('visible')));
 }
-// FAKE RESUME: fade the cover out and drop it — the underlying iframe was never touched/unloaded,
-// so there's nothing to rebuild yet (unlike Option 1's real pause/resume cycle).
+// FAKE RESUME: fade the cover out and drop it — the underlying iframe was never unmounted/rebuilt
+// (unlike Option 1's real pause/resume cycle) — but it WAS really paused (see option2FakePause), so
+// send the matching real 'play' command over postMessage to actually resume it. Without this the
+// cover would disappear while the stream stayed paused underneath, since nothing else ever tells it
+// to play again.
 function option2FakeResume(){
   const p = state.player;
   if(!p || !p.option2Paused) return;
   p.option2Paused = false;
   p.playbackState = 'playing';
   setPlayerPlayIcon(true);
+  sendOption2Command('play'); // matches the sendOption2Command('pause') in option2FakePause
   const cover = document.getElementById('playerPauseCover');
   if(cover){
     cover.classList.remove('visible');
