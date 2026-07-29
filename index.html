@@ -15531,7 +15531,24 @@ function mountResumedIframe(item, p, onMounted, loadingLabel){
   // wrapper, not the bare stage.
   const mediaWrap = document.getElementById('playerMediaWrap') || stage;
   if(!stage || !p._embedBaseUrl){ if(onMounted) onMounted(); return; }
-  const src = buildResumeEmbedUrl(p._embedBaseUrl, p._elapsedSeconds);
+  // BUG FIX: this used to unconditionally call buildResumeEmbedUrl(), which bakes in vaplayer.ru's
+  // Option-1-only ?resumeAt= param — meaningless to an Option 2 mplayer embed (it has no such URL
+  // convention; resume is a postMessage 'seek' sent after 'ready', see attachOption2PostMessageListener).
+  // This function is also the one recreateFrozenIframe() (LIFECYCLE RECOVERY, below) uses to rebuild
+  // the iframe after the app is backgrounded and returns — the ONE engine-agnostic caller of this
+  // function — so an Option 2 title getting recovered after backgrounding was silently mounting a
+  // fresh iframe at its raw base URL (no resumeAt, which it wouldn't have honoured anyway) with the
+  // resume-seek flags still left over from the FIRST mount (p._option2ResumeSent already true from
+  // last time), so the new iframe's own 'ready'/'play' event never fired a new seek — it just started
+  // over from 0. Re-arm the resume-seek target/flags here so any freshly (re)mounted Option 2 iframe
+  // gets seeked to the last known position exactly like the very first open does.
+  const isOption2 = p.engine === 'option2';
+  if(isOption2){
+    p._option2ResumeSeconds = Math.floor(p._elapsedSeconds || 0);
+    p._option2ResumeSent = false;
+    p._option2ResumeConfirmed = false;
+  }
+  const src = isOption2 ? p._embedBaseUrl : buildResumeEmbedUrl(p._embedBaseUrl, p._elapsedSeconds);
   console.debug('[StreamVault] iframe src ->', src); // same verification hook as the initial-mount path
   const sandbox = state.settings.blockPopupAds ? 'allow-scripts allow-same-origin allow-forms allow-presentation' : '';
 
