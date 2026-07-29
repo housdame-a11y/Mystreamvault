@@ -12534,8 +12534,7 @@ function renderPlayer(){
       // actually guaranteed to accept commands). p._option2ResumeSent is reset per-mount so a
       // fresh open/next-episode/retry always gets exactly one resume seek, never zero, never
       // repeated on a re-fired 'ready'.
-      iframeSrc = embed.src;
-      p._option2ResumeSeconds = resumeAtOpen;
+      iframeSrc = withOption2ResumeSuppressed(embed.src);
       p._option2ResumeSent = false;
       p._option2ResumeConfirmed = false;
     } else {
@@ -14563,6 +14562,28 @@ Option2Engine.attachPostMessageListener();
 // { type:'mplayer', action, value }. No-op (safely) if there's no iframe mounted right now — direct
 // <video>/hls Option 2 sources never call this; their resume/seek goes through the real element's
 // currentTime instead (see the isVideoLike branch in renderPlayer).
+// Option 2's mplayer embeds run their OWN independent, server-side resume system (an mpsid session
+// cookie + a blocking "Resume from X:XX?" prompt shown on load — see the mplayer Progress/Resume
+// API spec pasted into this project). Left alone, that competes with our own resume: our `seek`
+// postMessage can race their prompt (sent while it's still waiting on a click), get silently
+// ignored while their player is paused showing it, or simply not matter because their mpsid cookie
+// (SameSite=None; Secure) never persisted in the first place — third-party cookies are blocked by
+// default in Safari and increasingly in Chrome for iframe contexts, so their own prompt may always
+// default to "start over" regardless of what we send. ?resume=0 explicitly suppresses their prompt
+// entirely so our own postMessage-driven seek is the single source of truth for where playback
+// starts, with nothing else fighting it. Used both on initial mount (renderPlayer) and on every
+// iframe rebuild (mountResumedIframe, e.g. lifecycle recovery after backgrounding).
+function withOption2ResumeSuppressed(url){
+  try{
+    const u = new URL(url);
+    u.searchParams.set('resume', '0');
+    return u.toString();
+  }catch(e){
+    const clean = url.replace(/([?&])resume=\d+&?/i, (m, sep) => sep==='?' ? '?' : '').replace(/[?&]$/, '');
+    const sep = clean.includes('?') ? '&' : '?';
+    return `${clean}${sep}resume=0`;
+  }
+}
 function sendOption2Command(action, value){
   const iframe = document.getElementById('playerIframeEl');
   if(!iframe || !iframe.contentWindow){
@@ -14640,6 +14661,19 @@ window.addEventListener('message', (event)=>{
     const current = Number(msg.currentTime);
     if(Number.isFinite(duration) && duration > 0) p._totalSeconds = duration;
     if(Number.isFinite(current)) p._elapsedSeconds = current;
+    // DEFENSIVE RESUME TRIGGER: 'ready' and 'play' are the documented ways to know the embed will
+    // accept a seek, but not every real-world mplayer embed necessarily sends either before its
+    // first 'timeupdate' — some players start reporting position immediately on load without a
+    // distinct readiness/play announcement. Without this, a source that skips straight to
+    // 'timeupdate' would never get its resume-seek armed at all (not "too early", just never sent).
+    // Harmless if 'ready'/'play' already handled it — p._option2ResumeSent gates it exactly the same
+    // way as those branches.
+    if(!p._option2ResumeSent){
+      p._option2ResumeSent = true;
+      const target = Math.floor(p._option2ResumeSeconds || 0);
+      if(target > SEEK_TO_START_THRESHOLD_SECONDS) attemptOption2Resume(p, target, 0);
+      else p._option2ResumeConfirmed = true;
+    }
     // RESUME CONFIRMATION: once a real reported position lands within ~5s of the target we sent,
     // the seek actually took — stop retrying (see attemptOption2Resume/cleanupPlayerTimers) so a
     // later retry can never yank the timeline backward after the viewer has kept watching/sought
@@ -15548,7 +15582,7 @@ function mountResumedIframe(item, p, onMounted, loadingLabel){
     p._option2ResumeSent = false;
     p._option2ResumeConfirmed = false;
   }
-  const src = isOption2 ? p._embedBaseUrl : buildResumeEmbedUrl(p._embedBaseUrl, p._elapsedSeconds);
+  const src = isOption2 ? withOption2ResumeSuppressed(p._embedBaseUrl) : buildResumeEmbedUrl(p._embedBaseUrl, p._elapsedSeconds);
   console.debug('[StreamVault] iframe src ->', src); // same verification hook as the initial-mount path
   const sandbox = state.settings.blockPopupAds ? 'allow-scripts allow-same-origin allow-forms allow-presentation' : '';
 
