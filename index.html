@@ -1829,11 +1829,12 @@ body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
    transitions never show a white flash while the iframe is being unloaded/recreated. */
 .player-stage iframe, .player-stage video{opacity:1; transition:opacity .38s ease;}
 .player-stage iframe.player-fade-out, .player-stage video.player-fade-out{opacity:0;}
-/* Option 2 sources get none of the normal Stream Vault chrome (see renderPlayer()'s isOption2
-   branch) — no .player-top bar, no buttons at all — so there'd otherwise be no way to leave the
-   player except hardware/back-gesture handlers. This is the one exception: a small standalone
-   exit button floated over the top-right corner of the stage itself, independent of .player-top
-   (which doesn't exist in this branch) and its auto-hide-on-inactivity fade behavior. */
+/* Option 2 and Option 3 sources get none of the normal Stream Vault chrome (see renderPlayer()'s
+   isOption2/isOption3 branch) — no .player-top bar, no buttons at all — so there'd otherwise be no
+   way to leave the player except hardware/back-gesture handlers. This is the one exception: a small
+   standalone exit button floated over the top-right corner of the stage itself, independent of
+   .player-top (which doesn't exist in this branch) and its auto-hide-on-inactivity fade behavior.
+   Shared as-is by Option 3 (VidPhantom) rather than duplicated under a new class name. */
 .player-option2-exit{
   position:absolute; top:16px; right:16px; z-index:6;
   width:36px; height:36px; border-radius:8px;
@@ -1845,6 +1846,56 @@ body.tv-mode .featured-title{font-size:clamp(28px,3.2vw,42px);}
 .player-option2-exit svg{width:16px; height:16px;}
 body.tv-mode .player-option2-exit{width:52px; height:52px; top:28px; right:28px;}
 body.tv-mode .player-option2-exit svg{width:22px; height:22px;}
+
+/* Option 3 (VidPhantom) gets real fake-pause/resume/skip controls (see Option3Engine's play/pause/
+   seekRelative — they reuse Option 1's fakePausePlayer/fakeResumePlayer/seekPlayer via VidPhantom's
+   startAt= URL param) but there's no .player-bottom bar in this no-chrome branch to hold them.
+   Deliberately built as its OWN distinct look rather than reusing .player-bottom's glass-on-gradient
+   treatment: a big, fully solid tab planted flush on the bottom edge (no fade into the video, no
+   blur-through), in a dark violet ("phantom") tone instead of Option 1's cyan — so at a glance it's
+   unmistakably a different provider's player, not a re-skin. Reuses the SAME #playerPlayBtn/
+   #playerSkipBackBtn/#playerSkipForwardBtn ids the full chrome uses, so setPlayerPlayIcon()'s icon
+   sync and setPlaybackControlsBusy()'s dimming both keep working with zero extra wiring — see
+   renderPlayer's isOption3 markup branch. */
+.player-option3-controls{
+  position:absolute; left:0; right:0; bottom:0; z-index:6;
+  display:flex; align-items:center; justify-content:center; gap:22px;
+  padding:22px 24px 26px;
+  background:#141022; /* fully opaque — no gradient fade, no transparency */
+  border-top:1px solid rgba(178,140,255,.28);
+  box-shadow:0 -12px 32px rgba(0,0,0,.45);
+}
+.player-option3-controls .btn-icon{
+  width:48px; height:48px; border-radius:12px;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(178,140,255,.1); border:1px solid rgba(178,140,255,.22); color:#e7defe;
+  transition:background var(--transition), border-color var(--transition);
+}
+.player-option3-controls .btn-icon:hover{background:rgba(178,140,255,.2); border-color:rgba(178,140,255,.4);}
+.player-option3-controls .btn-icon:active{transform:scale(.94);}
+/* Primary transport action — larger, circular, filled solid with the phantom-violet accent so it
+   reads instantly as "the" button, echoing .player-bottom's primary/secondary hierarchy without
+   copying its exact treatment (filled solid here vs. frosted glass there). */
+.player-option3-controls .btn-icon.player-btn-primary{
+  width:60px; height:60px; border-radius:50%;
+  background:#8b5cf6; border-color:#8b5cf6; color:#12071f;
+  box-shadow:0 4px 18px rgba(139,92,246,.45);
+}
+.player-option3-controls .btn-icon.player-btn-primary:hover{background:#a378ff; border-color:#a378ff;}
+.player-option3-controls .btn-icon svg{width:20px; height:20px;}
+.player-option3-controls .btn-icon.player-btn-primary svg{width:24px; height:24px;}
+.player-option3-controls .btn-icon.is-busy{opacity:.4; pointer-events:none;}
+body.tv-mode .player-option3-controls{padding:28px 32px 34px; gap:28px;}
+body.tv-mode .player-option3-controls .btn-icon{width:56px; height:56px;}
+body.tv-mode .player-option3-controls .btn-icon.player-btn-primary{width:72px; height:72px;}
+body.tv-mode .player-option3-controls .btn-icon svg{width:24px; height:24px;}
+body.tv-mode .player-option3-controls .btn-icon.player-btn-primary svg{width:28px; height:28px;}
+@media (max-width:520px){
+  .player-option3-controls{padding:16px 16px 20px; gap:16px;}
+  .player-option3-controls .btn-icon{width:42px; height:42px;}
+  .player-option3-controls .btn-icon.player-btn-primary{width:52px; height:52px;}
+}
+
 
 /* ---------- Fake-pause cover (Netflix-style "paused" state) ----------
    Shown in place of the iframe once it has been unloaded. Purely visual — the third-party
@@ -3477,13 +3528,14 @@ function loadSettings(){
     if(!Array.isArray(s.streamingProviders)) s.streamingProviders = s.streamingProvider ? [s.streamingProvider] : [];
     delete s.streamingProvider;
     // Each provider now also carries its own Playback API choice (see PLAYBACK ENGINE ARCHITECTURE —
-    // Option1Engine / Option2Engine) and its own Code Format choice (Type 1 = imdbId-keyed URL,
-    // Type 2 = tmdbId-keyed URL — see buildProviderStreamUrl). Transparently migrates older entries
-    // that were saved as bare domain strings, or that predate codeFormat, defaulting every
-    // pre-existing provider to Option 1 / Type 1 so nothing already configured silently changes.
+    // Option1Engine / Option2Engine / Option3Engine) and its own Code Format choice (Type 1 =
+    // imdbId-keyed URL, Type 2 = tmdbId-keyed URL — see buildProviderStreamUrl). Transparently
+    // migrates older entries that were saved as bare domain strings, or that predate codeFormat,
+    // defaulting every pre-existing provider to Option 1 / Type 1 so nothing already configured
+    // silently changes.
     s.streamingProviders = s.streamingProviders.map(p => typeof p === 'string'
       ? {domain:p, playbackApi:'option1', codeFormat:'type1'}
-      : {domain:(p&&p.domain)||'', playbackApi:(p&&p.playbackApi==='option2')?'option2':'option1', codeFormat:(p&&p.codeFormat==='type2')?'type2':'type1'});
+      : {domain:(p&&p.domain)||'', playbackApi:(p&&p.playbackApi==='option3')?'option3':(p&&p.playbackApi==='option2')?'option2':'option1', codeFormat:(p&&p.codeFormat==='type3')?'type3':(p&&p.codeFormat==='type2')?'type2':'type1'});
     if(typeof s.blockPopupAds !== 'boolean') s.blockPopupAds = false;
     if(typeof s.contentBlur !== 'boolean') s.contentBlur = false;
     if(!s.contentBlurLevel) s.contentBlurLevel = 'moderate';
@@ -8671,7 +8723,7 @@ function saveTorrentServerUrl(){
 function ensureProviderDraft(){
   if(!Array.isArray(state.settingsProviderDraft)){
     state.settingsProviderDraft = (state.settings.streamingProviders||[]).length
-      ? state.settings.streamingProviders.map(p=>({domain:p.domain||'', playbackApi:p.playbackApi==='option2'?'option2':'option1', codeFormat:p.codeFormat==='type2'?'type2':'type1'}))
+      ? state.settings.streamingProviders.map(p=>({domain:p.domain||'', playbackApi:p.playbackApi==='option3'?'option3':p.playbackApi==='option2'?'option2':'option1', codeFormat:p.codeFormat==='type3'?'type3':p.codeFormat==='type2'?'type2':'type1'}))
       : [{domain:'', playbackApi:'option1', codeFormat:'type1'}];
   }
 }
@@ -8686,12 +8738,14 @@ function streamingProviderRowsHtml(){
     <div class="source-row source-row-provider">
       <input placeholder="example.com" value="${esc(d.domain)}" oninput="state.settingsProviderDraft[${i}].domain=this.value">
       <select class="select-input source-playback-select" title="Playback API" onchange="state.settingsProviderDraft[${i}].playbackApi=this.value">
-        <option value="option1" ${d.playbackApi==='option2'?'':'selected'}>Option 1</option>
+        <option value="option1" ${d.playbackApi==='option2'||d.playbackApi==='option3'?'':'selected'}>Option 1</option>
         <option value="option2" ${d.playbackApi==='option2'?'selected':''}>Option 2</option>
+        <option value="option3" ${d.playbackApi==='option3'?'selected':''}>Option 3 (VidPhantom)</option>
       </select>
       <select class="select-input source-codeformat-select" title="Code Format" onchange="state.settingsProviderDraft[${i}].codeFormat=this.value">
-        <option value="type1" ${d.codeFormat==='type2'?'':'selected'}>Type 1</option>
+        <option value="type1" ${d.codeFormat==='type2'||d.codeFormat==='type3'?'':'selected'}>Type 1</option>
         <option value="type2" ${d.codeFormat==='type2'?'selected':''}>Type 2</option>
+        <option value="type3" ${d.codeFormat==='type3'?'selected':''}>Type 3 (VidPhantom)</option>
       </select>
       <button type="button" class="rm" onclick="removeStreamingProviderRow(${i})">${ICON.close}</button>
     </div>`).join('');
@@ -8713,7 +8767,7 @@ function removeStreamingProviderRow(i){
 function saveStreamingProviders(){
   ensureProviderDraft();
   state.settings.streamingProviders = state.settingsProviderDraft
-    .map(d=>({domain:normalizeProviderDomain(d.domain), playbackApi:d.playbackApi==='option2'?'option2':'option1', codeFormat:d.codeFormat==='type2'?'type2':'type1'}))
+    .map(d=>({domain:normalizeProviderDomain(d.domain), playbackApi:d.playbackApi==='option3'?'option3':d.playbackApi==='option2'?'option2':'option1', codeFormat:d.codeFormat==='type3'?'type3':d.codeFormat==='type2'?'type2':'type1'}))
     .filter(p=>p.domain);
   state.settingsProviderDraft = null; // re-seed from the saved list next time Settings renders
   saveSettings();
@@ -11577,8 +11631,9 @@ function wizardStepSourcesHtml(draft){
             <input placeholder="Label (e.g. VidSrc)" value="${esc(s.label)}" oninput="wizardCurrentItem().sources[${i}].label=this.value">
             <input placeholder="https://..." value="${esc(s.url)}" oninput="wizardCurrentItem().sources[${i}].url=this.value">
             <select class="select-input source-playback-select" title="Playback API" onchange="wizardCurrentItem().sources[${i}].playbackApi=this.value">
-              <option value="option1" ${s.playbackApi==='option2'?'':'selected'}>Option 1</option>
+              <option value="option1" ${s.playbackApi==='option2'||s.playbackApi==='option3'?'':'selected'}>Option 1</option>
               <option value="option2" ${s.playbackApi==='option2'?'selected':''}>Option 2</option>
+              <option value="option3" ${s.playbackApi==='option3'?'selected':''}>Option 3 (VidPhantom)</option>
             </select>
             <button type="button" class="rm" onclick="wizardRemoveMovieSource(${i})">${ICON.close}</button>
           </div>`).join('')}
@@ -11610,8 +11665,9 @@ function wizardStepSourcesHtml(draft){
           <input placeholder="Label" value="${esc(src.label)}" oninput="wizardCurrentItem().seasons[${si}].episodes[${ei}].sources[${oi}].label=this.value">
           <input placeholder="https://..." value="${esc(src.url)}" oninput="wizardCurrentItem().seasons[${si}].episodes[${ei}].sources[${oi}].url=this.value">
           <select class="select-input source-playback-select" title="Playback API" onchange="wizardCurrentItem().seasons[${si}].episodes[${ei}].sources[${oi}].playbackApi=this.value">
-            <option value="option1" ${src.playbackApi==='option2'?'':'selected'}>Option 1</option>
+            <option value="option1" ${src.playbackApi==='option2'||src.playbackApi==='option3'?'':'selected'}>Option 1</option>
             <option value="option2" ${src.playbackApi==='option2'?'selected':''}>Option 2</option>
+            <option value="option3" ${src.playbackApi==='option3'?'selected':''}>Option 3 (VidPhantom)</option>
           </select>
           <button type="button" class="rm" onclick="wizardRemoveEpSource(${si},${ei},${oi})">${ICON.close}</button>
         </div>`).join('')}
@@ -12160,9 +12216,31 @@ function normalizeProviderDomain(v){
 // saveStreamingProviders for where it's set/persisted):
 //   'type1' (default) — imdbId-keyed path, ?autoplay=1&controls=false&overlay=false&showTitle=false
 //   'type2'            — tmdbId-keyed path, ?autoplay=1&resume=1
+//   'type3'            — VidPhantom's own tmdbId-keyed path + theming/subtitle params (see the
+//                         "Type 3 (Generated Link)" example in VidPhantom's integration guide).
+//                         Pair this with Playback API = Option 3 — Type 1/2 are generic mirror
+//                         formats any 'option1'/'option2' domain can use, but Type 3's path shape
+//                         (/movie/ID, not /embed/movie/ID) and its startAt=/MEDIA_DATA behavior are
+//                         specific to VidPhantom, so Option 1/2 wouldn't know what to do with it.
 function buildProviderStreamUrl(domain, item, seasonNum, epNum, codeFormat){
   domain = normalizeProviderDomain(domain);
   if(!domain || !item) return null;
+  if(codeFormat==='type3'){
+    if(!item.tmdbId) return null;
+    // Static theming/subtitle-styling params, straight from VidPhantom's own documented "Type 3
+    // (Generated Link)" example — not exposed as Settings fields (yet) since nothing in this
+    // project has asked for per-provider color customization; easy to lift into its own
+    // provider-level setting later if that changes. autoplay=true (flipped from VidPhantom's own
+    // example, which used autoplay=false) so a freshly-opened OR freshly-rebuilt (fake-resume/seek)
+    // VidPhantom iframe actually starts playing on its own — with autoplay=false there is no command
+    // channel to press its play button for it (see Option3Engine), so every rebuild would otherwise
+    // just sit on the poster waiting for a tap inside the VidPhantom frame itself.
+    const theme = 'primaryColor=e53535&accentColor=e53535&secondaryColor=2a2a2a&iconColor=ffffff&backdropColor=000000&autoplay=true&poster=true&nextbutton=false&subColor=ffffff&subBgColor=000000&subBgOpacity=0.78&subSize=18&subBottom=52&subShadow=true';
+    if(seasonNum!=null && epNum!=null){
+      return `https://${domain}/tv/${item.tmdbId}/${seasonNum}/${epNum}?${theme}`;
+    }
+    return `https://${domain}/movie/${item.tmdbId}?${theme}`;
+  }
   if(codeFormat==='type2'){
     if(!item.tmdbId) return null;
     if(seasonNum!=null && epNum!=null){
@@ -12190,11 +12268,11 @@ function getAutoProviderSources(item, seasonNum, epNum){
   providers.forEach((provider,i)=>{
     const normalized = normalizeProviderDomain(provider.domain);
     if(excluded.includes(normalized)) return;
-    const codeFormat = provider.codeFormat==='type2'?'type2':'type1';
+    const codeFormat = provider.codeFormat==='type3'?'type3':provider.codeFormat==='type2'?'type2':'type1';
     const url = buildProviderStreamUrl(provider.domain, item, seasonNum, epNum, codeFormat);
     // Every provider saves its own Playback API (see PLAYBACK ENGINE ARCHITECTURE) — carried onto
     // each generated source so the player knows which engine to load the moment it opens this link.
-    if(url) out.push({label:'Source '+(i+1), url, isAuto:true, providerDomain:normalized, playbackApi: provider.playbackApi==='option2'?'option2':'option1', codeFormat});
+    if(url) out.push({label:'Source '+(i+1), url, isAuto:true, providerDomain:normalized, playbackApi: provider.playbackApi==='option3'?'option3':provider.playbackApi==='option2'?'option2':'option1', codeFormat});
   });
   return out;
 }
@@ -12495,7 +12573,7 @@ function renderPlayer(){
   // Which PlaybackEngine drives this source (see PLAYBACK ENGINE ARCHITECTURE) — auto-generated
   // Streaming Provider links and manually-added wizard links both carry their own saved
   // src.playbackApi; anything without one (live channels, pre-Option-2 links) defaults to Option 1.
-  p.engine = src.playbackApi === 'option2' ? 'option2' : 'option1';
+  p.engine = src.playbackApi === 'option3' ? 'option3' : src.playbackApi === 'option2' ? 'option2' : 'option1';
   const embed = detectEmbed(src.url);
   // YouTube links get the plain, native YouTube player — no top/bottom control bars, no click
   // shield — see the isYoutube branch in the innerHTML build below and applyPlayerClickShield().
@@ -12505,7 +12583,11 @@ function renderPlayer(){
   // plus our loading spinner; everything else in this function that builds/attaches controls is
   // skipped for it, same pattern as the isYoutube carve-out above.
   const isOption2 = p.engine === 'option2';
-  p._noShield = isYoutube || isOption2;
+  // Option 3 (VidPhantom) gets the same no-chrome treatment as Option 2, for the same reason: there
+  // is no documented command channel to drive Stream Vault's own seek/skip/pause buttons with, so
+  // showing them would just be dead UI. VidPhantom's own player supplies all on-screen controls.
+  const isOption3 = p.engine === 'option3';
+  p._noShield = isYoutube || isOption2 || isOption3;
   const overlay = document.getElementById('playerOverlay');
   const next = isLive ? null : getNextEpisode(item, p.seasonNum, p.epNum);
 
@@ -12537,6 +12619,16 @@ function renderPlayer(){
       iframeSrc = withOption2ResumeSuppressed(embed.src);
       p._option2ResumeSent = false;
       p._option2ResumeConfirmed = false;
+    } else if(isOption3){
+      // Option 3 (VidPhantom) — per VidPhantom's own integration guide, the embed URL takes a
+      // startAt=SECONDS param ("Starts playback at a specific timestamp in seconds. Useful for
+      // resume behavior across devices.") — the direct VidPhantom equivalent of vaplayer's
+      // resumeAt=. buildOption3ResumeEmbedUrl omits the param entirely on a fresh open with nothing
+      // to resume (resumeAtOpen === 0) rather than forcing a startAt=0 — nothing in VidPhantom's docs
+      // suggests the clamp-to-1-instead-of-0 workaround buildResumeEmbedUrl needs for vaplayer's
+      // fallback-to-its-own-cookie quirk (see that function's comment), so there's no reason to copy
+      // it here without evidence VidPhantom has the same quirk.
+      iframeSrc = buildOption3ResumeEmbedUrl(embed.src, resumeAtOpen);
     } else {
       iframeSrc = buildResumeEmbedUrl(embed.src, resumeAtOpen);
       console.debug('[StreamVault] iframe src ->', iframeSrc); // verify in DevTools: no resumeAt param should ever appear here for a seek-to-0
@@ -12569,10 +12661,16 @@ function renderPlayer(){
     stageHtml = `<iframe id="playerIframeEl" src="${esc(iframeSrc)}" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowfullscreen loading="eager"${sandboxAttr}></iframe>`;
   }
 
-  overlay.innerHTML = isOption2 ? `
+  overlay.innerHTML = (isOption2 || isOption3) ? `
     <div class="player-stage" id="playerStage">
       <button class="player-option2-exit" title="Exit" onclick="closePlayer()">${ICON.close}</button>
       <div class="player-media-wrap" id="playerMediaWrap">${stageHtml}</div>
+      ${isOption3 ? `
+      <div class="player-option3-controls" id="playerOption3Controls">
+        <button class="btn-icon" id="playerSkipBackBtn" title="Back 20 seconds" onclick="PlaybackEngine.active().back20();">${ICON.skipBack20}</button>
+        <button class="btn-icon player-btn-primary" id="playerPlayBtn" title="Pause" onclick="PlaybackEngine.active().togglePlayPause()">${ICON.pause}</button>
+        <button class="btn-icon" id="playerSkipForwardBtn" title="Forward 20 seconds" onclick="PlaybackEngine.active().forward20();">${ICON.skipForward20}</button>
+      </div>` : ''}
       <div class="player-loading" id="playerLoading"><div class="spinner"></div><span class="player-loading-label" id="playerLoadingLabel">Loading stream…</span></div>
     </div>
   ` : isYoutube ? `
@@ -12720,16 +12818,17 @@ function renderPlayer(){
   scheduleHideControls();
   // Permanent click shield for every iframe embed — sits in front of the third-party page so
   // ad-script clicks/popups never reach it. There is no button or setting to disable this, except
-  // YouTube and Option 2: YouTube links use YouTube's own native player untouched, and Option 2
-  // sources get no Stream Vault chrome of any kind (see isYoutube/isOption2 above and p._noShield),
-  // so applyPlayerClickShield() no-ops for both by design — see its own guard.
+  // YouTube, Option 2, and Option 3: YouTube links use YouTube's own native player untouched, and
+  // Option 2/Option 3 sources get no Stream Vault chrome of any kind (see isYoutube/isOption2/
+  // isOption3 above and p._noShield), so applyPlayerClickShield() no-ops for all three by design —
+  // see its own guard.
   applyPlayerClickShield();
-  if(!isYoutube && !isOption2){
+  if(!isYoutube && !isOption2 && !isOption3){
     // Double-tap anywhere on the stage activates Hide Screen, single tap deactivates it — highest
     // priority, works locked or unlocked, live or on-demand. See initPlayerHideGesture for why
-    // capture-phase binding is what makes that guarantee possible. Skipped for YouTube and Option 2:
-    // neither has a click shield in front of the media to intercept the tap, and neither has any
-    // Hide Screen/Brightness UI left to trigger anyway.
+    // capture-phase binding is what makes that guarantee possible. Skipped for YouTube, Option 2,
+    // and Option 3: none of them has a click shield in front of the media to intercept the tap, and
+    // none has any Hide Screen/Brightness UI left to trigger anyway.
     initPlayerHideGesture();
     // Vertical swipe anywhere on the stage adjusts Brightness (unlocked only) — see
     // initPlayerBrightnessGesture. Same reasoning as above — nothing to swipe for on YouTube/Option 2.
@@ -12947,9 +13046,9 @@ document.addEventListener('fullscreenchange', ()=>{
 // off; it's simply always present for the lifetime of an iframe-based player.
 function applyPlayerClickShield(){
   // YouTube links deliberately skip the shield — they use YouTube's own native player, and a
-  // shield in front of it would block its built-in controls entirely. Option 2 sources skip it
-  // too — they get no Stream Vault chrome at all. p._noShield is set once, in renderPlayer, based
-  // on detectEmbed's isYoutube flag OR'd with p.engine==='option2'.
+  // shield in front of it would block its built-in controls entirely. Option 2 and Option 3
+  // sources skip it too — they get no Stream Vault chrome at all. p._noShield is set once, in
+  // renderPlayer, based on detectEmbed's isYoutube flag OR'd with p.engine==='option2'/'option3'.
   if(state.player && state.player._noShield) return;
   const stage = document.getElementById('playerStage');
   if(!stage || document.getElementById('playerClickShield')) return; // no stage, or already up
@@ -14075,7 +14174,7 @@ function orderSourcesWithChoiceFirst(item, playable){
 }
 function startMoviePlaybackWithSources(item, orderedSources){
   const chosen = orderedSources[0];
-  if(chosen && chosen.playbackApi==='option2'){
+  if(chosen && (chosen.playbackApi==='option2' || chosen.playbackApi==='option3')){
     document.getElementById('subtitlePromptOverlay').classList.remove('open');
     openPlayer(item, null, null, orderedSources);
   } else {
@@ -14333,9 +14432,14 @@ async function usePreselectSubtitleResult(i){
      PlaybackEngine (registry)
          ├── Option1Engine   — the original implementation (direct <video>/HLS + third-party iframe
          │                     embeds, incl. all postMessage handling), migrated as-is below.
-         └── Option2Engine   — a second playback API. For now it only supports basic (fake) Play/
-                                Pause — see Option2Engine below; seek/timeline/duration/skip aren't
-                                implemented yet and are safe no-ops.
+         ├── Option2Engine   — a second playback API. For now it only supports basic (fake) Play/
+         │                     Pause — see Option2Engine below; seek/timeline/duration/skip aren't
+         │                     implemented yet and are safe no-ops.
+         └── Option3Engine   — VidPhantom. No live in-place command channel is documented (unlike
+                                Option 2's mplayer protocol), but VidPhantom's own startAt=SECONDS
+                                embed URL param makes a genuine fake-pause/resume/seek cycle possible
+                                — see Option3Engine below, which reuses Option 1's fake-pause/resume/
+                                seek machinery via that param.
 
    Where a source's engine comes from:
      • Auto-generated Streaming Provider links (Settings → Playback → Streaming Providers) carry
@@ -14734,6 +14838,161 @@ window.addEventListener('message', (event)=>{
 });
 } // end attachOption2PostMessageListener()
 
+// ---------------------------------------------------------------------------------------------
+// Option3Engine — VidPhantom, a third playback API, added alongside Option1Engine/Option2Engine
+// without touching either. VidPhantom's own integration guide documents two things relevant to
+// playback control: (1) Step 1, the `MEDIA_DATA` postMessage it pushes OUT (handled by
+// attachOption3PostMessageListener below), and (2) a startAt=SECONDS embed URL param it accepts IN
+// ("Starts playback at a specific timestamp in seconds. Useful for resume behavior across
+// devices."). There is still no documented LIVE command channel — no way to pause/seek an
+// already-mounted VidPhantom iframe in place the way Option 2's mplayer protocol can — so instead
+// this engine reuses Option 1's fake-pause/resume/seek machinery: Pause tears the iframe down
+// (genuinely stops it — no cooperation from VidPhantom needed for that half), and Play/seek rebuild
+// it fresh at startAt=<seconds> via buildOption3ResumeEmbedUrl. togglePlayerPlayPause,
+// fakePausePlayer/fakeResumePlayer, performPlayerSeek, and seekPlayer/seekPlayerToPercent (PLAYBACK
+// MANAGER, further down) are all already engine-agnostic — they key off #playerIframeEl/
+// p.fakePaused, not p.engine — so Option3Engine just delegates to the exact same functions
+// Option1Engine does; the isOption3 branches inside renderPlayer/mountResumedIframe/
+// buildRestartEmbedUrl are what make those shared functions land on startAt= instead of resumeAt=
+// for a VidPhantom title.
+//
+// Selecting Option 3 for a source (Settings → Playback → Streaming Providers, or a manually-added
+// link's own Playback API) is what routes it here — see "Where a source's engine comes from" in the
+// PLAYBACK ENGINE ARCHITECTURE banner above.
+const Option3Engine = {
+  name: 'option3',
+  play(){
+    const p = state.player;
+    if(p && !p.isLive && p.fakePaused) fakeResumePlayer();
+  },
+  pause(){
+    const p = state.player;
+    if(p && !p.isLive && !p.fakePaused) fakePausePlayer();
+  },
+  togglePlayPause(){ togglePlayerPlayPause(); },
+  seek(seconds){ performPlayerSeek(seconds); },
+  seekToPercent(pct){ seekPlayerToPercent(pct); },
+  seekRelative(deltaSeconds){ seekPlayer(deltaSeconds); },
+  forward20(){ seekPlayer(20); },
+  back20(){ seekPlayer(-20); },
+  // Real values: p._elapsedSeconds/_totalSeconds are kept current by the MEDIA_DATA listener below
+  // AND by every fake-pause/resume/seek (setPlayerSyncPoint), the same fields Option 1/Option 2
+  // use — this is what lets the poster/Continue-Watching progress line (cardHtml/
+  // continueWatchingCardHtml) work for Option 3 too.
+  getCurrentTime(){
+    const p = state.player;
+    return (p && p._elapsedSeconds) || 0;
+  },
+  getDuration(){
+    const p = state.player;
+    return (p && p._totalSeconds) || 0;
+  },
+  getPlaybackState(){
+    const p = state.player;
+    return p ? (p.playbackState || 'stopped') : 'stopped';
+  },
+  close(){ closePlayer(); },
+  attachPostMessageListener(){ attachOption3PostMessageListener(); }
+};
+// ---------------------------------------------------------------------------------------------
+// VidPhantom's own postMessage channel. Per its integration guide (Step 1), messages arrive as
+// `{type:'MEDIA_DATA', data:{...}}` from `https://vidphantom.com` and are meant to be mirrored into
+// localStorage under the key 'vidPhantomProgress' — that mirroring happens unconditionally below,
+// exactly as documented, regardless of whether Stream Vault's own player is even open (matches the
+// guide's own example, which doesn't gate on any app state either).
+//
+// Step 2 of the guide ("Stored Data Structure") documents exactly what `data` looks like — it is
+// VidPhantom's ENTIRE progress store, keyed by TMDB id as a string, not a single-item payload:
+//   { "<tmdbId>": {
+//       id, type: 'movie'|'tv',
+//       progress: { watched, duration },   // NOTE: "watched" here is elapsed SECONDS, not a
+//                                           // boolean — an unfortunate name collision with Stream
+//                                           // Vault's own item.progress[key].watched (a real
+//                                           // boolean) that the code below is careful not to conflate.
+//       last_updated,
+//       last_season_watched, last_episode_watched,        // tv only
+//       show_progress: { "s<season>e<episode>": {season, episode, progress:{watched,duration}} } // tv only
+//   } }
+// Beyond the documented localStorage mirror, this listener ALSO folds the CURRENT item's entry into
+// Stream Vault's own item.progress store (via saveProgress/saveIframeProgressThrottled, the same
+// helpers Option 1/Option 2 use), so the poster/Continue-Watching progress line and end-of-playback
+// "up next" card work for Option 3 sources too. That requires matching the currently-playing item to
+// its key in this dict — which is a TMDB id, so item.tmdbId (Stream Vault's own internal item.id is
+// a DIFFERENT, unrelated id — see item.tmdbId elsewhere in this file) is what's used to look it up;
+// titles without a resolved tmdbId simply can't be matched here (the raw payload is still mirrored
+// to localStorage regardless). For a TV episode, show_progress['s<season>e<episode>'] is used in
+// preference to the entry's own top-level progress — p.key is already in that exact 's<season>e
+// <episode>' format (see the key: seasonNum!=null ? 's'+seasonNum+'e'+epNum : 'movie' convention
+// this app already uses), so it's reused as-is rather than reformatted — because the top-level
+// progress only ever reflects whichever episode VidPhantom itself last touched, which mid-binge is
+// not necessarily the one currently open here.
+//
+// Bound once for the app's whole lifetime, same as Option 1/Option 2's listeners. Every message is
+// matched against the CURRENTLY mounted #playerIframeEl by event.source (once we get past the
+// unconditional localStorage mirror) so a stale/torn-down iframe from a previous title can never
+// touch the live player's state, and p.engine!=='option3' short-circuits so this never fires for an
+// Option 1/Option 2 (or live) title.
+function attachOption3PostMessageListener(){
+window.addEventListener('message', (event) => {
+  if (event.origin !== 'https://vidphantom.com') return;
+  if (event.data?.type !== 'MEDIA_DATA') return;
+  const mediaData = event.data.data;
+  // Documented behavior (Step 1 of VidPhantom's integration guide) — unconditional, independent of
+  // whether a Stream Vault player is even open right now.
+  try{
+    localStorage.setItem('vidPhantomProgress', JSON.stringify(mediaData));
+  }catch(e){
+    console.debug('[StreamVault][option3 vidphantom] failed to persist vidPhantomProgress', e);
+  }
+  // Everything past this point is Stream Vault's own progress-tracking integration (see banner
+  // above) — best-effort, and never lets a foreign/stale message touch the live player's state.
+  const p = state.player;
+  if(!p || p.isLive) return; // no progress tracking for live channels
+  if(p.engine !== 'option3') return; // Option 1/Option 2's own listeners own their own titles
+  const iframe = document.getElementById('playerIframeEl');
+  if(!iframe || event.source !== iframe.contentWindow) return; // ignore a stale/foreign iframe
+  p._lastEventAt = Date.now(); // proof-of-life stamp, same role as in Option 1/Option 2's listeners
+  const item = getItem(p.itemId);
+  if(!item || !mediaData || typeof mediaData !== 'object') return;
+
+  console.debug('[StreamVault][option3 vidphantom] MEDIA_DATA ->', mediaData);
+
+  // Match the currently-playing item to its entry in VidPhantom's TMDB-id-keyed store (see banner).
+  const tmdbKey = item.tmdbId != null ? String(item.tmdbId) : null;
+  const entry = tmdbKey ? mediaData[tmdbKey] : null;
+  if(!entry || !entry.progress) return; // no resolved tmdbId, or nothing for this title yet
+
+  // First real confirmation this embed is actually alive — hides our loading overlay the same way
+  // Option 1/Option 2's "playing"/'ready' signals do, instead of waiting out armIframeEventFallback's
+  // full timeout.
+  clearTimeout(p._eventFallbackTimer);
+  hidePlayerLoadingOverlay();
+
+  // Prefer the per-episode entry for a TV title — see banner for why the top-level one isn't safe
+  // to use directly mid-binge.
+  const epEntry = (item.type !== 'movie' && entry.show_progress) ? entry.show_progress[p.key] : null;
+  const progress = (epEntry && epEntry.progress) ? epEntry.progress : entry.progress;
+
+  // progress.watched is VidPhantom's name for "current elapsed seconds" — NOT a watched/finished
+  // boolean (see banner) — read accordingly.
+  const current = Number(progress.watched);
+  const duration = Number(progress.duration);
+  if(Number.isFinite(duration) && duration > 0) p._totalSeconds = duration;
+  if(Number.isFinite(current)) p._elapsedSeconds = current;
+
+  if(p.playbackState !== 'stopped'){
+    p.playbackState = 'playing'; // VidPhantom's structure carries no paused/ended flag to read here
+    if(isNearPlaybackEnd(p._elapsedSeconds, p._totalSeconds)){
+      finishIframePlayback(item, p);
+    } else {
+      saveIframeProgressThrottled(item, p);
+    }
+  }
+});
+}
+PlaybackEngine.register('option3', Option3Engine);
+Option3Engine.attachPostMessageListener();
+
 /* =========================================================
    PLAYBACK MANAGER
    ---------------------------------------------------------
@@ -15000,13 +15259,47 @@ function buildResumeEmbedUrl(baseUrl, seconds){
     return `${clean}${sep}resumeAt=${target}`;
   }
 }
-// Builds a restart embed src from the ORIGINAL base embed URL (never from a resumeAt-bearing one) —
-// used by restartPlayer() for both the Restart button and a progress-bar seek to 0. A restart is
-// just "resume at 0" — buildResumeEmbedUrl(baseUrl, 0) already produces the right result (an
-// explicit resumeAt=1, never an omitted/zero one — see the comment there for why that distinction
-// actually matters on this mirror), so delegate to it instead of duplicating the same logic here.
-function buildRestartEmbedUrl(baseUrl){
-  return buildResumeEmbedUrl(baseUrl, 0);
+// Builds a restart embed src from the ORIGINAL base embed URL (never from a resumeAt/startAt-
+// bearing one) — used by restartPlayer() for both the Restart button and a progress-bar seek to 0.
+// engine picks which provider's param convention applies (defaults to Option 1's resumeAt= when
+// omitted, matching every pre-Option-3 call site). A restart is just "resume at 0" — the matching
+// per-engine resume builder already produces the right result for 0, so this delegates rather than
+// duplicating either one's logic here.
+function buildRestartEmbedUrl(baseUrl, engine){
+  return engine === 'option3' ? buildOption3ResumeEmbedUrl(baseUrl, 0) : buildResumeEmbedUrl(baseUrl, 0);
+}
+// Remove any previously-appended startAt= param from a VidPhantom embed URL, so repeated
+// pause/resume/seek cycles rebuild cleanly from the original link instead of stacking params on top
+// of each other — the Option 3 counterpart to stripResumeParam above.
+function stripOption3ResumeParam(url){
+  try{
+    const u = new URL(url);
+    u.searchParams.delete('startAt');
+    return u.toString();
+  }catch(e){
+    return url.replace(/([?&])startAt=\d+&?/i, (m, sep) => sep==='?' ? '?' : '').replace(/[?&]$/, '');
+  }
+}
+// Build (or rebuild) a VidPhantom embed src with startAt=SECONDS baked in — VidPhantom's own
+// documented param ("Starts playback at a specific timestamp in seconds. Useful for resume behavior
+// across devices. Example: startAt=60"). The Option 3 counterpart to buildResumeEmbedUrl above, used
+// everywhere that one is: the initial open (renderPlayer), every fake-resume (mountResumedIframe),
+// and every seek (performPlayerSeek, via renderPlayer). Unlike vaplayer's resumeAt=, nothing in
+// VidPhantom's docs suggests a quirk around a literal 0 or an omitted param, so — unlike
+// buildResumeEmbedUrl's clamp-to-1 — a target of 0 (or less) here just omits the param entirely
+// rather than forcing a startAt=0 that VidPhantom's docs never asked for.
+function buildOption3ResumeEmbedUrl(baseUrl, seconds){
+  const clean = stripOption3ResumeParam(baseUrl);
+  const secs = Math.floor(seconds || 0);
+  if(secs <= 0) return clean;
+  try{
+    const u = new URL(clean);
+    u.searchParams.set('startAt', String(secs));
+    return u.toString();
+  }catch(e){
+    const sep = clean.includes('?') ? '&' : '?';
+    return `${clean}${sep}startAt=${secs}`;
+  }
 }
 // mm:ss, or h:mm:ss past the first hour — matches the "Resume at 30:42" style from the spec.
 function formatResumeTime(seconds){
@@ -15344,8 +15637,9 @@ function fakeResumePlayer(){
 // new time. Guarded by the same p._playbackBusy lock as fakePausePlayer/fakeResumePlayer, so a
 // seek can never overlap a pause/resume/another seek that's already mid-rebuild.
 // SEEK core: fade out whatever's currently showing (iframe or paused cover), destroy it, and
-// rebuild at an absolute target time via renderPlayer() (which bakes resumeAt=<seconds> into the
-// fresh iframe src). Shared by seekPlayer(±20s / arrow keys) and seekPlayerToPercent (progress-bar
+// rebuild at an absolute target time via renderPlayer() (which bakes resumeAt=<seconds> — or
+// startAt=<seconds> for Option 3/VidPhantom, see isOption3 in renderPlayer — into the fresh iframe
+// src). Shared by seekPlayer(±20s / arrow keys) and seekPlayerToPercent (progress-bar
 // click/drag) — everything after "what's the target time" is identical either way.
 function performPlayerSeek(newTime){
   const p = state.player;
@@ -15508,12 +15802,13 @@ function restartPlayer(){
   }
   setPlayerPlayIcon(true);
 }
-// Creates a brand-new iframe at buildRestartEmbedUrl(p._embedBaseUrl) — autoplay=1 forced, no
-// resumeAt/startAt, every other param preserved, plus a fresh cb= cache-buster — fades it in, and
-// restarts the watch timer from 0:00 once it loads. The restarted session then behaves identically
-// to a fresh open. onMounted (optional) fires once the iframe has been created and inserted — used
-// to clear the busy-lock in restartPlayer without waiting on the cross-origin 'load' event, which is
-// unreliable in timing (and sometimes never fires at all) for third-party embeds.
+// Creates a brand-new iframe at buildRestartEmbedUrl(p._embedBaseUrl, p.engine) — autoplay=1 forced,
+// no resumeAt/startAt (0 omits the param for both — see buildRestartEmbedUrl), every other param
+// preserved, plus a fresh cb= cache-buster — fades it in, and restarts the watch timer from 0:00
+// once it loads. The restarted session then behaves identically to a fresh open. onMounted (optional)
+// fires once the iframe has been created and inserted — used to clear the busy-lock in
+// restartPlayer without waiting on the cross-origin 'load' event, which is unreliable in timing
+// (and sometimes never fires at all) for third-party embeds.
 function mountRestartedIframe(item, p, onMounted){
   const stage = document.getElementById('playerStage');
   // Mount inside the persistent brightness wrapper (see .player-media-wrap / PLAYER BRIGHTNESS),
@@ -15521,7 +15816,7 @@ function mountRestartedIframe(item, p, onMounted){
   // whatever iframe happens to be inside it, with no extra wiring needed here at all.
   const mediaWrap = document.getElementById('playerMediaWrap') || stage;
   if(!stage || !p._embedBaseUrl){ if(onMounted) onMounted(); return; }
-  const src = buildRestartEmbedUrl(p._embedBaseUrl);
+  const src = buildRestartEmbedUrl(p._embedBaseUrl, p.engine);
   console.debug('[StreamVault] iframe src ->', src); // verify: no resumeAt/startAt present
   const sandbox = state.settings.blockPopupAds ? 'allow-scripts allow-same-origin allow-forms allow-presentation' : '';
 
@@ -15577,12 +15872,18 @@ function mountResumedIframe(item, p, onMounted, loadingLabel){
   // over from 0. Re-arm the resume-seek target/flags here so any freshly (re)mounted Option 2 iframe
   // gets seeked to the last known position exactly like the very first open does.
   const isOption2 = p.engine === 'option2';
+  // Option 3 (VidPhantom) now has a real resume mechanism — see buildOption3ResumeEmbedUrl — so a
+  // fake-resume rebuilds it at startAt=<elapsed>, the same as Option 1's resumeAt= rebuild, just
+  // via VidPhantom's own param name.
+  const isOption3 = p.engine === 'option3';
   if(isOption2){
     p._option2ResumeSeconds = Math.floor(p._elapsedSeconds || 0);
     p._option2ResumeSent = false;
     p._option2ResumeConfirmed = false;
   }
-  const src = isOption2 ? withOption2ResumeSuppressed(p._embedBaseUrl) : buildResumeEmbedUrl(p._embedBaseUrl, p._elapsedSeconds);
+  const src = isOption2 ? withOption2ResumeSuppressed(p._embedBaseUrl)
+    : isOption3 ? buildOption3ResumeEmbedUrl(p._embedBaseUrl, p._elapsedSeconds)
+    : buildResumeEmbedUrl(p._embedBaseUrl, p._elapsedSeconds);
   console.debug('[StreamVault] iframe src ->', src); // same verification hook as the initial-mount path
   const sandbox = state.settings.blockPopupAds ? 'allow-scripts allow-same-origin allow-forms allow-presentation' : '';
 
