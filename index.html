@@ -14988,14 +14988,25 @@ const Option3Engine = {
 // helpers Option 1/Option 2 use), so the poster/Continue-Watching progress line and end-of-playback
 // "up next" card work for Option 3 sources too. That requires matching the currently-playing item to
 // its key in this dict — which is a TMDB id, so item.tmdbId (Stream Vault's own internal item.id is
-// a DIFFERENT, unrelated id — see item.tmdbId elsewhere in this file) is what's used to look it up;
-// titles without a resolved tmdbId simply can't be matched here (the raw payload is still mirrored
-// to localStorage regardless). For a TV episode, show_progress['s<season>e<episode>'] is used in
-// preference to the entry's own top-level progress — p.key is already in that exact 's<season>e
-// <episode>' format (see the key: seasonNum!=null ? 's'+seasonNum+'e'+epNum : 'movie' convention
-// this app already uses), so it's reused as-is rather than reformatted — because the top-level
-// progress only ever reflects whichever episode VidPhantom itself last touched, which mid-binge is
-// not necessarily the one currently open here.
+// a DIFFERENT, unrelated id — see item.tmdbId elsewhere in this file) is what's used to look it up.
+// Titles without a resolved tmdbId fall back to whichever entry carries the newest last_updated —
+// in practice only one VidPhantom iframe is ever mounted in Stream Vault at a time, so "the entry
+// VidPhantom itself most recently touched" and "the one actually playing right now" are the same
+// thing. For a TV episode, show_progress['s<season>e<episode>'] is used in preference to the entry's
+// own top-level progress — p.key is already in that exact 's<season>e<episode>' format (see the
+// key: seasonNum!=null ? 's'+seasonNum+'e'+epNum : 'movie' convention this app already uses), so
+// it's reused as-is rather than reformatted — because the top-level progress only ever reflects
+// whichever episode VidPhantom itself last touched, which mid-binge is not necessarily the one
+// currently open here.
+//
+// Clearing the loading spinner and marking playback 'playing' (which is what lets Play/Pause/skip/
+// scrub actually do anything — see Option3Engine/togglePlayerPlayPause) happens on ANY real message
+// from the live iframe, unconditionally — NOT gated behind finding a matching entry. It used to be
+// gated behind that lookup, which meant a title Stream Vault couldn't match to a tmdbId key (or one
+// VidPhantom just hadn't reported yet) stayed stuck on the loading spinner forever, with every
+// control silently dead, since playbackState never left 'loading'. The entry lookup below now only
+// ever affects the progress NUMBERS (position/duration/Continue-Watching), never whether the player
+// is considered alive.
 //
 // Bound once for the app's whole lifetime, same as Option 1/Option 2's listeners. Every message is
 // matched against the CURRENTLY mounted #playerIframeEl by event.source (once we get past the
@@ -15023,20 +15034,39 @@ window.addEventListener('message', (event) => {
   if(!iframe || event.source !== iframe.contentWindow) return; // ignore a stale/foreign iframe
   p._lastEventAt = Date.now(); // proof-of-life stamp, same role as in Option 1/Option 2's listeners
   const item = getItem(p.itemId);
-  if(!item || !mediaData || typeof mediaData !== 'object') return;
+  if(!item) return;
 
   console.debug('[StreamVault][option3 vidphantom] MEDIA_DATA ->', mediaData);
 
-  // Match the currently-playing item to its entry in VidPhantom's TMDB-id-keyed store (see banner).
-  const tmdbKey = item.tmdbId != null ? String(item.tmdbId) : null;
-  const entry = tmdbKey ? mediaData[tmdbKey] : null;
-  if(!entry || !entry.progress) return; // no resolved tmdbId, or nothing for this title yet
-
-  // First real confirmation this embed is actually alive — hides our loading overlay the same way
-  // Option 1/Option 2's "playing"/'ready' signals do, instead of waiting out armIframeEventFallback's
-  // full timeout.
+  // Proof-of-life — see banner above for why this must NOT wait on a successful entry match below.
   clearTimeout(p._eventFallbackTimer);
   hidePlayerLoadingOverlay();
+  const wasAlreadyPlaying = p.playbackState === 'playing';
+  if(p.playbackState !== 'stopped'){
+    p.playbackState = 'playing';
+    if(!wasAlreadyPlaying){
+      updatePlayerProgressUI(); // snap the bar to whatever position it was seeded with immediately,
+      // rather than waiting for the next animation frame — same as Option 1's listener.
+      startProgressInterpolation(); // no-op if already running — see its own comment
+    }
+  }
+
+  if(!mediaData || typeof mediaData !== 'object') return;
+
+  // Match the currently-playing item to its entry in VidPhantom's TMDB-id-keyed store (see banner).
+  const tmdbKey = item.tmdbId != null ? String(item.tmdbId) : null;
+  let entry = tmdbKey ? mediaData[tmdbKey] : null;
+  if(!entry){
+    // No resolved tmdbId, or no exact match yet — fall back to the newest-touched entry (see banner
+    // for why that's a safe stand-in for "the one that's actually playing right now").
+    let best = null;
+    for(const key in mediaData){
+      const cand = mediaData[key];
+      if(cand && cand.progress && (!best || (cand.last_updated||0) > (best.last_updated||0))) best = cand;
+    }
+    entry = best;
+  }
+  if(!entry || !entry.progress) return; // nothing usable in this message — controls are already live
 
   // Prefer the per-episode entry for a TV title — see banner for why the top-level one isn't safe
   // to use directly mid-binge.
@@ -15060,11 +15090,6 @@ window.addEventListener('message', (event) => {
   if(Number.isFinite(current)) resyncPlayerProgress(current);
 
   if(p.playbackState !== 'stopped'){
-    const justStarted = p.playbackState !== 'playing';
-    p.playbackState = 'playing'; // VidPhantom's structure carries no paused/ended flag to read here
-    if(justStarted) updatePlayerProgressUI(); // snap the bar to the real position immediately,
-    // rather than waiting for the next animation frame — same as Option 1's listener.
-    startProgressInterpolation(); // no-op if already running — see its own comment
     if(isNearPlaybackEnd(p._elapsedSeconds, p._totalSeconds)){
       finishIframePlayback(item, p);
     } else {
