@@ -12633,11 +12633,15 @@ function renderPlayer(){
   // plus our loading spinner; everything else in this function that builds/attaches controls is
   // skipped for it, same pattern as the isYoutube carve-out above.
   const isOption2 = p.engine === 'option2';
-  // Option 3 (VidPhantom) gets the same no-chrome treatment as Option 2, for the same reason: there
-  // is no documented command channel to drive Stream Vault's own seek/skip/pause buttons with, so
-  // showing them would just be dead UI. VidPhantom's own player supplies all on-screen controls.
+  // Option 3 (VidPhantom) gets its own control bar (see the isOption3 markup branch below and
+  // Option3Engine) built from Option 1's fake-pause/resume/seek machinery via VidPhantom's
+  // startAt= param — real controls, unlike Option 2's dead-UI situation above. It still gets NO
+  // top/bottom Stream Vault chrome (that's what the isOption2||isOption3 markup branch means), but
+  // — unlike Option 2 — it DOES get the click shield back (see p._noShield below): the shield sits
+  // at z-index:2, well under the option3 control bar's z-index:6, so it only ever intercepts clicks
+  // on the video/iframe area itself, never the bar's own buttons/scrubber.
   const isOption3 = p.engine === 'option3';
-  p._noShield = isYoutube || isOption2 || isOption3;
+  p._noShield = isYoutube || isOption2;
   const overlay = document.getElementById('playerOverlay');
   const next = isLive ? null : getNextEpisode(item, p.seasonNum, p.epNum);
 
@@ -12888,20 +12892,24 @@ function renderPlayer(){
   scheduleHideControls();
   // Permanent click shield for every iframe embed — sits in front of the third-party page so
   // ad-script clicks/popups never reach it. There is no button or setting to disable this, except
-  // YouTube, Option 2, and Option 3: YouTube links use YouTube's own native player untouched, and
-  // Option 2/Option 3 sources get no Stream Vault chrome of any kind (see isYoutube/isOption2/
-  // isOption3 above and p._noShield), so applyPlayerClickShield() no-ops for all three by design —
-  // see its own guard.
+  // YouTube and Option 2: YouTube links use YouTube's own native player untouched, and Option 2
+  // sources get no Stream Vault chrome of any kind (see isYoutube/isOption2 above and p._noShield),
+  // so applyPlayerClickShield() no-ops for both by design — see its own guard. Option 3 DOES get the
+  // shield (re-added — see p._noShield above): its own control bar sits at a higher z-index, so the
+  // shield only ever catches clicks on the video/iframe area, never the bar's buttons/scrubber.
   applyPlayerClickShield();
   if(!isYoutube && !isOption2 && !isOption3){
     // Double-tap anywhere on the stage activates Hide Screen, single tap deactivates it — highest
     // priority, works locked or unlocked, live or on-demand. See initPlayerHideGesture for why
-    // capture-phase binding is what makes that guarantee possible. Skipped for YouTube, Option 2,
-    // and Option 3: none of them has a click shield in front of the media to intercept the tap, and
-    // none has any Hide Screen/Brightness UI left to trigger anyway.
+    // capture-phase binding is what makes that guarantee possible. Skipped for YouTube and Option 2
+    // (neither has a click shield in front of the media to intercept the tap, and neither has any
+    // Hide Screen/Brightness UI left to trigger) and for Option 3 (it DOES have the shield back — see
+    // p._noShield above — but still has no Hide Screen/Brightness UI of its own to trigger; its own
+    // control bar already covers Play/Pause/seek, so these gestures stay out of scope for it rather
+    // than being wired to double as alternate controls).
     initPlayerHideGesture();
     // Vertical swipe anywhere on the stage adjusts Brightness (unlocked only) — see
-    // initPlayerBrightnessGesture. Same reasoning as above — nothing to swipe for on YouTube/Option 2.
+    // initPlayerBrightnessGesture. Same reasoning as above.
     initPlayerBrightnessGesture();
   }
 
